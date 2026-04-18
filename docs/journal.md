@@ -91,6 +91,16 @@ Retour en arrière sur la décision précédente "dev directement sur le Pi via 
 - `CLAUDE.md` aligné : architecture (REST + SSE explicite), nouvelle section "Structure du repo", nouvelle section "Workflow de dev" (uv, hybride, git source de vérité), conventions (plans + journal comme fil rouge).
 - Mémoire persistante : `project_dev_workflow` corrigé (hybride), nouveau `feedback_session_journal` (tenir le journal à jour régulièrement).
 
+### Task 1 du plan backend — bouclée
+- `README.md` racine (intro projet, structure monorepo, roadmap)
+- `backend/README.md` (setup `uv`, run local avec fakes, run sur Pi avec `--extra hardware`)
+- `backend/tests/test_package.py` : smoke test d'import — passe (`1 passed in 0.01s`)
+- Clone du repo sur le Pi à `~/code/astro-brain/`, synchronisé via `git pull`
+
+### Infra Pi complétée en passant
+- `git` installé sur le Pi (Pi OS Lite n'en avait pas)
+- Clé SSH ed25519 générée sur le Pi, ajoutée à GitHub via `gh ssh-key add` (a nécessité un `gh auth refresh -s admin:public_key` côté workstation)
+- Le Pi clone désormais en SSH (`git@github.com:...`), pas besoin de gestion HTTPS/PAT
+
 ### Prochaine session
-- Exécuter Task 1 : READMEs, smoke test, clone du repo sur le Pi
-- Enchaîner sur Task 2 (modèles `SubsystemState` / `SystemState`)
+- Task 2 : modèles `SubsystemState` / `SystemState` + enums + sérialisation, en TDD
