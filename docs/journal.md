@@ -52,3 +52,45 @@
 - Écrire le plan d'implémentation v0.1
 - Inspecter l'API nexstarpy sur le Pi (Python 3.13 disponible)
 - Commencer l'implémentation
+
+## 2026-04-18 - Session 3 : Setup repo, alignement dev env, plan backend recalé
+
+### Infra
+- **mDNS installé sur le Pi** (`avahi-daemon`) : `astro-brain.local` résolvable même si l'IP bouge côté box. Résout le problème de SSH cassé entre sessions quand le Pi a redémarré.
+- Reco donnée : compléter avec une réservation DHCP côté box (pas encore faite).
+
+### Décision — Workflow de dev hybride
+Retour en arrière sur la décision précédente "dev directement sur le Pi via VS Code Remote-SSH" :
+- Pi 3 B+ (1 GB RAM, SD card) = VS Code Server trop lent, risque d'OOM
+- Claude Code tourne sur le workstation → SSH pour chaque Read/Edit = friction permanente
+- **Adopté** : édition + tests pur-logique sur le workstation, exécution hardware sur le Pi, git = source de vérité unique. Sur le Pi : `git pull && uv run uvicorn ...`.
+
+### Décision — Python & tooling
+- Python aligné à **3.13** côté workstation (pour matcher le Pi, éviter les dérives)
+- **`uv`** retenu comme gestionnaire Python/venv/lockfile (vs pip + venv manuel)
+- `uv.lock` commité pour reproductibilité
+- Deps hardware (`nexstarpy`, `gpsd-py3`, `pyserial`) isolées dans l'extra `[hardware]` → absentes du venv local, installées sur le Pi via `uv sync --extra hardware`
+
+### Décision — Layout monorepo
+- Arbitrage A (monorepo) vs B (flat) → **A retenu**
+- `backend/` contient pyproject.toml, uv.lock, .python-version, .venv, `astro_brain/`, `tests/`
+- `app/` viendra à côté pour Flutter (plan 2)
+- `docs/` et config globale restent à la racine
+
+### Setup repo
+- `git init` + rename `master` → `main`
+- Initial commit : CLAUDE.md + docs + config
+- Remote `Pascal3100/astro-brain` (déjà créé, vide) connecté, push OK
+- 2e commit : déplacement des fichiers Python dans `backend/`, ajout de `sse-starlette`, renommage projet en `astro-brain-backend`, build-system setuptools pour garder la compat `pip install -e` si besoin
+
+### Plan backend recalé
+- `docs/superpowers/plans/2026-04-17-astro-brain-v01-backend.md` : Task 0 (monorepo init, GitHub, venv) **supprimée** car entièrement faite. Task 1 **réécrite** — ne reste que : `README.md` racine, `backend/README.md` (adapté uv), smoke test `test_package.py`, clone sur le Pi, commit.
+- File Structure du plan mise à jour (`✅ done` pour ce qui est en place).
+
+### Docs & mémoire
+- `CLAUDE.md` aligné : architecture (REST + SSE explicite), nouvelle section "Structure du repo", nouvelle section "Workflow de dev" (uv, hybride, git source de vérité), conventions (plans + journal comme fil rouge).
+- Mémoire persistante : `project_dev_workflow` corrigé (hybride), nouveau `feedback_session_journal` (tenir le journal à jour régulièrement).
+
+### Prochaine session
+- Exécuter Task 1 : READMEs, smoke test, clone du repo sur le Pi
+- Enchaîner sur Task 2 (modèles `SubsystemState` / `SystemState`)
