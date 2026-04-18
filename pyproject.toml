@@ -1,0 +1,36 @@
+[project]
+name = "astro-brain"
+version = "0.1.0dev"
+description = "Autonomous telescope control backend for Maksutov 127/1900 on Celestron mount"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+]
+
+[project.optional-dependencies]
+pi = [
+    "nexstarpy",
+    "gpsd-py3",
+    "pyserial",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "ruff>=0.8",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
