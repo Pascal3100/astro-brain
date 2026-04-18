@@ -1,16 +1,17 @@
 [project]
-name = "astro-brain"
+name = "astro-brain-backend"
 version = "0.1.0dev"
-description = "Autonomous telescope control backend for Maksutov 127/1900 on Celestron mount"
+description = "FastAPI backend for Astro-Brain (Celestron mount + GPS control)"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
+    "sse-starlette>=2.1",
 ]
 
 [project.optional-dependencies]
-pi = [
+hardware = [
     "nexstarpy",
     "gpsd-py3",
     "pyserial",
@@ -23,6 +24,14 @@ dev = [
     "httpx>=0.27",
     "ruff>=0.8",
 ]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["astro_brain*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

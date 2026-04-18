@@ -6,7 +6,7 @@
 
 **Architecture:** Hexagonal (ports + adapters). All business logic — state models, aggregator, StateBus, REST routes, SSE — is hardware-independent and fully testable on the workstation with fake adapters. Real hardware adapters (nexstarpy, gpsd, sysfs) plug in via a runtime selector and are exercised on the Pi. State flows through a central in-memory `StateBus` that broadcasts updates to every connected SSE client.
 
-**Tech Stack:** Python 3.13 (workstation upgraded to match Pi), FastAPI, Pydantic v2, sse-starlette, pytest + pytest-asyncio + httpx, nexstarpy (Pi only), gpsd-py3 (Pi only).
+**Tech Stack:** Python 3.13, FastAPI, Pydantic v2, sse-starlette, pytest + pytest-asyncio + httpx, nexstarpy (Pi only), gpsd-py3 (Pi only). Dependencies managed with `uv`; `uv.lock` committed for reproducibility.
 
 **Dev workflow reminder:** The code lives in a monorepo at `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN/` on the workstation and is cloned to `~/code/astro-brain/` on the Pi. All tasks except 12–17 run comfortably on the workstation against fake adapters; tasks 12–16 wire the real hardware adapters and are validated on the Pi; task 17 is a manual hardware checklist.
 
@@ -20,17 +20,18 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 
 | File | Responsibility | Created in |
 |------|----------------|-----------|
-| `.gitignore` | Ignore venvs, caches, build artifacts, `.superpowers/` | Task 0 |
-| `README.md` | High-level project intro | Task 0 |
+| `.gitignore` | Ignore venvs, caches, build artifacts, `.superpowers/` | ✅ done |
+| `README.md` | High-level project intro | Task 1 |
 
 ### Backend package
 
 | File | Responsibility | Created in |
 |------|----------------|-----------|
-| `backend/pyproject.toml` | Package metadata + deps (fastapi, uvicorn, pydantic, sse-starlette, pytest…) | Task 1 |
-| `backend/README.md` | Dev setup for backend (venv, tests, run) | Task 1 |
-| `backend/pytest.ini` | pytest config (asyncio mode) | Task 1 |
-| `backend/astro_brain/__init__.py` | Package marker | Task 1 |
+| `backend/pyproject.toml` | Package metadata + deps + pytest/ruff config | ✅ done |
+| `backend/uv.lock` | Pinned dependency lockfile (committed) | ✅ done |
+| `backend/.python-version` | Pins workstation Python to 3.13 | ✅ done |
+| `backend/README.md` | Dev setup for backend (uv, tests, run) | Task 1 |
+| `backend/astro_brain/__init__.py` | Package marker | ✅ done |
 | `backend/astro_brain/subsystems.py` | Enums + `SubsystemState` dataclass | Task 2 |
 | `backend/astro_brain/system_state.py` | `SystemState` composite + serialization | Task 2 |
 | `backend/astro_brain/aggregator.py` | Pure function computing `overall` | Task 3 |
@@ -56,7 +57,7 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 
 | File | Responsibility | Created in |
 |------|----------------|-----------|
-| `backend/tests/__init__.py` | Package marker | Task 1 |
+| `backend/tests/__init__.py` | Package marker | ✅ done |
 | `backend/tests/test_subsystems.py` | Tests for state dataclasses and enums | Task 2 |
 | `backend/tests/test_aggregator.py` | Tests for `overall` computation | Task 3 |
 | `backend/tests/test_bus.py` | Tests for StateBus pub/sub | Task 4 |
@@ -68,73 +69,16 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 
 ---
 
-## Task 0: Monorepo initialization, GitHub, workstation venv
+## Task 1: Finish scaffold — READMEs, smoke test, clone on Pi
 
-**Files:**
-- Create: `.gitignore`, `README.md` (repo root)
-- Create: private GitHub repo `Pascal3100/astro-brain`
+**Status:** Repo init, GitHub push, `uv` + Python 3.13, venv, `pyproject.toml`, `uv.lock`, `.gitignore`, `.python-version`, and package markers (`backend/astro_brain/__init__.py`, `backend/tests/__init__.py`) are already in place — set up during initial project bootstrap. What remains before starting Task 2.
 
-- [ ] **Step 0.1: Confirm working directory and inspect existing contents**
+**Files to create:**
+- Create: `README.md` (repo root)
+- Create: `backend/README.md`
+- Create: `backend/tests/test_package.py`
 
-Run on workstation:
-
-```bash
-cd /home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
-ls -la
-```
-
-Expected: `CLAUDE.md`, `docs/`, `.superpowers/` are present; no `.git/`.
-
-- [ ] **Step 0.2: Write `.gitignore` at repo root**
-
-Create `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN/.gitignore`:
-
-```gitignore
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.venv/
-venv/
-env/
-
-# Flutter / Dart (for Plan 2)
-build/
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-.pub-cache/
-.pub/
-ios/Pods/
-ios/.symlinks/
-android/.gradle/
-android/app/build/
-*.iml
-
-# Editors
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Brainstorming artifacts (local only)
-.superpowers/
-
-# Env
-.env
-.env.local
-```
-
-- [ ] **Step 0.3: Write repo-level `README.md`**
+- [ ] **Step 1.1: Write repo-root `README.md`**
 
 Create `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN/README.md`:
 
@@ -152,176 +96,23 @@ Autonomous control system for a DIY astronomy setup — FastAPI backend on Raspb
 See `docs/superpowers/specs/` for design specs and `docs/superpowers/plans/` for implementation plans.
 ```
 
-- [ ] **Step 0.4: Initialize git and make initial commit**
+- [ ] **Step 1.2: Write `backend/README.md`**
 
-Run on workstation:
-
-```bash
-cd /home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
-git init -b main
-git add .gitignore README.md CLAUDE.md docs/
-git status
-```
-
-Expected: all listed files staged, `.superpowers/` not staged.
-
-```bash
-git commit -m "chore: initialize monorepo with docs and design specs
-
-- docs/architecture_hardware.txt: initial hardware architecture
-- docs/journal.md: project journal
-- docs/superpowers/specs/2026-04-16-astro-brain-v01-design.md: v0.1 design spec
-- docs/superpowers/plans/2026-04-17-astro-brain-v01-backend.md: this plan"
-```
-
-- [ ] **Step 0.5: Create the GitHub repo (private) and push**
-
-Run on workstation:
-
-```bash
-gh repo create Pascal3100/astro-brain \
-  --private \
-  --description "Autonomous control system for a DIY astronomy setup — FastAPI backend on Raspberry Pi + Flutter app" \
-  --source=. \
-  --remote=origin \
-  --push
-```
-
-Expected: repo is created, initial commit is pushed to `main`, the local branch tracks `origin/main`.
-
-Verify:
-
-```bash
-gh repo view Pascal3100/astro-brain --json visibility,defaultBranchRef
-```
-
-Expected: `"visibility":"PRIVATE"`, `"defaultBranchRef":{"name":"main"}`.
-
-- [ ] **Step 0.6: Clone the repo on the Pi**
-
-Run:
-
-```bash
-ssh astro-brain 'mkdir -p ~/code && cd ~/code && git clone git@github.com:Pascal3100/astro-brain.git'
-```
-
-If SSH key auth to GitHub from the Pi is not yet set up, use HTTPS:
-
-```bash
-ssh astro-brain 'mkdir -p ~/code && cd ~/code && git clone https://github.com/Pascal3100/astro-brain.git'
-```
-
-Verify:
-
-```bash
-ssh astro-brain 'ls ~/code/astro-brain'
-```
-
-Expected: lists `CLAUDE.md`, `README.md`, `docs/`.
-
-- [ ] **Step 0.7: Install Python 3.13 on the workstation**
-
-The workstation currently has Python 3.12.3 system-wide. To match the Pi (3.13) and avoid version-drift surprises, install 3.13 via the deadsnakes PPA:
-
-```bash
-sudo add-apt-repository -y ppa:deadsnakes/ppa
-sudo apt update
-sudo apt install -y python3.13 python3.13-venv
-python3.13 --version
-```
-
-Expected: `Python 3.13.x`.
-
-- [ ] **Step 0.8: Create the workstation Python 3.13 venv for the backend**
-
-Create an empty `backend/` directory first so the venv has a clear home:
-
-```bash
-cd /home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
-mkdir -p backend
-python3.13 -m venv backend/.venv
-source backend/.venv/bin/activate
-python --version
-```
-
-Expected: `Python 3.13.x`.
-
-No commit yet — `pyproject.toml` comes in Task 1.
-
----
-
-## Task 1: Backend Python skeleton
-
-**Files:**
-- Create: `backend/pyproject.toml`
-- Create: `backend/pytest.ini`
-- Create: `backend/README.md`
-- Create: `backend/astro_brain/__init__.py`
-- Create: `backend/tests/__init__.py`
-
-- [ ] **Step 1.1: Write `backend/pyproject.toml`**
-
-```toml
-[project]
-name = "astro-brain-backend"
-version = "0.1.0"
-description = "FastAPI backend for Astro-Brain (Celestron mount + GPS control)"
-requires-python = ">=3.13"
-dependencies = [
-  "fastapi>=0.115",
-  "uvicorn[standard]>=0.30",
-  "pydantic>=2.8",
-  "sse-starlette>=2.1",
-]
-
-[project.optional-dependencies]
-hardware = [
-  "nexstarpy>=0.9",
-  "gpsd-py3>=0.3",
-  "pyserial>=3.5",
-]
-dev = [
-  "pytest>=8.3",
-  "pytest-asyncio>=0.23",
-  "httpx>=0.27",
-]
-
-[project.scripts]
-astro-brain = "astro_brain.main:run"
-
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["astro_brain*"]
-```
-
-- [ ] **Step 1.2: Write `backend/pytest.ini`**
-
-```ini
-[pytest]
-asyncio_mode = auto
-testpaths = tests
-python_files = test_*.py
-```
-
-- [ ] **Step 1.3: Write `backend/README.md`**
+Create `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN/backend/README.md`:
 
 ````markdown
 # Astro-Brain Backend
 
 FastAPI backend that runs on the Raspberry Pi and controls the Celestron mount.
 
+Dependencies are managed with [`uv`](https://docs.astral.sh/uv/). The lockfile (`uv.lock`) is committed.
+
 ## Dev setup (workstation)
 
 ```bash
 cd backend
-python3.13 -m venv .venv
-source .venv/bin/activate
-pip install -e '.[dev]'
-pytest
+uv sync
+uv run pytest
 ```
 
 All tests run against fake services — no hardware required.
@@ -329,8 +120,8 @@ All tests run against fake services — no hardware required.
 ## Run locally with fakes
 
 ```bash
-source .venv/bin/activate
-uvicorn astro_brain.main:app --reload --host 0.0.0.0 --port 8000
+cd backend
+uv run uvicorn astro_brain.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Set `ASTRO_BRAIN_HARDWARE=0` (default) to use fakes.
@@ -340,9 +131,8 @@ Set `ASTRO_BRAIN_HARDWARE=0` (default) to use fakes.
 ```bash
 ssh astro-brain
 cd ~/code/astro-brain/backend
-source .venv/bin/activate
-pip install -e '.[hardware,dev]'
-ASTRO_BRAIN_HARDWARE=1 uvicorn astro_brain.main:app --host 0.0.0.0 --port 8000
+uv sync --extra hardware
+ASTRO_BRAIN_HARDWARE=1 uv run uvicorn astro_brain.main:app --host 0.0.0.0 --port 8000
 ```
 
 ## Deployment (Pi, systemd)
@@ -350,24 +140,7 @@ ASTRO_BRAIN_HARDWARE=1 uvicorn astro_brain.main:app --host 0.0.0.0 --port 8000
 See `deploy/install.sh` and `deploy/astro-brain.service`.
 ````
 
-- [ ] **Step 1.4: Create empty package markers**
-
-```bash
-touch backend/astro_brain/__init__.py
-touch backend/tests/__init__.py
-```
-
-- [ ] **Step 1.5: Install the package in editable mode on the workstation**
-
-```bash
-cd /home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN/backend
-source .venv/bin/activate
-pip install -e '.[dev]'
-```
-
-Expected: install succeeds, `pytest --version` prints `pytest 8.x.x`.
-
-- [ ] **Step 1.6: Write a placeholder smoke test**
+- [ ] **Step 1.3: Write a placeholder smoke test**
 
 Create `backend/tests/test_package.py`:
 
@@ -379,22 +152,37 @@ def test_package_importable():
     assert astro_brain is not None
 ```
 
-- [ ] **Step 1.7: Run the smoke test**
+- [ ] **Step 1.4: Run the smoke test**
 
 ```bash
 cd /home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN/backend
-source .venv/bin/activate
-pytest tests/test_package.py -v
+uv run pytest tests/test_package.py -v
 ```
 
 Expected: `1 passed`.
 
-- [ ] **Step 1.8: Commit**
+- [ ] **Step 1.5: Clone the repo on the Pi**
+
+```bash
+ssh astro-brain 'mkdir -p ~/code && cd ~/code && git clone https://github.com/Pascal3100/astro-brain.git'
+```
+
+Verify:
+
+```bash
+ssh astro-brain 'ls ~/code/astro-brain'
+```
+
+Expected: lists `CLAUDE.md`, `README.md`, `backend/`, `docs/`.
+
+Note: setting up `uv` + running `uv sync --extra hardware` on the Pi happens in Task 16 (deployment) — the clone alone is enough for now.
+
+- [ ] **Step 1.6: Commit**
 
 ```bash
 cd /home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
-git add backend/
-git commit -m "chore(backend): scaffold Python package with pyproject, pytest, dev deps"
+git add README.md backend/README.md backend/tests/test_package.py
+git commit -m "chore(backend): add READMEs and package smoke test"
 git push
 ```
 
