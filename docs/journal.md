@@ -149,5 +149,12 @@ TDD, cycle red → green suivi strictement.
 - Suite : 38/38 verts.
 - Commit `feat(backend): add Pydantic API models for REST commands` poussé.
 
+### Task 7 du plan backend — bouclée
+- `backend/astro_brain/deps.py` : registre DI module-level. Six callables `get_bus`/`get_mount`/`get_tracking`/`get_gps`/`get_network`/`get_system_info` initialisés à `_not_wired` qui lève `RuntimeError` — force le fail-fast si le wiring manque. L'app `build_app()` (Task 11) les rebindera.
+- `backend/astro_brain/routes/commands.py` : `APIRouter` avec trois POST (`/slew`, `/stop`, `/tracking`). Handlers async, body validé via Pydantic (Task 6), `response_model=OkResponse` pour le contrat de sortie.
+- `backend/tests/test_commands.py` : 6 tests avec `TestClient` FastAPI. Fixture rebinde `deps.get_*` vers des fakes + restaure le binding précédent en teardown (hygiène, évite les fuites entre tests).
+- Suite : 44/44 verts.
+- Commit `feat(backend): add REST command endpoints (/slew /stop /tracking)` poussé.
+
 ### Prochaine session
-- Task 7 : routes REST `/slew`, `/stop`, `/tracking` (commandes) avec DI via `deps.py`, tests avec FastAPI `TestClient`.
+- Task 8 : `GET /state` (endpoint de resync client, snapshot instantané du bus).

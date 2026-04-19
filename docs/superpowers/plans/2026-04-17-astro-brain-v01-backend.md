@@ -39,7 +39,7 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 | `backend/astro_brain/services/interfaces.py` | `Protocol` types for each service | ✅ done |
 | `backend/astro_brain/services/fakes.py` | Programmable fake services for tests + local dev | ✅ done |
 | `backend/astro_brain/api_models.py` | Pydantic request/response models | ✅ done |
-| `backend/astro_brain/routes/commands.py` | POST /slew /stop /tracking | Task 7 |
+| `backend/astro_brain/routes/commands.py` | POST /slew /stop /tracking | ✅ done |
 | `backend/astro_brain/routes/state.py` | GET /state | Task 8 |
 | `backend/astro_brain/routes/events.py` | GET /events (SSE) | Task 9 |
 | `backend/astro_brain/orchestrator.py` | Listens to bus, triggers set_time/set_location | Task 10 |
@@ -62,7 +62,7 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 | `backend/tests/test_aggregator.py` | Tests for `overall` computation | ✅ done |
 | `backend/tests/test_bus.py` | Tests for StateBus pub/sub | ✅ done |
 | `backend/tests/test_fakes.py` | Tests for fake services | ✅ done |
-| `backend/tests/test_commands.py` | Integration tests for REST commands | Task 7 |
+| `backend/tests/test_commands.py` | Integration tests for REST commands | ✅ done |
 | `backend/tests/test_state_endpoint.py` | Integration tests for GET /state | Task 8 |
 | `backend/tests/test_events_endpoint.py` | Integration tests for SSE /events | Task 9 |
 | `backend/tests/test_orchestrator.py` | Tests for the orchestrator logic | Task 10 |
