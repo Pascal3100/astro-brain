@@ -198,5 +198,14 @@ Le plan prévoyait un test end-to-end via `httpx.AsyncClient + ASGITransport`. *
 - Suite : 59/59 verts (ajout de 5 tests).
 - Commit `feat(backend): add SystemInfo adapter (sysfs CPU temp + loadavg)` poussé.
 
+### Task 13 du plan backend — bouclée
+- `backend/astro_brain/adapters/network_info.py` : polling 5 s via `subprocess.check_output(["ip", "-4", "-o", "addr", ...])` et `iwgetid -r <iface>` + lecture directe de `/sys/class/net/<iface>/operstate`. Interface par défaut `wlan0` (surchargeable via kwarg `interface=`).
+- **Throttling par diff** : `_last: tuple[str, dict] | None` mémorise le (state, details) précédent ; `_publish_current` skip le publish si identique. Différent du SystemInfo adapter où temp/load/uptime bougent constamment → on publie toujours (traite l'état complet sur chaque tick). Ici SSID + IP sont stables → publier à chaque tick serait du bruit sur le bus.
+- Détection `hotspot` : SSID qui commence par `astro-brain` → le Pi est son propre AP (mode setup initial, sans Wi-Fi). Sinon `client` (connecté à un réseau Wi-Fi externe) ou `offline` (interface down ou absente).
+- `except OSError: continue` dans la loop pour rester vivant si une commande shell foire transitoirement — `CalledProcessError`/`FileNotFoundError` sont déjà attrapés dans les helpers (pas besoin de les propager jusqu'à la boucle).
+- Pas de tests unitaires (conformément au plan — trop d'I/O à mocker, couvert par smoke sur Pi via la checklist Task 17).
+- Suite : 59/59 verts (pas de test ajouté).
+- Commit `feat(backend): add NetworkInfo adapter (sysfs + iwgetid)` poussé.
+
 ### Prochaine session
-- Task 13 : `NetworkInfoAdapter` — lit `/sys/class/net/wlan0/operstate`, `ip -4 -o addr show dev wlan0` pour l'IP, `iwgetid -r wlan0` pour le SSID. Détecte le mode `hotspot` via préfixe SSID `astro-brain`, sinon `client` ou `offline`.
+- Task 14 : `GpsdAdapter` (DroTek). Consomme le flux gpsd via `gpsd-py3` (dep `hardware` extra, import lazy). Mapping `mode` → state (`no_fix`/`searching`/`fix_2d`/`fix_3d`), throttle des `details` à 1 Hz quand l'enum ne change pas.
