@@ -189,5 +189,14 @@ Le plan prévoyait un test end-to-end via `httpx.AsyncClient + ASGITransport`. *
 - Smoke uvicorn (`uv run uvicorn astro_brain.main:app --host 127.0.0.1 --port 8765`) : `/state` renvoie les 5 subsystems (overall=green), `POST /slew` → `{"ok":true}` + mount=moving, `/events` émet `event: snapshot` avec le payload JSON attendu.
 - Commit `feat(backend): wire application with fakes, orchestrator, and lifecycle` poussé.
 
+### Task 12 du plan backend — bouclée
+- `backend/astro_brain/adapters/__init__.py` + `system_info.py` : premier adapter hardware. Lit `/sys/class/thermal/thermal_zone0/temp` (milli-°C, divise par 1000), `/proc/uptime` (1er champ), `/proc/loadavg` (1er champ = moyenne 1 min). Thresholds : `WARN_TEMP_C=70`, `CRIT_TEMP_C=80` (le Pi 3 B+ throttle à ~82°C), `WARN_LOAD=1.5`.
+- `compute_state(temp, load)` = fonction pure → classification `ok` → `warning` → `critical`. Critical temp override le load (cas "CPU brûle même si load faible").
+- Loop async `_loop()` : `asyncio.sleep(5)` + `_publish_current()`. `except asyncio.CancelledError: return` pour arrêt propre, `except OSError: continue` pour rester vivant si une lecture sysfs foire transitoirement (robustesse sans bruit dans les logs).
+- Pas de tests FS (conformément au plan — mocks trop lourds pour ce qu'ils apporteraient, couvert par smoke manuel sur Pi). Par contre 5 tests unitaires sur la fonction pure `compute_state` (aucun mock nécessaire) : couvre les 3 états + les 2 conditions de warning + priorité critical sur load.
+- Duck typing : l'adapter n'hérite pas de `SystemInfoService` mais expose les mêmes méthodes → `build_app(use_hardware=True)` pourra le swap-in là où `FakeSystemInfo` était (PEP 544).
+- Suite : 59/59 verts (ajout de 5 tests).
+- Commit `feat(backend): add SystemInfo adapter (sysfs CPU temp + loadavg)` poussé.
+
 ### Prochaine session
-- Task 12 : premier adapter hardware — `SystemInfoAdapter` (lit `/sys/class/thermal/thermal_zone0/temp` et `/proc/loadavg`, polling 5 s, publie sur le bus quand l'enum d'état change).
+- Task 13 : `NetworkInfoAdapter` — lit `/sys/class/net/wlan0/operstate`, `ip -4 -o addr show dev wlan0` pour l'IP, `iwgetid -r wlan0` pour le SSID. Détecte le mode `hotspot` via préfixe SSID `astro-brain`, sinon `client` ou `offline`.
