@@ -142,5 +142,12 @@ TDD, cycle red → green suivi strictement.
 - Suite : 38/38 verts.
 - Commit `feat(backend): add service interfaces and fake implementations` poussé.
 
+### Task 6 du plan backend — bouclée
+- `backend/astro_brain/api_models.py` : 4 Pydantic models (`SlewRequest`, `StopRequest`, `TrackingRequest`, `OkResponse`) avec validation déclarative (`Field(ge=1, le=9)`, `Literal[...]`). Pydantic v2 déjà présent via FastAPI → aucune dep à ajouter.
+- Pas de test dédié — ces modèles seront exercés indirectement par les tests des routes (Task 7+).
+- Smoke check manuel : instanciation OK, `rate=10` et `axis="x"` rejetés avec `ValidationError`.
+- Suite : 38/38 verts.
+- Commit `feat(backend): add Pydantic API models for REST commands` poussé.
+
 ### Prochaine session
-- Task 6 : Pydantic API models pour les requêtes/réponses REST (validation d'entrée).
+- Task 7 : routes REST `/slew`, `/stop`, `/tracking` (commandes) avec DI via `deps.py`, tests avec FastAPI `TestClient`.

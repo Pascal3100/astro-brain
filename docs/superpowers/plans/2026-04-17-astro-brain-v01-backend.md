@@ -38,7 +38,7 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 | `backend/astro_brain/bus.py` | `StateBus` (pub/sub in-memory, asyncio) | ✅ done |
 | `backend/astro_brain/services/interfaces.py` | `Protocol` types for each service | ✅ done |
 | `backend/astro_brain/services/fakes.py` | Programmable fake services for tests + local dev | ✅ done |
-| `backend/astro_brain/api_models.py` | Pydantic request/response models | Task 6 |
+| `backend/astro_brain/api_models.py` | Pydantic request/response models | ✅ done |
 | `backend/astro_brain/routes/commands.py` | POST /slew /stop /tracking | Task 7 |
 | `backend/astro_brain/routes/state.py` | GET /state | Task 8 |
 | `backend/astro_brain/routes/events.py` | GET /events (SSE) | Task 9 |
