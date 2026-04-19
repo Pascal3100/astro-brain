@@ -47,7 +47,7 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 | `backend/astro_brain/main.py` | Entry point (`uvicorn` launcher with CLI flag) | ✅ done |
 | `backend/astro_brain/adapters/system_info.py` | Reads `/sys/class/thermal`, `/proc/loadavg` | ✅ done |
 | `backend/astro_brain/adapters/network_info.py` | Reads `/sys/class/net`, runs `iwgetid` | ✅ done |
-| `backend/astro_brain/adapters/gpsd_adapter.py` | Consumes gpsd stream | Task 14 |
+| `backend/astro_brain/adapters/gpsd_adapter.py` | Consumes gpsd stream | ✅ done |
 | `backend/astro_brain/adapters/nexstar_adapter.py` | Wraps nexstarpy | Task 15 |
 | `backend/deploy/astro-brain.service` | systemd unit | Task 16 |
 | `backend/deploy/install.sh` | Install script run on the Pi | Task 16 |

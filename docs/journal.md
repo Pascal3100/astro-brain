@@ -207,5 +207,13 @@ Le plan prévoyait un test end-to-end via `httpx.AsyncClient + ASGITransport`. *
 - Suite : 59/59 verts (pas de test ajouté).
 - Commit `feat(backend): add NetworkInfo adapter (sysfs + iwgetid)` poussé.
 
+### Task 14 du plan backend — bouclée
+- `backend/astro_brain/adapters/gpsd_adapter.py` : consomme le daemon `gpsd` via `gpsd-py3` (dep `hardware` extra, pas installée sur la workstation). **Import lazy** de `gpsd` à l'intérieur de `start()` et `_loop()` → le module reste importable sans la dep ; seul le `.start()` échouerait. Vérifié : `from astro_brain.adapters.gpsd_adapter import GpsdAdapter` OK sur la workstation sans l'extra.
+- `mode_to_state(mode, sats)` = fonction pure. gpsd `mode` : 2 → `fix_2d`, 3 → `fix_3d`. Si `mode < 2` mais `sats > 0` → `searching` (antenne capte mais pas encore assez). Sinon `no_fix`. 5 tests unitaires couvrent les 4 états.
+- **Polling à 2 Hz, publish throttled à 1 Hz** sur les détails (lat/lon/altitude/hdop changent en permanence → éviter de spammer le bus). Règle : `state_changed or detail_ready` où `detail_ready = now - last_detail_publish >= 1s`. Transitions d'état sont toujours publiées immédiatement.
+- Packet parsing défensif : `getattr(packet, "sats", 0) or 0` pour gérer les `None`. `contextlib.suppress(Exception)` autour de `packet.position()` et `.altitude()` qui raise chez gpsd-py3 quand pas de fix. `except Exception: continue` dans la boucle pour garder l'adapter vivant face aux transients — perte de sémantique acceptable vu la complexité du parsing gpsd.
+- Suite : 64/64 verts (5 nouveaux tests).
+- Commit `feat(backend): add Gpsd hardware adapter (DroTek, via gpsd-py3)` poussé.
+
 ### Prochaine session
-- Task 14 : `GpsdAdapter` (DroTek). Consomme le flux gpsd via `gpsd-py3` (dep `hardware` extra, import lazy). Mapping `mode` → state (`no_fix`/`searching`/`fix_2d`/`fix_3d`), throttle des `details` à 1 Hz quand l'enum ne change pas.
+- Task 15 : `NexStarMountAdapter` (monture Celestron via `nexstarpy` sur USB-série `/dev/ttyUSB0`). Expose toutes les méthodes de `MountService` (slew/stop_slew/set_time/set_location/set_tracking_mode). Publie `connecting → ready → moving/ready`, watchdog 2 s via `get_version()` pour détecter déconnexions.
