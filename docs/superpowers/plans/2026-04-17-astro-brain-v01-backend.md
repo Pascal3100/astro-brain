@@ -36,8 +36,8 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 | `backend/astro_brain/system_state.py` | `SystemState` composite + serialization | ✅ done |
 | `backend/astro_brain/aggregator.py` | Pure function computing `overall` | ✅ done |
 | `backend/astro_brain/bus.py` | `StateBus` (pub/sub in-memory, asyncio) | ✅ done |
-| `backend/astro_brain/services/interfaces.py` | `Protocol` types for each service | Task 5 |
-| `backend/astro_brain/services/fakes.py` | Programmable fake services for tests + local dev | Task 5 |
+| `backend/astro_brain/services/interfaces.py` | `Protocol` types for each service | ✅ done |
+| `backend/astro_brain/services/fakes.py` | Programmable fake services for tests + local dev | ✅ done |
 | `backend/astro_brain/api_models.py` | Pydantic request/response models | Task 6 |
 | `backend/astro_brain/routes/commands.py` | POST /slew /stop /tracking | Task 7 |
 | `backend/astro_brain/routes/state.py` | GET /state | Task 8 |
@@ -61,7 +61,7 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 | `backend/tests/test_subsystems.py` | Tests for state dataclasses and enums | ✅ done |
 | `backend/tests/test_aggregator.py` | Tests for `overall` computation | ✅ done |
 | `backend/tests/test_bus.py` | Tests for StateBus pub/sub | ✅ done |
-| `backend/tests/test_fakes.py` | Tests for fake services | Task 5 |
+| `backend/tests/test_fakes.py` | Tests for fake services | ✅ done |
 | `backend/tests/test_commands.py` | Integration tests for REST commands | Task 7 |
 | `backend/tests/test_state_endpoint.py` | Integration tests for GET /state | Task 8 |
 | `backend/tests/test_events_endpoint.py` | Integration tests for SSE /events | Task 9 |

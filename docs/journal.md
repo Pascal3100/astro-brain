@@ -135,5 +135,12 @@ TDD, cycle red → green suivi strictement.
 - Suite : 29/29 verts.
 - Commit `feat(backend): add in-memory StateBus with pub/sub and snapshot` poussé.
 
+### Task 5 du plan backend — bouclée
+- `backend/astro_brain/services/interfaces.py` : 5 `typing.Protocol` (MountService, TrackingService, GpsService, NetworkService, SystemInfoService) — structural typing PEP 544, pas d'héritage requis côté implémentations. `Axis = Literal["alt", "az"]` et `Direction = Literal["+", "-"]` (PEP 586).
+- `backend/astro_brain/services/fakes.py` : 5 fakes programmables (FakeMount, FakeTracking, FakeGps, FakeNetwork, FakeSystemInfo). Chacun reçoit le `StateBus` au constructeur (DI) et publie des `SubsystemState` déterministes. Kwargs keyword-only (PEP 3102) pour la config des fakes (lat/lon/état initial…).
+- `backend/tests/test_fakes.py` : 9 tests couvrant publication initiale, transitions (slew → moving, stop_slew → ready), seuils thermiques.
+- Suite : 38/38 verts.
+- Commit `feat(backend): add service interfaces and fake implementations` poussé.
+
 ### Prochaine session
-- Task 5 : `Protocol` interfaces des services + fakes programmables (mount, gps, tracking, network, system).
+- Task 6 : Pydantic API models pour les requêtes/réponses REST (validation d'entrée).
