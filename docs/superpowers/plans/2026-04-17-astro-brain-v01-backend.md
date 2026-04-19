@@ -42,7 +42,7 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 | `backend/astro_brain/routes/commands.py` | POST /slew /stop /tracking | ✅ done |
 | `backend/astro_brain/routes/state.py` | GET /state | ✅ done |
 | `backend/astro_brain/routes/events.py` | GET /events (SSE) | ✅ done |
-| `backend/astro_brain/orchestrator.py` | Listens to bus, triggers set_time/set_location | Task 10 |
+| `backend/astro_brain/orchestrator.py` | Listens to bus, triggers set_time/set_location | ✅ done |
 | `backend/astro_brain/app.py` | FastAPI app factory, wires services | Task 11 |
 | `backend/astro_brain/main.py` | Entry point (`uvicorn` launcher with CLI flag) | Task 11 |
 | `backend/astro_brain/adapters/system_info.py` | Reads `/sys/class/thermal`, `/proc/loadavg` | Task 12 |
@@ -65,7 +65,7 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 | `backend/tests/test_commands.py` | Integration tests for REST commands | ✅ done |
 | `backend/tests/test_state_endpoint.py` | Integration tests for GET /state | ✅ done |
 | `backend/tests/test_events_endpoint.py` | Integration tests for SSE /events | ✅ done |
-| `backend/tests/test_orchestrator.py` | Tests for the orchestrator logic | Task 10 |
+| `backend/tests/test_orchestrator.py` | Tests for the orchestrator logic | ✅ done |
 
 ---
 

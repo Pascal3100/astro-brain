@@ -173,5 +173,12 @@ Le plan prévoyait un test end-to-end via `httpx.AsyncClient + ASGITransport`. *
 - Suite : 48/48 verts.
 - Commit `feat(backend): add SSE /events endpoint streaming StateBus events` poussé.
 
+### Task 10 du plan backend — bouclée
+- `backend/astro_brain/orchestrator.py` : première brique *consommatrice* du bus. `Orchestrator.run()` s'abonne via `StateBus.subscribe()` puis, à chaque événement, relit l'état complet et appelle `_maybe_sync()`. Critère : `mount = ready` **ET** `gps ∈ {fix_2d, fix_3d}` **ET** `details.lat/lon` non-null → `await mount.set_time(iso_utc)` puis `await mount.set_location(lat, lon)` **une seule fois**.
+- Machine à états **edge-triggered** (pas level-triggered) : flag `_synced` armé quand la sync réussit, réinitialisé dès que les conditions retombent. Un `gps` republié avec plus de satellites mais mêmes lat/lon ne redéclenche pas de sync — seule une vraie transition out→in le fait. Sémantique qui évite de spammer la monture à chaque ping GPS.
+- `backend/tests/test_orchestrator.py` : 4 tests async avec `unittest.mock.AsyncMock` côté mount. Helpers `_run_briefly` (lance la task + `sleep(0.05)` pour laisser le premier snapshot passer) et `_stop_task` (cancel + attend la `CancelledError` — hygiène de teardown). Couvre : (1) sync quand mount=ready après gps=fix_3d, (2) pas de sync si gps=no_fix, (3) une seule sync pendant que les conditions tiennent, (4) resync après disconnect+reconnect du mount.
+- Suite : 52/52 verts.
+- Commit `feat(backend): add orchestrator that syncs mount with GPS on boot` poussé.
+
 ### Prochaine session
-- Task 10 : orchestrateur (séquence de boot — abonné au bus, détecte la co-occurrence mount=ready + gps=fix → set_time/set_location).
+- Task 11 : `app.py` (factory FastAPI) + `main.py` (entrée uvicorn). Wire `deps`, instancie les fakes par défaut (ou adapters hardware si `ASTRO_BRAIN_HARDWARE=1`), lance l'orchestrateur en background task via le lifespan.
