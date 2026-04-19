@@ -162,5 +162,16 @@ TDD, cycle red → green suivi strictement.
 - Suite : 46/46 verts.
 - Commit `feat(backend): add GET /state endpoint` poussé.
 
+### Task 9 du plan backend — bouclée
+- `backend/astro_brain/routes/events.py` : `GET /events` branché sur `StateBus.subscribe()` via `sse-starlette`'s `EventSourceResponse`. Check `request.is_disconnected()` à chaque itération, ping auto toutes les 15 s (keep-alive contre les proxies).
+
+### Décision — Stratégie de test SSE
+Le plan prévoyait un test end-to-end via `httpx.AsyncClient + ASGITransport`. **Bloque** : `httpx.ASGITransport` (et `FastAPI TestClient`) bufferisent toute la réponse avant de la livrer — incompatible avec un stream SSE infini. Le test restait pendu sur `c.stream(...)` jusqu'à timeout.
+- Arbitrage : plutôt que sortir uvicorn en thread (overkill pour 1 test), **tester le handler directement** en itérant `response.body_iterator`. Ce dernier est notre propre async-gen → on assert la forme des dicts émis sans passer par la sérialisation bytes de sse-starlette (qui est testée par sa propre suite).
+- 2 tests : (1) snapshot + update après un publish, (2) pas d'émission si client déjà déconnecté (retourne `StopAsyncIteration`). Mock du `Request` via `AsyncMock(is_disconnected=...)`.
+
+- Suite : 48/48 verts.
+- Commit `feat(backend): add SSE /events endpoint streaming StateBus events` poussé.
+
 ### Prochaine session
-- Task 9 : SSE `GET /events`. C'est là qu'on branche le `StateBus.subscribe()` sur une réponse streamée (`sse-starlette`).
+- Task 10 : orchestrateur (séquence de boot — abonné au bus, détecte la co-occurrence mount=ready + gps=fix → set_time/set_location).
