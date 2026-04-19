@@ -32,8 +32,8 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 | `backend/.python-version` | Pins workstation Python to 3.13 | ✅ done |
 | `backend/README.md` | Dev setup for backend (uv, tests, run) | Task 1 |
 | `backend/astro_brain/__init__.py` | Package marker | ✅ done |
-| `backend/astro_brain/subsystems.py` | Enums + `SubsystemState` dataclass | Task 2 |
-| `backend/astro_brain/system_state.py` | `SystemState` composite + serialization | Task 2 |
+| `backend/astro_brain/subsystems.py` | Enums + `SubsystemState` dataclass | ✅ done |
+| `backend/astro_brain/system_state.py` | `SystemState` composite + serialization | ✅ done |
 | `backend/astro_brain/aggregator.py` | Pure function computing `overall` | Task 3 |
 | `backend/astro_brain/bus.py` | `StateBus` (pub/sub in-memory, asyncio) | Task 4 |
 | `backend/astro_brain/services/interfaces.py` | `Protocol` types for each service | Task 5 |
@@ -58,7 +58,7 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 | File | Responsibility | Created in |
 |------|----------------|-----------|
 | `backend/tests/__init__.py` | Package marker | ✅ done |
-| `backend/tests/test_subsystems.py` | Tests for state dataclasses and enums | Task 2 |
+| `backend/tests/test_subsystems.py` | Tests for state dataclasses and enums | ✅ done |
 | `backend/tests/test_aggregator.py` | Tests for `overall` computation | Task 3 |
 | `backend/tests/test_bus.py` | Tests for StateBus pub/sub | Task 4 |
 | `backend/tests/test_fakes.py` | Tests for fake services | Task 5 |

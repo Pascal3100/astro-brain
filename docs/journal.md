@@ -104,3 +104,20 @@ Retour en arrière sur la décision précédente "dev directement sur le Pi via 
 
 ### Prochaine session
 - Task 2 : modèles `SubsystemState` / `SystemState` + enums + sérialisation, en TDD
+
+## 2026-04-19 - Session 4 : Task 2 (modèles d'état), TDD
+
+### Décision — Best practices Python
+- Règle de session : tout code Python doit respecter les PEPs (PEP 8, PEP 257 docstrings, PEP 484/604 type hints modernes `X | None`, `from __future__ import annotations`, imports triés stdlib/tiers/local).
+- Mémoire persistante `feedback_python_peps` ajoutée.
+
+### Task 2 du plan backend — bouclée
+TDD, cycle red → green suivi strictement.
+- `backend/astro_brain/subsystems.py` : 5 string enums (`MountState`, `GpsState`, `TrackingState`, `NetworkState`, `SystemInfoState`) + dataclass frozen `SubsystemState` (state, details, since, message) avec `to_dict()`.
+- `backend/astro_brain/system_state.py` : dataclass frozen `SystemState` (overall, subsystems, seq, ts) avec `to_dict()`.
+- `backend/tests/test_subsystems.py` : 9 tests (enums, roundtrip, sérialisation). Tous verts.
+- Suite complète backend : 10/10 passent (`uv run pytest`).
+- Commit `feat(backend): add subsystem state enums and SystemState model` poussé.
+
+### Prochaine session
+- Task 3 : agrégateur d'état (`compute_overall` → green/blue/orange/red selon les sous-systèmes).
