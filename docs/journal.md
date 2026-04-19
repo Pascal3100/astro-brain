@@ -180,5 +180,14 @@ Le plan prévoyait un test end-to-end via `httpx.AsyncClient + ASGITransport`. *
 - Suite : 52/52 verts.
 - Commit `feat(backend): add orchestrator that syncs mount with GPS on boot` poussé.
 
+### Task 11 du plan backend — bouclée
+- `backend/astro_brain/app.py` : `build_app(use_hardware: bool | None = None)` construit un `FastAPI` neuf à chaque appel (un `StateBus` + 5 services + orchestrateur par instance → isolation test). `_select_services` retourne les fakes par défaut, ou les adapters hardware (imports locaux *inside the branch* → pas d'`ImportError` tant que Tasks 12–15 pas faites). Fallback sur `ASTRO_BRAIN_HARDWARE=1` si `use_hardware` pas passé.
+- **Lifespan async context manager** (remplace les `@on_event("startup"/"shutdown")` deprecated). Avant `yield` : `await services[*].start()` (chaque fake publie son état initial → mount=ready, gps=fix_3d, network=client, system=ok) puis `asyncio.create_task(orchestrator.run(), name="orchestrator")`. Après : `task.cancel()` + `contextlib.suppress(CancelledError)` pendant `await task` (cleanup propre sans que asyncio ne râle), puis `stop()` sur chaque service.
+- `backend/astro_brain/main.py` : `from astro_brain.app import app` pour exposer l'app à uvicorn. `run()` lit `ASTRO_BRAIN_HOST/PORT` depuis l'env et lance `uvicorn.run("astro_brain.main:app", ...)`.
+- `backend/tests/test_app.py` : 2 tests end-to-end avec `TestClient`. (1) `GET /state` après startup → mount.state == "ready" et gps.state == "fix_3d". (2) Flux `slew` → `state` (moving) → `stop` → `state` (ready). `TestClient` gère le lifespan automatiquement via le context manager.
+- Suite : 54/54 verts.
+- Smoke uvicorn (`uv run uvicorn astro_brain.main:app --host 127.0.0.1 --port 8765`) : `/state` renvoie les 5 subsystems (overall=green), `POST /slew` → `{"ok":true}` + mount=moving, `/events` émet `event: snapshot` avec le payload JSON attendu.
+- Commit `feat(backend): wire application with fakes, orchestrator, and lifecycle` poussé.
+
 ### Prochaine session
-- Task 11 : `app.py` (factory FastAPI) + `main.py` (entrée uvicorn). Wire `deps`, instancie les fakes par défaut (ou adapters hardware si `ASTRO_BRAIN_HARDWARE=1`), lance l'orchestrateur en background task via le lifespan.
+- Task 12 : premier adapter hardware — `SystemInfoAdapter` (lit `/sys/class/thermal/thermal_zone0/temp` et `/proc/loadavg`, polling 5 s, publie sur le bus quand l'enum d'état change).

@@ -43,8 +43,8 @@ Paths are relative to the repo root `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN
 | `backend/astro_brain/routes/state.py` | GET /state | ✅ done |
 | `backend/astro_brain/routes/events.py` | GET /events (SSE) | ✅ done |
 | `backend/astro_brain/orchestrator.py` | Listens to bus, triggers set_time/set_location | ✅ done |
-| `backend/astro_brain/app.py` | FastAPI app factory, wires services | Task 11 |
-| `backend/astro_brain/main.py` | Entry point (`uvicorn` launcher with CLI flag) | Task 11 |
+| `backend/astro_brain/app.py` | FastAPI app factory, wires services | ✅ done |
+| `backend/astro_brain/main.py` | Entry point (`uvicorn` launcher with CLI flag) | ✅ done |
 | `backend/astro_brain/adapters/system_info.py` | Reads `/sys/class/thermal`, `/proc/loadavg` | Task 12 |
 | `backend/astro_brain/adapters/network_info.py` | Reads `/sys/class/net`, runs `iwgetid` | Task 13 |
 | `backend/astro_brain/adapters/gpsd_adapter.py` | Consumes gpsd stream | Task 14 |
