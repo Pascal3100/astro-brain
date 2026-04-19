@@ -16,7 +16,7 @@ L'idée est de créer un système de contrôle autonome et moderne qui sépare l
 | :--- | :--- | :--- |
 | **Raspberry Pi 3 B+** | Serveur Web, FastAPI, GPS, Plate Solving. | Maître (USB vers Arduino) |
 | **Arduino Due** | Contrôle moteur (Focus) et relais vers la monture. | Pont (USB vers Pi) |
-| **Module DroTek** | Géolocalisation, Heure UTC, Boussole (Nord). | USB (sur le Pi) |
+| **Module DroTek** | Géolocalisation, Heure UTC, Boussole (Nord). | UART GPIO (GPS) + I2C1 GPIO (compass) — voir `hardware_wiring.md` |
 | **Moteur NEMA 17** | Mise au point motorisée (Focuseur). | Piloté par Driver TMC2208 sur Due |
 | **Monture Celestron** | Mouvements GoTo et suivi sidéral. | Port AUX (via Level Shifter 3.3V/5V) |
 | **Alimentation** | 12V batterie -> Buck Converter 5V/3A stable. | Alimente Pi, Due et Moteurs |

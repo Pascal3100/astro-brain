@@ -14,16 +14,16 @@ Système de contrôle autonome pour télescope Maksutov Bresser 127/1900 sur mon
 - **Backend** : FastAPI (Python 3.13) sur Raspberry Pi 3 B+
 - **Frontend** : App Flutter native sur téléphone (pas une PWA)
 - **Communication Pi <-> Monture** : nexstarpy via USB-série (port HC, protocole NexStar, 9600 baud)
-- **GPS** : Module DroTek (USB sur Pi)
+- **GPS** : Module DroTek Ublox M8N + compass magnétique (UART GPIO sur Pi, USB réservé aux caméras — voir `docs/hardware_wiring.md`)
 - **Plate Solving** (v0.2+) : Astrometry.net (local)
 
 ## Architecture
 
 ```
 App Flutter (téléphone) --[Wi-Fi / REST]--> FastAPI (Pi) --[USB-série]--> Monture Celestron
-                                                 │ USB
+                                                 │ UART GPIO (+ I2C pour compass)
                                                  ▼
-                                           DroTek GPS
+                                           DroTek GPS + compass
 ```
 
 - Pas d'Arduino dans la chaîne

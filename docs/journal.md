@@ -215,5 +215,13 @@ Le plan prévoyait un test end-to-end via `httpx.AsyncClient + ASGITransport`. *
 - Suite : 64/64 verts (5 nouveaux tests).
 - Commit `feat(backend): add Gpsd hardware adapter (DroTek, via gpsd-py3)` poussé.
 
+### Décision d'archi — GPS en UART GPIO plutôt qu'en USB
+- Le module DroTek (Ublox M8N + compass magnétique) expose **les deux interfaces** : un micro-USB (natif u-blox) et des broches UART+I2C. CLAUDE.md et `architecture_hardware.txt` prévoyaient l'USB.
+- **Revirement** : basculer sur GPIO (UART0 pour le GPS, I2C1 pour le compass). Motif : les 4 ports USB du Pi 3 B+ doivent rester libres pour la monture (déjà USB-série) + les caméras (v0.5). Le compass n'est **pas** accessible via USB (seul le GPS l'est), donc l'utiliser un jour imposerait de toute façon un branchement GPIO partiel — autant tout câbler d'un coup.
+- **Impact code** : zéro. `GpsdAdapter` parle au daemon `gpsd`, pas au `/dev/tty*` direct. Seule la config gpsd sur le Pi change (`DEVICES=/dev/serial0` au lieu de `/dev/ttyACM0`).
+- **Impact config Pi** : activer UART hardware + `dtoverlay=disable-bt` (pour libérer le vrai PL011 du Bluetooth sur Pi 3 B+, timing plus stable que le mini-UART), activer I2C, configurer `/etc/default/gpsd`. À intégrer dans le script d'install (Task 16).
+- **Câblage** : 6 fils dupont — détails complets dans `docs/hardware_wiring.md` (plan du header, tables GPS + compass, vérifications `dmesg`/`cat /dev/serial0`/`gpsmon`/`i2cdetect`, dépannage).
+- `CLAUDE.md` et `docs/architecture_hardware.txt` mis à jour pour pointer vers `hardware_wiring.md`.
+
 ### Prochaine session
 - Task 15 : `NexStarMountAdapter` (monture Celestron via `nexstarpy` sur USB-série `/dev/ttyUSB0`). Expose toutes les méthodes de `MountService` (slew/stop_slew/set_time/set_location/set_tracking_mode). Publie `connecting → ready → moving/ready`, watchdog 2 s via `get_version()` pour détecter déconnexions.
