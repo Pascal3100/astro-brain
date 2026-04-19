@@ -125,5 +125,15 @@ TDD, cycle red → green suivi strictement.
 - Suite complète : 21/21 verts.
 - Commit `feat(backend): add aggregator computing overall system color` poussé.
 
+### Décision — Mode apprentissage
+- Règle de session : expliquer de façon synthétique les concepts Python/asyncio/FastAPI à chaque étape non triviale, avant de coder. Mémoire persistante `feedback_learning_mode`.
+
+### Task 4 du plan backend — bouclée
+- `backend/astro_brain/bus.py` : classe `StateBus` en mémoire. `publish(subsystem, state)` synchrone et non-bloquant : mute l'état, `seq += 1`, recalcule `overall`, broadcast un `Event(type="update")` dans chaque `asyncio.Queue` d'abonné (drop-oldest si queue pleine). `subscribe()` = async generator qui yield d'abord un `Event(type="snapshot")` puis boucle sur les updates. `finally` désabonne au `aclose()`.
+- `Event` = dataclass `{type, payload}` — enveloppe typée au-dessus du dict JSON.
+- `backend/tests/test_bus.py` : 8 tests (état initial, incrément seq, recalcul overall, snapshot à la connexion, diffusion multi-abonnés, désabonnement propre, dataclass Event). Timeouts `asyncio.wait_for(..., 1.0)` partout pour éviter les freezes.
+- Suite : 29/29 verts.
+- Commit `feat(backend): add in-memory StateBus with pub/sub and snapshot` poussé.
+
 ### Prochaine session
-- Task 4 : `StateBus` (pub/sub asyncio en mémoire) avec seq monotone.
+- Task 5 : `Protocol` interfaces des services + fakes programmables (mount, gps, tracking, network, system).
