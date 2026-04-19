@@ -156,5 +156,11 @@ TDD, cycle red → green suivi strictement.
 - Suite : 44/44 verts.
 - Commit `feat(backend): add REST command endpoints (/slew /stop /tracking)` poussé.
 
+### Task 8 du plan backend — bouclée
+- `backend/astro_brain/routes/state.py` : `APIRouter` minimal avec un seul `GET /state` qui retourne `deps.get_bus().get_full_state().to_dict()`.
+- `backend/tests/test_state_endpoint.py` : 2 tests (bus vide → `overall=green seq=0 subsystems={}` ; après publish → subsystems peuplés, `seq=2`). Fixture avec restore de `deps.get_bus` en teardown.
+- Suite : 46/46 verts.
+- Commit `feat(backend): add GET /state endpoint` poussé.
+
 ### Prochaine session
-- Task 8 : `GET /state` (endpoint de resync client, snapshot instantané du bus).
+- Task 9 : SSE `GET /events`. C'est là qu'on branche le `StateBus.subscribe()` sur une réponse streamée (`sse-starlette`).
