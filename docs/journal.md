@@ -119,5 +119,11 @@ TDD, cycle red → green suivi strictement.
 - Suite complète backend : 10/10 passent (`uv run pytest`).
 - Commit `feat(backend): add subsystem state enums and SystemState model` poussé.
 
+### Task 3 du plan backend — bouclée
+- `backend/astro_brain/aggregator.py` : fonction pure `compute_overall(subsystems)` qui applique les règles du spec (rouge si `mount` disconnected/error ; bleu si n'importe quel sous-système en transient ; orange si dégradé ; vert sinon). Constantes `CRITICAL_SUBSYSTEMS`, `FATAL_STATES`, `TRANSIENT_STATES`, `DEGRADED_STATES` exposées (frozensets).
+- `backend/tests/test_aggregator.py` : 11 tests couvrant matrix de priorité (red>blue>orange>green) et cas non critiques (gps, network, system) qui ne font que dégrader.
+- Suite complète : 21/21 verts.
+- Commit `feat(backend): add aggregator computing overall system color` poussé.
+
 ### Prochaine session
-- Task 3 : agrégateur d'état (`compute_overall` → green/blue/orange/red selon les sous-systèmes).
+- Task 4 : `StateBus` (pub/sub asyncio en mémoire) avec seq monotone.
