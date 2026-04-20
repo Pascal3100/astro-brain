@@ -12,14 +12,32 @@ In v0.1 the only critical subsystem is ``mount``.
 
 from __future__ import annotations
 
-from astro_brain.subsystems import SubsystemState
+from astro_brain.subsystems import (
+    GpsState,
+    MountState,
+    NetworkState,
+    SubsystemState,
+    SystemInfoState,
+)
 
 CRITICAL_SUBSYSTEMS: frozenset[str] = frozenset({"mount"})
 
-FATAL_STATES: frozenset[str] = frozenset({"disconnected", "error"})
-TRANSIENT_STATES: frozenset[str] = frozenset({"connecting", "searching"})
+# Sets are derived from the enums so a rename in ``subsystems.py`` breaks
+# the aggregator at import time rather than causing silent misclassification.
+FATAL_STATES: frozenset[str] = frozenset(
+    {MountState.DISCONNECTED.value, MountState.ERROR.value}
+)
+TRANSIENT_STATES: frozenset[str] = frozenset(
+    {MountState.CONNECTING.value, GpsState.SEARCHING.value}
+)
 DEGRADED_STATES: frozenset[str] = frozenset(
-    {"no_fix", "warning", "critical", "offline"}
+    {
+        GpsState.NO_FIX.value,
+        GpsState.OFF.value,
+        SystemInfoState.WARNING.value,
+        SystemInfoState.CRITICAL.value,
+        NetworkState.OFFLINE.value,
+    }
 )
 
 

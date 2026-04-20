@@ -16,6 +16,7 @@ Publishing is throttled: the adapter only emits when
 from __future__ import annotations
 
 import asyncio
+import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,8 +27,14 @@ from astro_brain.subsystems import SubsystemState
 
 NET_PATH = Path("/sys/class/net")
 POLL_INTERVAL_S = 5.0
+WIFI_IFACE_ENV = "ASTRO_BRAIN_WIFI_IFACE"
 PRIMARY_INTERFACE = "wlan0"
 HOTSPOT_SSID_PREFIX = "astro-brain"
+
+
+def _default_interface() -> str:
+    """Resolve the Wi-Fi interface from the environment, or fall back."""
+    return os.environ.get(WIFI_IFACE_ENV, PRIMARY_INTERFACE)
 
 
 def _interface_is_up(iface: str) -> bool:
@@ -76,10 +83,10 @@ class NetworkInfoAdapter:
     """Polls network state and publishes on the bus when it changes."""
 
     def __init__(
-        self, bus: StateBus, *, interface: str = PRIMARY_INTERFACE
+        self, bus: StateBus, *, interface: str | None = None
     ) -> None:
         self._bus = bus
-        self._iface = interface
+        self._iface = interface if interface is not None else _default_interface()
         self._task: asyncio.Task[None] | None = None
         self._last: tuple[str, dict[str, Any]] | None = None
 

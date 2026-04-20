@@ -17,6 +17,7 @@ needed.
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -24,6 +25,7 @@ from astro_brain.bus import StateBus
 from astro_brain.services.interfaces import Axis, Direction
 from astro_brain.subsystems import SubsystemState
 
+SERIAL_DEVICE_ENV = "ASTRO_BRAIN_SERIAL_DEVICE"
 SERIAL_DEVICE_DEFAULT = "/dev/ttyUSB0"
 WATCHDOG_INTERVAL_S = 2.0
 TRACKING_MODE_SIDEREAL = 1
@@ -34,14 +36,17 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _default_device() -> str:
+    """Resolve the serial device from the environment, or fall back."""
+    return os.environ.get(SERIAL_DEVICE_ENV, SERIAL_DEVICE_DEFAULT)
+
+
 class NexStarMountAdapter:
     """Drives a Celestron NexStar mount and publishes ``mount`` state."""
 
-    def __init__(
-        self, bus: StateBus, *, device: str = SERIAL_DEVICE_DEFAULT
-    ) -> None:
+    def __init__(self, bus: StateBus, *, device: str | None = None) -> None:
         self._bus = bus
-        self._device = device
+        self._device = device if device is not None else _default_device()
         self._client: Any = None
         self._active_slews: list[dict[str, Any]] = []
         self._watchdog_task: asyncio.Task[None] | None = None
