@@ -3036,25 +3036,26 @@ WantedBy=multi-user.target
 
 - [ ] **Step 16.2: Write the install script**
 
-Create `backend/deploy/install.sh`:
+Create `backend/deploy/install.sh`. The script uses **`uv`** to match the project's tooling (Session 3 of the journal — `uv` is the single source of truth for the Python env, both on the workstation and the Pi). `uv sync --extra hardware` creates `.venv/` at the project root and installs the hardware extras (`nexstarpy`, `gpsd-py3`, `pyserial`), which is exactly what the systemd unit's `ExecStart=.venv/bin/uvicorn ...` expects.
 
 ```bash
 #!/usr/bin/env bash
-# Install / update the astro-brain systemd service on the Pi.
-# Run from the backend/ directory on the Pi.
+# Install or update the astro-brain systemd service on the Pi.
+# Run this from the repository's backend/ directory on the Pi:
+#   bash deploy/install.sh
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_DIR"
 
-if [[ ! -d .venv ]]; then
-  echo "Creating venv..."
-  python3 -m venv .venv
+if ! command -v uv >/dev/null 2>&1; then
+    echo "ERROR: 'uv' is not installed or not on PATH."
+    echo "Install it first: curl -LsSf https://astral.sh/uv/install.sh | sh"
+    exit 1
 fi
 
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -e '.[hardware,dev]'
+echo "Syncing Python dependencies with uv (hardware extra)..."
+uv sync --extra hardware
 
 echo "Installing systemd unit..."
 sudo cp deploy/astro-brain.service /etc/systemd/system/astro-brain.service

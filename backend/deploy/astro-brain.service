@@ -1,0 +1,21 @@
+[Unit]
+Description=Astro-Brain backend (FastAPI)
+After=network-online.target gpsd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pascal3100
+WorkingDirectory=/home/pascal3100/code/astro-brain/backend
+Environment="ASTRO_BRAIN_HARDWARE=1"
+Environment="ASTRO_BRAIN_HOST=0.0.0.0"
+Environment="ASTRO_BRAIN_PORT=8000"
+ExecStart=/home/pascal3100/code/astro-brain/backend/.venv/bin/uvicorn \
+    astro_brain.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
