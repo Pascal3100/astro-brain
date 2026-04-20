@@ -248,6 +248,7 @@ Trois caméras dans le setup final, chacune avec ses paramètres propres :
 - "Home position" définie physiquement par capteurs (distincte de l'alignement logique Celestron)
 - Utilité : reprise après coupure, commande "retour à l'origine"
 - À clarifier : peut-on lire directement la position depuis la monture via NexStar (`get_position`) une fois alignée, ou faut-il des encodeurs/capteurs externes indépendants ? Lien avec le plate solving v0.2 qui donnera aussi une position absolue.
+- **Piste IMU plutôt que capteurs mécaniques** : le DroTek M8N n'a qu'un magnétomètre (LIS3MDL/HMC5883L), pas d'accéléromètre — il donne le cap seulement à plat, pas l'inclinaison. Ajouter un IMU (MPU6050 accel+gyro ~4€, ICM-20948 9DOF ~10€, ou BNO055 avec fusion intégrée ~20€) fournirait **inclinaison + cap tilt-compensé** en I2C, sans fin de course mécaniques ni encodeurs externes. Option à évaluer quand on creusera ce sujet.
 
 ### Décision
 Sujets volontairement pas figés en spec : v0.1 n'est pas encore sur le Pi, on tranche quand le terrain aura parlé. Re-brainstorm à prévoir quand v0.1 tournera.
