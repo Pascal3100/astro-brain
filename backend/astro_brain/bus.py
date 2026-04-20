@@ -9,6 +9,15 @@ Semantics:
     * :meth:`StateBus.subscribe` returns an async generator. It first
       yields a ``"snapshot"`` event with the current full state, then
       streams ``"update"`` events for every subsequent publish.
+
+Threading invariant:
+    :meth:`publish` MUST be called from the asyncio main loop. It touches
+    :class:`asyncio.Queue` subscriber queues via ``put_nowait`` /
+    ``get_nowait`` / ``full``, none of which are thread-safe. Adapters
+    that perform blocking I/O in worker threads (serial, subprocess,
+    sysfs reads) must offload that work via ``await asyncio.to_thread(...)``
+    — the coroutine resumes on the main loop before calling
+    :meth:`publish`, preserving the invariant.
 """
 
 from __future__ import annotations

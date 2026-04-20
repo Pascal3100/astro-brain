@@ -12,6 +12,13 @@ The ``set_tracking_mode`` NexStar constant may vary across firmware
 versions (commonly ``1`` sidereal / ``2`` lunar / ``3`` solar). Verify on
 real hardware (see Task 17) and adjust :data:`TRACKING_MODE_SIDEREAL` if
 needed.
+
+All ``nexstarpy`` calls are synchronous serial I/O (9600 baud, tens to
+hundreds of milliseconds per round-trip). They are executed on the
+default thread-pool executor via :func:`asyncio.to_thread` so the event
+loop stays responsive to SSE clients, REST handlers, and the watchdog.
+The wrapping coroutine resumes on the main loop before publishing on the
+bus, which keeps :meth:`StateBus.publish` main-loop-only.
 """
 
 from __future__ import annotations
@@ -60,8 +67,12 @@ class NexStarMountAdapter:
         try:
             import nexstarpy  # type: ignore[import-not-found]
 
-            self._client = nexstarpy.NexStar(self._device)
-            self._firmware_version = str(self._client.get_version())
+            self._client = await asyncio.to_thread(
+                nexstarpy.NexStar, self._device
+            )
+            self._firmware_version = str(
+                await asyncio.to_thread(self._client.get_version)
+            )
             self._bus.publish(
                 "mount",
                 SubsystemState(
@@ -96,7 +107,7 @@ class NexStarMountAdapter:
             self._watchdog_task = None
         try:
             if self._client is not None:
-                self._client.close()
+                await asyncio.to_thread(self._client.close)
         except Exception:
             pass
         self._client = None
@@ -115,7 +126,9 @@ class NexStarMountAdapter:
             {"axis": axis, "direction": direction, "rate": rate}
         )
         try:
-            self._client.slew_fixed(axis, direction, rate)
+            await asyncio.to_thread(
+                self._client.slew_fixed, axis, direction, rate
+            )
         except Exception as exc:
             self._bus.publish(
                 "mount",
@@ -140,10 +153,10 @@ class NexStarMountAdapter:
         try:
             if axis is None:
                 for a in ("alt", "az"):
-                    self._client.stop_slew(a)
+                    await asyncio.to_thread(self._client.stop_slew, a)
                 self._active_slews = []
             else:
-                self._client.stop_slew(axis)
+                await asyncio.to_thread(self._client.stop_slew, axis)
                 self._active_slews = [
                     s for s in self._active_slews if s["axis"] != axis
                 ]
@@ -181,7 +194,8 @@ class NexStarMountAdapter:
             return
         try:
             dt = datetime.fromisoformat(utc_iso)
-            self._client.set_time(
+            await asyncio.to_thread(
+                self._client.set_time,
                 (
                     dt.year,
                     dt.month,
@@ -191,7 +205,7 @@ class NexStarMountAdapter:
                     dt.second,
                     0,  # UTC offset hours
                     0,  # DST flag
-                )
+                ),
             )
         except Exception as exc:
             self._bus.publish(
@@ -203,7 +217,7 @@ class NexStarMountAdapter:
         if self._client is None:
             return
         try:
-            self._client.set_location(lat, lon)
+            await asyncio.to_thread(self._client.set_location, lat, lon)
         except Exception as exc:
             self._bus.publish(
                 "mount",
@@ -215,7 +229,7 @@ class NexStarMountAdapter:
             return
         try:
             mode = TRACKING_MODE_SIDEREAL if enabled else TRACKING_MODE_OFF
-            self._client.set_tracking_mode(mode)
+            await asyncio.to_thread(self._client.set_tracking_mode, mode)
             value = "sidereal" if enabled else "off"
             self._bus.publish(
                 "tracking",
@@ -233,7 +247,7 @@ class NexStarMountAdapter:
                 await asyncio.sleep(WATCHDOG_INTERVAL_S)
                 if self._client is None:
                     return
-                self._client.get_version()
+                await asyncio.to_thread(self._client.get_version)
             except asyncio.CancelledError:
                 return
             except Exception as exc:

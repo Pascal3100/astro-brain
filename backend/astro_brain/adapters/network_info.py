@@ -91,7 +91,7 @@ class NetworkInfoAdapter:
         self._last: tuple[str, dict[str, Any]] | None = None
 
     async def start(self) -> None:
-        self._publish_current()
+        await self._publish_current()
         self._task = asyncio.create_task(self._loop(), name="network-info-loop")
 
     async def stop(self) -> None:
@@ -104,8 +104,11 @@ class NetworkInfoAdapter:
             pass
         self._task = None
 
-    def _publish_current(self) -> None:
-        state, details = _compute_network(self._iface)
+    async def _publish_current(self) -> None:
+        # _compute_network calls `ip` and `iwgetid` via subprocess — both
+        # are blocking. Offload to the default executor so the event loop
+        # isn't stalled for 10-50 ms every tick.
+        state, details = await asyncio.to_thread(_compute_network, self._iface)
         current = (state, details)
         if self._last == current:
             return
@@ -123,7 +126,7 @@ class NetworkInfoAdapter:
         while True:
             try:
                 await asyncio.sleep(POLL_INTERVAL_S)
-                self._publish_current()
+                await self._publish_current()
             except asyncio.CancelledError:
                 return
             except OSError:

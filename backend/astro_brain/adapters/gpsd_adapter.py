@@ -61,7 +61,7 @@ class GpsdAdapter:
     async def start(self) -> None:
         import gpsd  # type: ignore[import-not-found]
 
-        gpsd.connect()
+        await asyncio.to_thread(gpsd.connect)
         self._bus.publish(
             "gps",
             SubsystemState(state="no_fix", since=datetime.now(timezone.utc)),
@@ -87,7 +87,7 @@ class GpsdAdapter:
         while True:
             try:
                 await asyncio.sleep(POLL_INTERVAL_S)
-                packet = gpsd.get_current()
+                packet = await asyncio.to_thread(gpsd.get_current)
                 mode = int(getattr(packet, "mode", 0) or 0)
                 sats = int(getattr(packet, "sats", 0) or 0)
                 state = mode_to_state(mode, sats)
