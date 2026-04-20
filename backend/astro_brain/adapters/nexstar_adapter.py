@@ -65,6 +65,13 @@ class NexStarMountAdapter:
                     since=_now(),
                 ),
             )
+            # This adapter is also wired as the tracking service — seed the
+            # ``tracking`` subsystem with an initial "off" state so it shows
+            # up in /state before any /tracking call has been made.
+            self._bus.publish(
+                "tracking",
+                SubsystemState(state="off", since=_now()),
+            )
             self._watchdog_task = asyncio.create_task(
                 self._watchdog(), name="mount-watchdog"
             )
