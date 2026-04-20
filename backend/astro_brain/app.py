@@ -44,12 +44,15 @@ def _select_services(bus: StateBus, *, use_hardware: bool) -> dict[str, Any]:
         from astro_brain.adapters.network_info import NetworkInfoAdapter
         from astro_brain.adapters.system_info import SystemInfoAdapter
 
+        mount = NexStarMountAdapter(bus)
+        # The mount adapter also implements ``set_tracking`` — re-use it
+        # as the tracking service so ``/tracking`` drives real hardware.
         return {
-            "mount": NexStarMountAdapter(bus),
+            "mount": mount,
             "gps": GpsdAdapter(bus),
             "network": NetworkInfoAdapter(bus),
             "system": SystemInfoAdapter(bus),
-            "tracking": FakeTracking(bus),
+            "tracking": mount,
         }
     return {
         "mount": FakeMount(bus),
