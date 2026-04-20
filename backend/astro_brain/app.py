@@ -5,7 +5,8 @@
 * a dedicated :class:`~astro_brain.bus.StateBus`;
 * services (fakes by default, real hardware adapters when
   ``use_hardware=True`` / ``ASTRO_BRAIN_HARDWARE=1``);
-* the ``deps`` module rebound so routes resolve the current instances;
+* every service installed on ``app.state`` so route-level ``Depends``
+  resolvers in :mod:`astro_brain.deps` can reach them;
 * a lifespan that starts each service, launches the orchestrator as a
   background task, and tears everything down on shutdown.
 """
@@ -21,7 +22,6 @@ from typing import Any
 
 from fastapi import FastAPI
 
-from astro_brain import deps
 from astro_brain.bus import StateBus
 from astro_brain.orchestrator import Orchestrator
 from astro_brain.routes.commands import router as commands_router
@@ -72,13 +72,6 @@ def build_app(use_hardware: bool | None = None) -> FastAPI:
     services = _select_services(bus, use_hardware=use_hardware)
     orchestrator = Orchestrator(bus=bus, mount=services["mount"])
 
-    deps.get_bus = lambda: bus
-    deps.get_mount = lambda: services["mount"]
-    deps.get_tracking = lambda: services["tracking"]
-    deps.get_gps = lambda: services["gps"]
-    deps.get_network = lambda: services["network"]
-    deps.get_system_info = lambda: services["system"]
-
     background_tasks: list[asyncio.Task[Any]] = []
 
     @asynccontextmanager
@@ -104,6 +97,12 @@ def build_app(use_hardware: bool | None = None) -> FastAPI:
             await services["system"].stop()
 
     app = FastAPI(title="Astro-Brain", version="0.1.0", lifespan=lifespan)
+    app.state.bus = bus
+    app.state.mount = services["mount"]
+    app.state.tracking = services["tracking"]
+    app.state.gps = services["gps"]
+    app.state.network = services["network"]
+    app.state.system_info = services["system"]
     app.include_router(commands_router)
     app.include_router(state_router)
     app.include_router(events_router)

@@ -6,32 +6,20 @@ exercise a long-lived SSE stream. Instead we invoke the route handler
 directly and iterate the :class:`EventSourceResponse`'s body iterator;
 that is our own async generator, so we can assert the emitted dicts
 without the HTTP plumbing.
+
+Because we bypass FastAPI's dependency-resolution machinery, we pass the
+``bus`` argument explicitly instead of relying on :func:`Depends`.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Iterator
 from unittest.mock import AsyncMock
 
-import pytest
-
-from astro_brain import deps
 from astro_brain.bus import StateBus
 from astro_brain.routes.events import events
 from astro_brain.services.fakes import FakeMount
-
-
-@pytest.fixture
-def wired_bus() -> Iterator[StateBus]:
-    bus = StateBus()
-    prev = deps.get_bus
-    deps.get_bus = lambda: bus
-    try:
-        yield bus
-    finally:
-        deps.get_bus = prev
 
 
 def _fake_request(*, disconnected: bool = False) -> AsyncMock:
@@ -40,9 +28,10 @@ def _fake_request(*, disconnected: bool = False) -> AsyncMock:
     return req
 
 
-async def test_events_emits_snapshot_then_update(wired_bus: StateBus) -> None:
-    mount = FakeMount(wired_bus)
-    response = await events(_fake_request())
+async def test_events_emits_snapshot_then_update() -> None:
+    bus = StateBus()
+    mount = FakeMount(bus)
+    response = await events(_fake_request(), bus=bus)
     it = response.body_iterator
 
     first = await asyncio.wait_for(it.__anext__(), timeout=1.0)
@@ -62,14 +51,15 @@ async def test_events_emits_snapshot_then_update(wired_bus: StateBus) -> None:
     await it.aclose()
 
 
-async def test_events_stops_streaming_when_client_disconnects(
-    wired_bus: StateBus,
-) -> None:
-    response = await events(_fake_request(disconnected=True))
+async def test_events_stops_streaming_when_client_disconnects() -> None:
+    bus = StateBus()
+    response = await events(_fake_request(disconnected=True), bus=bus)
     it = response.body_iterator
 
     # with the client already disconnected, the generator should exit
     # before yielding anything (the disconnect check happens per-iteration,
     # before the yield).
+    import pytest
+
     with pytest.raises(StopAsyncIteration):
         await asyncio.wait_for(it.__anext__(), timeout=1.0)

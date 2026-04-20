@@ -3,32 +3,35 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import dataclass
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from astro_brain import deps
 from astro_brain.bus import StateBus
 from astro_brain.routes.state import router
 from astro_brain.services.fakes import FakeGps, FakeMount
 
 
+@dataclass
+class Harness:
+    client: TestClient
+    bus: StateBus
+
+
 @pytest.fixture
-def client() -> Iterator[TestClient]:
+def harness() -> Iterator[Harness]:
     bus = StateBus()
-    prev = deps.get_bus
-    deps.get_bus = lambda: bus
     app = FastAPI()
+    app.state.bus = bus
     app.include_router(router)
-    try:
-        yield TestClient(app)
-    finally:
-        deps.get_bus = prev
+    with TestClient(app) as client:
+        yield Harness(client=client, bus=bus)
 
 
-def test_state_empty_bus(client: TestClient) -> None:
-    r = client.get("/state")
+def test_state_empty_bus(harness: Harness) -> None:
+    r = harness.client.get("/state")
     assert r.status_code == 200
     body = r.json()
     assert body["overall"] == "green"
@@ -37,13 +40,12 @@ def test_state_empty_bus(client: TestClient) -> None:
     assert "ts" in body
 
 
-async def test_state_after_publishes(client: TestClient) -> None:
-    bus = deps.get_bus()
-    mount = FakeMount(bus)
-    gps = FakeGps(bus)
+async def test_state_after_publishes(harness: Harness) -> None:
+    mount = FakeMount(harness.bus)
+    gps = FakeGps(harness.bus)
     await mount.start()
     await gps.start()
-    r = client.get("/state")
+    r = harness.client.get("/state")
     body = r.json()
     assert body["overall"] == "green"
     assert body["subsystems"]["mount"]["state"] == "ready"

@@ -13,10 +13,11 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from sse_starlette.sse import EventSourceResponse
 
 from astro_brain import deps
+from astro_brain.bus import StateBus
 
 router = APIRouter(tags=["events"])
 
@@ -24,9 +25,11 @@ PING_INTERVAL_SECONDS = 15
 
 
 @router.get("/events")
-async def events(request: Request) -> EventSourceResponse:
+async def events(
+    request: Request,
+    bus: StateBus = Depends(deps.get_bus),
+) -> EventSourceResponse:
     """Subscribe to the bus and stream events until the client disconnects."""
-    bus = deps.get_bus()
 
     async def event_gen() -> AsyncIterator[dict[str, Any]]:
         async for event in bus.subscribe():
