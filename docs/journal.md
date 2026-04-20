@@ -261,5 +261,25 @@ Création de `docs/backlog.md` pour héberger ces réflexions transverses — le
 - Pattern "un objet, deux Protocoles" (PEP 544) : `NexStarMountAdapter` implémente `MountService` **et** `TrackingService`, même instance sous deux clés dans le dict services. Cohérent avec le fait que tracking = commande monture, mais impose de publier l'état initial sur **les deux** canaux du bus (le bug fixé ci-dessus).
 - Hygiène systemd : `Type=simple` + `Restart=on-failure` + `User=<non-root>` + `WorkingDirectory=` absolu + `Environment=` explicite → le service est auto-documenté et survit aux crashes.
 
+### Task 17 du plan backend — stub créé
+- `backend/deploy/INTEGRATION_CHECKLIST.md` : checklist manuelle à cocher lors de la prochaine session physique sur le Pi. Divergence vs plan : ajout d'une **section 0 Prérequis Pi-level** en amont (dtoverlay UART/I2C dans `/boot/firmware/config.txt`, `disable-bt`, config `/etc/default/gpsd`, groupe `dialout` pour pascal3100) — pas couvert par `install.sh` et c'est un one-shot. Référence `docs/hardware_wiring.md` pour le câblage plutôt que de dupliquer.
+- Host remplacé `astro-brain.local` → `astro-brain` (mDNS ne résout pas toujours côté workstation, le DNS local via box résout `astro-brain.lan`).
+- Note explicite pointant vers `TRACKING_MODE_SIDEREAL` dans `nexstar_adapter.py` si le sidéral ne s'engage pas (firmware différent → essayer 2 ou 3).
+- **Step 17.3 (dérouler la checklist)** = session physique, pas faisable ce soir. À faire une fois la monture branchée + gpsd configuré. Les findings seront ajoutés au journal comme "Session 6 — checklist d'intégration".
+- Commit `docs(backend): add manual hardware integration checklist` poussé.
+
+### Plan backend v0.1 — COMPLET côté code 🎉
+Toutes les tasks du plan `docs/superpowers/plans/2026-04-17-astro-brain-v01-backend.md` sont bouclées côté livrable code/doc. Backend complet :
+- 5 sous-systèmes publiant sur un bus pub/sub in-memory (StateBus, Task 4)
+- Aggregator déterministe calculant `overall` green/blue/orange/red (Task 3)
+- Orchestrateur edge-triggered qui synchronise monture ↔ GPS sur boot (Task 10)
+- REST endpoints `/slew` `/stop` `/tracking` `/state` + SSE `/events` (Tasks 7-9)
+- Fakes (workstation) + adapters hardware réels (Tasks 12-15) derrière les mêmes Protocols
+- Orchestration `build_app()` + lifespan async (Task 11)
+- systemd + install.sh + checklist d'intégration (Tasks 16-17)
+- 64 tests automatisés verts. Hardware path : checklist manuelle pour validation physique.
+- Service `active (running)` sur le Pi, reachable via `curl http://astro-brain:8000/state`.
+
 ### Prochaine session
-- Task 17 : checklist d'intégration hardware (manuel). Brancher la monture USB + allumer (vérifier `ls -l /dev/ttyUSB0` + groupe `dialout` pour pascal3100), configurer gpsd (`/etc/default/gpsd` DEVICES=`/dev/serial0` + dtoverlay UART/I2C dans `/boot/firmware/config.txt`), vérifier `gpsmon`/`i2cdetect`. Documenter les findings dans `backend/deploy/INTEGRATION_CHECKLIST.md`.
+- **Session 6 (physique)** : dérouler `backend/deploy/INTEGRATION_CHECKLIST.md` sur le Pi — câblage GPS UART + compass I2C, config gpsd, connexion monture, vérifier les 7 sections. Fixer les divergences en commits ad-hoc. Noter les findings en bas du doc + dans le journal.
+- **Plan 2 (app Flutter)** : à rédiger une fois la v0.1 backend validée physiquement. Design HUD spatial déjà speccé en Session 2.
