@@ -226,8 +226,23 @@ Le plan prévoyait un test end-to-end via `httpx.AsyncClient + ASGITransport`. *
 ### Prochaine session
 - Task 15 : `NexStarMountAdapter` (monture Celestron via `nexstarpy` sur USB-série `/dev/ttyUSB0`). Expose toutes les méthodes de `MountService` (slew/stop_slew/set_time/set_location/set_tracking_mode). Publie `connecting → ready → moving/ready`, watchdog 2 s via `get_version()` pour détecter déconnexions.
 
-## 2026-04-20 - Session 5 : Brainstorm réflexions v0.2+
+## 2026-04-20 - Session 5 : Brainstorm réflexions v0.2+ + Task 15
 
 Session dédiée à capturer des idées pour l'après-v0.1 : réglages techniques monture, configuration caméras, position persistante / home avec piste IMU, arrêt d'urgence, logs persistants, automatisation ops (systemd + déploiement), mode "mise en station".
 
 Création de `docs/backlog.md` pour héberger ces réflexions transverses — le journal n'est pas le bon endroit pour ce type de contenu. Le backlog est référencé depuis `CLAUDE.md`.
+
+### Task 15 du plan backend — bouclée
+- `backend/astro_brain/adapters/nexstar_adapter.py` : adapter hardware pour la monture Celestron via `nexstarpy` (extra `[hardware]`). **Import lazy** de `nexstarpy` dans `start()` → module reste importable sur workstation sans l'extra. Même pattern que `GpsdAdapter` (Task 14).
+- Lifecycle : `connecting` publié immédiatement, puis `ready` (avec `firmware_version` dans `details`) si `NexStar(device).get_version()` réussit, sinon `error` avec `message=str(exc)`. `stop()` cancelle le watchdog, ferme le client, publie `disconnected`.
+- **Watchdog** : `asyncio.Task` nommé `mount-watchdog` créé dans `start()`, fait un `get_version()` toutes les 2 s. Sur `CancelledError` → sort propre. Sur toute autre exception → publie `mount=error` et termine (pas de spam de la boucle). Idem pattern Orchestrator Task 10.
+- Commandes : `slew`/`stop_slew` avec try/except par appel (une commande foireuse publie `error` sans tuer l'adapter). `stop_slew(axis=None)` cycle sur `("alt","az")` et vide `_active_slews`. Republie l'état `moving` ou `ready` selon la liste des slews restants.
+- `set_time(utc_iso)` : `datetime.fromisoformat` → tuple 8-entiers NexStar `(year, month, day, hour, minute, second, 0, 0)` (UTC offset + DST à 0 car orchestrateur envoie toujours de l'UTC).
+- `set_tracking(enabled)` : `TRACKING_MODE_SIDEREAL = 1` extrait en constante (valeur à valider sur vrai firmware en Task 17 — certaines versions mappent autrement). Publie sur `tracking`, pas sur `mount`.
+- **Archi : un objet, deux Protocoles** (duck typing, PEP 544). `NexStarMountAdapter` implémente à la fois `MountService` et `TrackingService`. Dans `app.py` branche hardware, la **même instance** est stockée sous les clés `"mount"` et `"tracking"` → `/tracking` drive la vraie monture sans code additionnel. Cohérent avec le fait que le tracking sidéral est une commande monture, pas un sous-système séparé.
+- Pas de tests unitaires (conformément au plan — adapter hardware couvert par Task 17 sur le Pi).
+- Suite : 64/64 verts. Import `NexStarMountAdapter` OK sur workstation sans `nexstarpy`.
+- Commit `feat(backend): add NexStar mount adapter and wire it as tracking service` poussé.
+
+### Prochaine session
+- Task 16 : déploiement sur le Pi — unit systemd `astro-brain.service` (dépend de `gpsd.service` + `network-online.target`, redémarrage auto) + script `install.sh` (venv, `uv`/pip, copie du unit, enable/start). Puis smoke-test via `curl http://astro-brain.local:8000/state`.
