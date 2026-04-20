@@ -8,6 +8,7 @@ Système de contrôle autonome pour télescope Maksutov Bresser 127/1900 sur mon
 
 - Architecture hardware initiale : `docs/architecture_hardware.txt`
 - Spec design v0.1 : `docs/superpowers/specs/2026-04-16-astro-brain-v01-design.md`
+- Backlog réflexions post-v0.1 : `docs/backlog.md` (idées transverses à arbitrer plus tard)
 
 ## Stack technique
 
