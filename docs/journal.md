@@ -225,3 +225,29 @@ Le plan prévoyait un test end-to-end via `httpx.AsyncClient + ASGITransport`. *
 
 ### Prochaine session
 - Task 15 : `NexStarMountAdapter` (monture Celestron via `nexstarpy` sur USB-série `/dev/ttyUSB0`). Expose toutes les méthodes de `MountService` (slew/stop_slew/set_time/set_location/set_tracking_mode). Publie `connecting → ready → moving/ready`, watchdog 2 s via `get_version()` pour détecter déconnexions.
+
+## 2026-04-20 - Session 5 : Idées à explorer pour v0.2+
+
+### Page "Réglages techniques monture" (à creuser post-v0.1)
+Paramétrage persistant côté Pi, exposé par l'app :
+- **Courses min/max ALT/AZ** — safety pour éviter collision tube/trépied
+- **Caractéristiques du tube** (focale, diamètre, obstruction) — prérequis pour filtrage catalogue (v0.4) et calculs FOV astrophoto (v0.5)
+- **Compensation de backlash** — améliore tracking et futur GoTo (v0.3)
+- Capteurs à réfléchir : nature, nombre, protocole (fin de course mécaniques ? encodeurs ? Hall ?)
+- **TODO : auditer la raquette Celestron** — passer en revue tous les menus/réglages techniques exposés par le hand controller (backlash, anti-backlash, cone error, PEC, filter limits, custom slew rates, etc.) pour identifier ce qu'il faut exposer/récupérer côté app et/ou lire/écrire via NexStar
+
+### Configuration des caméras (à creuser dès v0.2)
+Trois caméras dans le setup final, chacune avec ses paramètres propres :
+- **Imageur principal** (T7C) : taille pixel, résolution, gain/offset, binning, temps d'expo par défaut
+- **Caméra de guidage** (Orion StarShoot Autoguider) : taille pixel, résolution, agressivité/min-move du guidage
+- **Plate solving** (même caméra que le guidage en pratique, sur la SV165) : résolution, échelle attendue (arcsec/pixel)
+- **Lunette guide** (SV165) : focale — combinée au pixel size de la caméra guide → échelle d'image, indispensable pour calibrer le plate solver (v0.2) et le guideur (v0.5)
+- Ces réglages sont un prérequis direct du plate solving v0.2 — à spécifier dans le spec v0.2
+
+### Position persistante + retour à l'origine (à creuser post-v0.1)
+- "Home position" définie physiquement par capteurs (distincte de l'alignement logique Celestron)
+- Utilité : reprise après coupure, commande "retour à l'origine"
+- À clarifier : peut-on lire directement la position depuis la monture via NexStar (`get_position`) une fois alignée, ou faut-il des encodeurs/capteurs externes indépendants ? Lien avec le plate solving v0.2 qui donnera aussi une position absolue.
+
+### Décision
+Sujets volontairement pas figés en spec : v0.1 n'est pas encore sur le Pi, on tranche quand le terrain aura parlé. Re-brainstorm à prévoir quand v0.1 tournera.
