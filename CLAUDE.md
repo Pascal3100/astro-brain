@@ -66,6 +66,7 @@ Hybride : édition côté workstation, exécution côté Pi.
 ## Conventions
 
 - Le journal de session est dans `docs/journal.md` — **fil rouge du projet**, à tenir à jour **régulièrement pendant la session** (décisions d'archi, commits importants, blocages), pas uniquement à la fin
+- **Structure du journal** : `docs/journal.md` reste compact (état projet + session en cours + index des archives). À chaque jalon significatif (plan achevé, version livrée), basculer la session courante dans `docs/journal/archive/AAAA-MM-<milestone>.md`, mettre à jour "État du projet", et repartir sur une session vide. Les archives sont consultables à la demande mais plus chargées par défaut.
 - Les specs de design sont dans `docs/superpowers/specs/`
 - Les plans d'implémentation sont dans `docs/superpowers/plans/`
 - Design UI : style HUD spatial, Material Design 3, thème bleu (jour) / rouge (nuit)
