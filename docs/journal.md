@@ -244,5 +244,22 @@ Création de `docs/backlog.md` pour héberger ces réflexions transverses — le
 - Suite : 64/64 verts. Import `NexStarMountAdapter` OK sur workstation sans `nexstarpy`.
 - Commit `feat(backend): add NexStar mount adapter and wire it as tracking service` poussé.
 
+### Task 16 du plan backend — bouclée
+- `backend/deploy/astro-brain.service` : unit systemd. `After=network-online.target gpsd.service`, `Wants=network-online.target`, `User=pascal3100`, `WorkingDirectory=/home/pascal3100/code/astro-brain/backend`, env `ASTRO_BRAIN_HARDWARE=1`, `ExecStart=.venv/bin/uvicorn astro_brain.main:app --host 0.0.0.0 --port 8000`, `Restart=on-failure`.
+- `backend/deploy/install.sh` : **divergence plan → uv**. Le plan prévoyait `pip install -e '.[hardware,dev]'` ; on a gardé `uv sync --extra hardware` pour rester cohérent avec le reste du projet (lockfile reproductible workstation↔Pi). Plan Step 16.2 mis à jour en conséquence. Le script détecte l'absence de `uv` en PATH et bail avec le lien d'install.
+- **Setup Pi** : `uv` manquait (jamais installé en Session 2/3, la journal décrivait le workflow cible sans l'avoir exécuté). Installé user-space via `curl -LsSf https://astral.sh/uv/install.sh | sh`. Puis `bash deploy/install.sh` → venv créée, deps hardware installées, service enabled + started. `sudo systemctl --no-pager status astro-brain` → `active (running)`.
+- **Smoke test** `curl http://astro-brain:8000/state` : `overall=red` (cohérent, car monture pas branchée → `mount=error` avec `message=[Errno 2] could not open port /dev/ttyUSB0`). `network=client SSID=Chez_nous_ou_pas IP=192.168.1.36`, `system=ok cpu_temp=52°C load=0.12 uptime=951s`. GPS = `no_fix` avec `details={}` — gpsd non encore configuré pour `/dev/serial0` (config `dtoverlay=disable-bt` + `/etc/default/gpsd` à faire en Task 17).
+
+### Fix en passant — tracking subsystem manquant en mode hardware
+- Bug introduit en Task 15 : `NexStarMountAdapter` réutilisé comme tracking service ne publiait `"tracking"` que dans `set_tracking()`. Résultat : tant que `/tracking` n'avait pas été appelé, le sous-système `tracking` était absent de `/state` (alors que `FakeTracking` le publiait dès son `__init__`).
+- Fix : publish `tracking=off` dans `start()` du NexStar adapter, **après** la connexion monture réussie (pas dans la branche `except` — si la monture est injoignable on ne connaît pas l'état réel du tracking, mieux vaut l'omettre qu'inventer).
+- Commit `fix(backend): publish initial tracking=off when NexStar adapter connects` poussé, service redémarré sur le Pi.
+- Observation : `tracking` reste absent tant que `/dev/ttyUSB0` n'existe pas — attendu. Re-validation nécessaire quand la monture sera branchée.
+
+### Apprentissages Session 5
+- Différence `pip install -e .[extra]` vs `uv sync --extra extra` : le 1er ignore le lockfile (dérive possible), le 2nd l'impose (reproductible). Le choix `uv` est critique pour garantir workstation et Pi sur les mêmes versions exactes des deps hardware.
+- Pattern "un objet, deux Protocoles" (PEP 544) : `NexStarMountAdapter` implémente `MountService` **et** `TrackingService`, même instance sous deux clés dans le dict services. Cohérent avec le fait que tracking = commande monture, mais impose de publier l'état initial sur **les deux** canaux du bus (le bug fixé ci-dessus).
+- Hygiène systemd : `Type=simple` + `Restart=on-failure` + `User=<non-root>` + `WorkingDirectory=` absolu + `Environment=` explicite → le service est auto-documenté et survit aux crashes.
+
 ### Prochaine session
-- Task 16 : déploiement sur le Pi — unit systemd `astro-brain.service` (dépend de `gpsd.service` + `network-online.target`, redémarrage auto) + script `install.sh` (venv, `uv`/pip, copie du unit, enable/start). Puis smoke-test via `curl http://astro-brain.local:8000/state`.
+- Task 17 : checklist d'intégration hardware (manuel). Brancher la monture USB + allumer (vérifier `ls -l /dev/ttyUSB0` + groupe `dialout` pour pascal3100), configurer gpsd (`/etc/default/gpsd` DEVICES=`/dev/serial0` + dtoverlay UART/I2C dans `/boot/firmware/config.txt`), vérifier `gpsmon`/`i2cdetect`. Documenter les findings dans `backend/deploy/INTEGRATION_CHECKLIST.md`.
