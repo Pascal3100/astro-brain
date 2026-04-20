@@ -25,11 +25,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from astro_brain.bus import StateBus
 from astro_brain.subsystems import SubsystemState
+
+logger = logging.getLogger(__name__)
 
 POLL_INTERVAL_S = 0.5
 DETAIL_THROTTLE_S = 1.0
@@ -119,5 +122,7 @@ class GpsdAdapter:
             except asyncio.CancelledError:
                 return
             except Exception:
-                # keep the loop alive across transient gpsd errors
+                # Keep the loop alive across transient gpsd errors, but log
+                # them so silent failures can be diagnosed from journalctl.
+                logger.warning("gpsd poll failed", exc_info=True)
                 continue

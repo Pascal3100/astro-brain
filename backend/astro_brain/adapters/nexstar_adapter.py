@@ -179,24 +179,36 @@ class NexStarMountAdapter:
     async def set_time(self, utc_iso: str) -> None:
         if self._client is None:
             return
-        dt = datetime.fromisoformat(utc_iso)
-        self._client.set_time(
-            (
-                dt.year,
-                dt.month,
-                dt.day,
-                dt.hour,
-                dt.minute,
-                dt.second,
-                0,  # UTC offset hours
-                0,  # DST flag
+        try:
+            dt = datetime.fromisoformat(utc_iso)
+            self._client.set_time(
+                (
+                    dt.year,
+                    dt.month,
+                    dt.day,
+                    dt.hour,
+                    dt.minute,
+                    dt.second,
+                    0,  # UTC offset hours
+                    0,  # DST flag
+                )
             )
-        )
+        except Exception as exc:
+            self._bus.publish(
+                "mount",
+                SubsystemState(state="error", message=str(exc), since=_now()),
+            )
 
     async def set_location(self, lat: float, lon: float) -> None:
         if self._client is None:
             return
-        self._client.set_location(lat, lon)
+        try:
+            self._client.set_location(lat, lon)
+        except Exception as exc:
+            self._bus.publish(
+                "mount",
+                SubsystemState(state="error", message=str(exc), since=_now()),
+            )
 
     async def set_tracking(self, enabled: bool) -> None:
         if self._client is None:
@@ -225,10 +237,19 @@ class NexStarMountAdapter:
             except asyncio.CancelledError:
                 return
             except Exception as exc:
+                # Watchdog exits permanently on the first failure — the
+                # adapter does NOT auto-reconnect in v0.1. The operator must
+                # restart the service to recover. This is documented in
+                # backend/deploy/INTEGRATION_CHECKLIST.md (section 3).
                 self._bus.publish(
                     "mount",
                     SubsystemState(
-                        state="error", message=str(exc), since=_now()
+                        state="error",
+                        message=(
+                            f"mount watchdog failed: {exc}. "
+                            "Restart astro-brain.service to reconnect."
+                        ),
+                        since=_now(),
                     ),
                 )
                 return

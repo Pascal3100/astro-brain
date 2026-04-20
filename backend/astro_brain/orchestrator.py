@@ -10,13 +10,16 @@ orchestrator rearms so the next co-occurrence triggers a fresh sync
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from astro_brain.bus import StateBus
 from astro_brain.services.interfaces import MountService
-from astro_brain.subsystems import SubsystemState
+from astro_brain.subsystems import GpsState, MountState, SubsystemState
 
-GPS_FIX_STATES = frozenset({"fix_2d", "fix_3d"})
+logger = logging.getLogger(__name__)
+
+GPS_FIX_STATES = frozenset({GpsState.FIX_2D.value, GpsState.FIX_3D.value})
 
 
 class Orchestrator:
@@ -40,9 +43,12 @@ class Orchestrator:
             return
 
         conditions_met = (
-            mount_s.state == "ready" and gps_s.state in GPS_FIX_STATES
+            mount_s.state == MountState.READY.value
+            and gps_s.state in GPS_FIX_STATES
         )
         if not conditions_met:
+            if self._synced:
+                logger.info("orchestrator: sync conditions lost, rearmed")
             self._synced = False
             return
         if self._synced:
@@ -54,6 +60,12 @@ class Orchestrator:
             return
 
         now_iso = datetime.now(timezone.utc).isoformat()
+        logger.info(
+            "orchestrator: syncing mount (time=%s, lat=%s, lon=%s)",
+            now_iso,
+            lat,
+            lon,
+        )
         await self._mount.set_time(now_iso)
         await self._mount.set_location(lat, lon)
         self._synced = True
