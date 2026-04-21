@@ -95,7 +95,11 @@ cgps -s                              # vue simple : lat/lon/altitude
 
 ## Compass — I2C1
 
-Le compass intégré au DroTek est un magnétomètre (HMC5883L sur M8N, QMC5883 sur certaines variantes — à confirmer par `i2cdetect`).
+Le compass intégré au module "Ublox GPS + compass Version XL" (clone DroTek) est un **LIS3MDL** (ST Microelectronics, 3 axes, 16-bit, ±4/8/12/16 G). Identifié en live sur le hardware réel le 2026-04-21 :
+
+- Adresse I2C : `0x1E` (pas `0x0D`, pas `0x1C`)
+- Registre `WHO_AM_I` (0x0F) : `0x3D` (signature LIS3MDL)
+- Power-down par défaut — nécessite init via `CTRL_REG1-3` avant de lire des mesures
 
 **Utilisé à partir de v0.2** (alignement auto / pointage nord). Câbler dès maintenant pour éviter un démontage.
 
@@ -121,8 +125,28 @@ sudo reboot
 ### Vérification
 
 ```bash
-i2cdetect -y 1
-# doit afficher une adresse (typiquement 0x0d pour QMC5883, 0x1e pour HMC5883L)
+# bus accessible et chip répond
+sudo i2cdetect -y 1
+# → LIS3MDL détecté à 0x1E (sur cette carte XL)
+
+# signature WHO_AM_I
+sudo i2cget -y 1 0x1e 0x0F
+# → 0x3d (LIS3MDL confirmé)
+
+# réveil en mode continu + lecture d'un échantillon 3 axes
+sudo i2cset -y 1 0x1e 0x20 0x1C   # CTRL_REG1 : high-perf X/Y, 10 Hz
+sudo i2cset -y 1 0x1e 0x23 0x0C   # CTRL_REG4 : high-perf Z
+sudo i2cset -y 1 0x1e 0x22 0x00   # CTRL_REG3 : mode continu
+python3 -c "
+import smbus2
+data = smbus2.SMBus(1).read_i2c_block_data(0x1e, 0x28, 6)
+x = int.from_bytes(bytes(data[0:2]), 'little', signed=True)
+y = int.from_bytes(bytes(data[2:4]), 'little', signed=True)
+z = int.from_bytes(bytes(data[4:6]), 'little', signed=True)
+print(f'X={x/6842:+.3f}G Y={y/6842:+.3f}G Z={z/6842:+.3f}G')
+"
+# → valeurs de l'ordre du champ terrestre (~0.3–0.6 G en intérieur) qui
+#   varient quand le module est tourné
 ```
 
 ## Récap branchement complet

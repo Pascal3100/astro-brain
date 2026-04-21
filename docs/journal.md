@@ -57,7 +57,7 @@ GPS DroTek M8N branché sur UART GPIO + compass I2C. Passe de validation partiel
 
 **Résultats hardware** :
 - GPS u-blox NEO-M8N, fix_3d atteint en ~30 s (43.5023 N, 1.5194 E à Toulouse), 14 satellites utilisés, HDOP 0.83, 4 constellations (GPS/GLONASS/Galileo/BeiDou).
-- Compass I2C détecté à `0x1e` (HMC5883L / QMC5883L) — non utilisé par la v0.1 backend, sera branché plus tard.
+- Compass I2C : **LIS3MDL** (ST Microelectronics) à `0x1E`, identifié via `WHO_AM_I=0x3D`. Pas un HMC5883L contrairement à ce que supposait `docs/hardware_wiring.md` avant cette passe. Activé en mode continu (`CTRL_REG1=0x1C`, `CTRL_REG3=0x00`, `CTRL_REG4=0x0C`), mesures 3 axes live confirmées (variations de magnitude/heading quand on tourne le module). Non utilisé par la v0.1 backend, prêt pour v0.2.
 - Network en mode `client`, SSID + IP corrects.
 - System idle à 56 °C, load 0.05.
 
