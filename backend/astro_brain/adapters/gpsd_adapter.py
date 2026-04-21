@@ -57,6 +57,10 @@ class GpsdAdapter:
         self._task: asyncio.Task[None] | None = None
         self._last_state: str | None = None
         self._last_detail_publish: datetime | None = None
+        # gpsd-py3.get_current() returns the latest packet (usually TPV, with
+        # sats_valid=0); only SKY packets carry the real count. Keep the last
+        # non-zero value sticky so ``details.satellites`` doesn't flap to 0.
+        self._last_sats: int = 0
 
     async def start(self) -> None:
         import gpsd  # type: ignore[import-not-found]
@@ -89,7 +93,10 @@ class GpsdAdapter:
                 await asyncio.sleep(POLL_INTERVAL_S)
                 packet = await asyncio.to_thread(gpsd.get_current)
                 mode = int(getattr(packet, "mode", 0) or 0)
-                sats = int(getattr(packet, "sats", 0) or 0)
+                sats_now = int(getattr(packet, "sats_valid", 0) or 0)
+                if sats_now > 0:
+                    self._last_sats = sats_now
+                sats = self._last_sats
                 state = mode_to_state(mode, sats)
                 details: dict[str, Any] = {"satellites": sats}
 

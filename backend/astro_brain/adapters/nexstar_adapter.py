@@ -64,6 +64,13 @@ class NexStarMountAdapter:
             "mount",
             SubsystemState(state="connecting", since=_now()),
         )
+        # This adapter also owns the ``tracking`` subsystem. Seed it as
+        # ``off`` before attempting to connect so it always shows up in
+        # /state — even when mount init fails (USB unplugged, wrong port).
+        self._bus.publish(
+            "tracking",
+            SubsystemState(state="off", since=_now()),
+        )
         try:
             import nexstarpy  # type: ignore[import-not-found]
 
@@ -80,13 +87,6 @@ class NexStarMountAdapter:
                     details={"firmware_version": self._firmware_version},
                     since=_now(),
                 ),
-            )
-            # This adapter is also wired as the tracking service — seed the
-            # ``tracking`` subsystem with an initial "off" state so it shows
-            # up in /state before any /tracking call has been made.
-            self._bus.publish(
-                "tracking",
-                SubsystemState(state="off", since=_now()),
             )
             self._watchdog_task = asyncio.create_task(
                 self._watchdog(), name="mount-watchdog"
