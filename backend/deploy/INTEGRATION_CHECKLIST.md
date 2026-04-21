@@ -12,18 +12,21 @@ Ces réglages OS ne sont pas gérés par `install.sh` — à faire manuellement 
 
 ### GPS UART + compass I2C
 
-- [ ] Câblage physique conforme à `docs/hardware_wiring.md` (GPS sur UART0, compass sur I2C1)
-- [ ] Dans `/boot/firmware/config.txt` :
-  - [ ] `enable_uart=1`
-  - [ ] `dtoverlay=disable-bt` (libère le PL011 du Bluetooth pour un UART plus stable)
-  - [ ] `dtparam=i2c_arm=on`
-- [ ] `sudo systemctl disable --now hciuart` (le service BT n'utilise plus l'UART)
-- [ ] Reboot puis `ls -l /dev/serial0` → lien symbolique vers `ttyAMA0`
-- [ ] `sudo apt install gpsd gpsd-clients i2c-tools` (si pas déjà fait)
-- [ ] Dans `/etc/default/gpsd` : `DEVICES="/dev/serial0"`, `GPSD_OPTIONS="-n"` (démarrage permanent), `START_DAEMON="true"`
-- [ ] `sudo systemctl enable --now gpsd.socket gpsd.service`
-- [ ] `gpsmon /dev/serial0` affiche des trames NMEA valides (sats visibles, fix ou pas selon ciel)
-- [ ] `i2cdetect -y 1` → adresse du compass détectée (typ. `0x1e` ou `0x0d`)
+- [x] Câblage physique conforme à `docs/hardware_wiring.md` (GPS sur UART0, compass sur I2C1)
+- [x] Dans `/boot/firmware/config.txt` :
+  - [x] `enable_uart=1`
+  - [x] `dtoverlay=disable-bt` (libère le PL011 du Bluetooth pour un UART plus stable)
+  - [x] `dtparam=i2c_arm=on`
+- [x] Dans `/boot/firmware/cmdline.txt` : retirer `console=serial0,115200` (sinon le kernel log sur la série et pollue les NMEA, + compete le port avec gpsd)
+- [x] `sudo systemctl disable --now serial-getty@ttyAMA0.service` (par défaut Pi OS fait tourner une console de login sur ttyAMA0 qui squatte le port et bloque gpsd avec un `SER: already opened by another process`)
+- [x] `sudo systemctl disable --now hciuart` (le service BT n'utilise plus l'UART) — _n'existe pas forcément sur Pi OS récent, `disable-bt` suffit_
+- [x] Reboot puis `ls -l /dev/serial0` → lien symbolique vers `ttyAMA0`
+- [x] `sudo apt install gpsd gpsd-clients i2c-tools` (si pas déjà fait)
+- [x] Charger le module userspace I2C : `sudo modprobe i2c-dev` + `echo 'i2c-dev' | sudo tee /etc/modules-load.d/i2c-dev.conf` (sans ça, `dtparam=i2c_arm=on` active le bus hardware mais `/dev/i2c-1` n'apparaît pas)
+- [x] Dans `/etc/default/gpsd` : `DEVICES="/dev/serial0"`, `GPSD_OPTIONS="-n"` (démarrage permanent), `START_DAEMON="true"`
+- [x] `sudo systemctl enable --now gpsd.socket gpsd.service`
+- [x] `gpspipe -w -n 5` affiche un paquet `DEVICES` non-vide (`driver:"u-blox"`) suivi d'au moins un `TPV` avec `mode:3` et un `SKY` avec `uSat>0`
+- [x] `i2cdetect -y 1` → adresse du compass détectée (typ. `0x1e` ou `0x0d`)
 
 ### Monture USB-série
 
@@ -35,12 +38,12 @@ Ces réglages OS ne sont pas gérés par `install.sh` — à faire manuellement 
 
 ## 1. Service health
 
-- [ ] `sudo systemctl --no-pager status astro-brain.service` → `active (running)`
-- [ ] `sudo journalctl -u astro-brain.service -n 50 --no-pager` → pas de traceback récurrent
+- [x] `sudo systemctl --no-pager status astro-brain.service` → `active (running)`
+- [x] `sudo journalctl -u astro-brain.service -n 50 --no-pager` → pas de traceback récurrent
 
 ## 2. Endpoints de base
 
-- [ ] `curl -s http://astro-brain:8000/state | python3 -m json.tool` → 200, 5 subsystems présents (mount, gps, network, system, tracking)
+- [x] `curl -s http://astro-brain:8000/state | python3 -m json.tool` → 200, 5 subsystems présents (mount, gps, network, system, tracking)
 - [ ] `curl -N http://astro-brain:8000/events` (Ctrl+C pour sortir) → émet `event: snapshot` immédiatement, puis au moins un `event: update` dans les 15 s (ping keep-alive ou publish réel)
 
 ## 3. Mount — smoke test
@@ -61,19 +64,19 @@ Prérequis : monture sous tension, câble USB branché.
 
 Prérequis : section 0 faite, `gpsd` tourne, antenne avec vue dégagée (fenêtre/extérieur).
 
-- [ ] `gps.state` atteint au moins `searching` dans les 5 s après startup
-- [ ] Sous ciel dégagé, `gps.state` atteint `fix_3d` en quelques minutes
-- [ ] `gps.details` contient `lat`, `lon`, `satellites`, `hdop` (et `altitude_m` sur fix_3d)
-- [ ] Quand `mount.ready` ET `gps.fix_3d` tiennent simultanément, l'orchestrateur déclenche une seule sync : `sudo journalctl -u astro-brain.service | grep -E "(set_time|set_location)"` (ajouter un `logging.info` dans `orchestrator._maybe_sync` si absent)
+- [x] `gps.state` atteint au moins `searching` dans les 5 s après startup
+- [x] Sous ciel dégagé, `gps.state` atteint `fix_3d` en quelques minutes
+- [x] `gps.details` contient `lat`, `lon`, `satellites`, `hdop` (et `altitude_m` sur fix_3d) — `satellites` remonté via sticky-count (voir commit `57e7553`)
+- [ ] Quand `mount.ready` ET `gps.fix_3d` tiennent simultanément, l'orchestrateur déclenche une seule sync : `sudo journalctl -u astro-brain.service | grep -E "(set_time|set_location)"` (ajouter un `logging.info` dans `orchestrator._maybe_sync` si absent) — _à valider quand la monture sera branchée_
 
 ## 5. Network — smoke test
 
-- [ ] Connecté au Wi-Fi domestique : `network.state=client`, `details.ssid` = SSID home, `details.ip` correspond à `ip -4 -o addr show wlan0`
+- [x] Connecté au Wi-Fi domestique : `network.state=client`, `details.ssid` = SSID home, `details.ip` correspond à `ip -4 -o addr show wlan0`
 - [ ] `sudo ip link set wlan0 down` → `network.state=offline` dans les 5 s (attention, ça coupe le SSH aussi — console ou re-up auto)
 
 ## 6. System — smoke test
 
-- [ ] `system.state=ok` à l'idle (CPU < 70 °C, load < 1.5)
+- [x] `system.state=ok` à l'idle (CPU < 70 °C, load < 1.5) — observé ~56 °C / load 0.05
 - [ ] `stress-ng --cpu 4 --timeout 60` fait passer `system.state` à `warning` et propage `overall=orange` dans les 5 s (installer `stress-ng` via apt si besoin)
 
 ## 7. Overall state — matrice finale
@@ -89,4 +92,15 @@ Prérequis : section 0 faite, `gpsd` tourne, antenne avec vue dégagée (fenêtr
 
 Noter ici toute divergence, comportement surprenant, ou ajustement fait en cours de route.
 
-- _(à remplir pendant la passe)_
+### Passe du 2026-04-21 — GPS + I2C + network + system (sans monture)
+
+- **Section 0 incomplète à l'origine** — trois étapes manquaient et ont été ajoutées cette passe :
+    1. Charger `i2c-dev` (`dtparam=i2c_arm=on` active le bus hardware mais `/dev/i2c-1` ne s'expose pas sans ce module userspace).
+    2. Désactiver `serial-getty@ttyAMA0.service` (une console de login squatte le port série et bloque gpsd avec `SER: already opened by another process`).
+    3. Retirer `console=serial0,115200` de `/boot/firmware/cmdline.txt` (le kernel y pousse ses logs et interfère avec les NMEA).
+- **Service `hciuart`** n'existe plus sur Pi OS 64-bit Lite récent ; `dtoverlay=disable-bt` suffit.
+- **GPS** : u-blox NEO-M8N détecté par gpsd, fix_3d atteint en ~30 s à Toulouse (43.5023 N, 1.5194 E), 14 satellites utilisés, HDOP 0.83. 4 constellations actives (GPS + GLONASS + Galileo + BeiDou).
+- **Bug adapter GPS** → fixé commit `57e7553` : `gpsd-py3.get_current()` renvoie le dernier paquet (TPV ou SKY) au lieu d'un état agrégé. Résultat : `details.satellites = 0` la plupart du temps. Fix : cacher la dernière valeur `sats_valid > 0` vue dans une trame SKY.
+- **Bug app/adapter mount** → fixé commit `57e7553` : le subsystem `tracking` n'apparaissait dans `/state` que si `NexStarMountAdapter.start()` aboutissait (5 subsystems attendus mais 4 visibles avec monture débranchée). Fix : publier `tracking=off` avant la tentative de connexion.
+- **Compass I2C** détecté à `0x1e` (probablement HMC5883L ou QMC5883L) — non utilisé par la v0.1 backend, prêt pour un usage futur.
+- **Mount** non testée : câble USB pas branché cette passe. La section 3 reste à dérouler lors d'une passe dédiée avec la monture sous tension.

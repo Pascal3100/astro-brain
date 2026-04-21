@@ -4,9 +4,9 @@ Fil rouge du projet. Seule la **session en cours** vit ici en détail ; les sess
 
 ## État du projet
 
-**Version active** : `v0.1 backend` — code complet, service systemd `astro-brain.service` tournant sur le Pi à `http://astro-brain:8000`. Suite automatisée 64 tests verts. Validation physique (câblage GPS UART + I2C, branchement monture, déroulé de `backend/deploy/INTEGRATION_CHECKLIST.md`) restant à faire en session physique dédiée.
+**Version active** : `v0.1 backend` — code complet, service systemd `astro-brain.service` tournant sur le Pi à `http://astro-brain:8000`. Suite automatisée 64 tests verts. Validation physique **GPS + compass I2C + network + system** faite (voir `backend/deploy/INTEGRATION_CHECKLIST.md` sections 0, 1, 2, 4, 5, 6). **Monture pas encore branchée** : sections 3 et 7 à dérouler lors d'une passe dédiée.
 
-**Prochain jalon** : v0.1 backend validé sur hardware réel → démarrer le plan app Flutter (design HUD speccé en `docs/superpowers/specs/2026-04-16-astro-brain-v01-design.md`).
+**Prochain jalon** : passe avec monture branchée pour clore la v0.1 backend → démarrer le plan app Flutter (design HUD speccé en `docs/superpowers/specs/2026-04-16-astro-brain-v01-design.md`).
 
 ## Session en cours
 
@@ -44,6 +44,30 @@ Traité en 4 batches :
 **À faire ensuite** :
 - Session de validation physique (câblage GPS, checklist hardware) pour clore officiellement le milestone « v0.1 backend ».
 - Ce journal sera archivé au moment du démarrage du plan v0.1 app Flutter.
+
+### Session 6 (suite) — validation physique GPS + compass + 2 fixes (2026-04-21)
+
+GPS DroTek M8N branché sur UART GPIO + compass I2C. Passe de validation partielle (monture pas encore branchée) : sections 0, 1, 2, 4, 5, 6 de `backend/deploy/INTEGRATION_CHECKLIST.md` cochées, findings documentés.
+
+**Section 0 étoffée** — trois étapes qui manquaient à la checklist initiale ont été ajoutées après découverte sur le terrain :
+- Charger `i2c-dev` + persistance via `/etc/modules-load.d/i2c-dev.conf` (sans ça, `dtparam=i2c_arm=on` active le bus mais `/dev/i2c-1` n'apparaît pas).
+- Désactiver `serial-getty@ttyAMA0.service` (la console de login squatte le port série et bloque gpsd avec `SER: already opened by another process`).
+- Retirer `console=serial0,115200` de `/boot/firmware/cmdline.txt` (le kernel y pousse ses logs et pollue les trames NMEA).
+- Note : `hciuart.service` n'existe plus sur Pi OS 64-bit Lite récent, `dtoverlay=disable-bt` suffit.
+
+**Résultats hardware** :
+- GPS u-blox NEO-M8N, fix_3d atteint en ~30 s (43.5023 N, 1.5194 E à Toulouse), 14 satellites utilisés, HDOP 0.83, 4 constellations (GPS/GLONASS/Galileo/BeiDou).
+- Compass I2C détecté à `0x1e` (HMC5883L / QMC5883L) — non utilisé par la v0.1 backend, sera branché plus tard.
+- Network en mode `client`, SSID + IP corrects.
+- System idle à 56 °C, load 0.05.
+
+**Deux bugs découverts et fixés** (commit `57e7553`) :
+- `gpsd_adapter` : `gpsd-py3.get_current()` renvoie le **dernier paquet** (typiquement TPV sans champ `sats`), pas un état agrégé. Résultat : `details.satellites = 0` alors que le GPS voit 14 sats. Fix : cacher la dernière valeur `sats_valid > 0` lue dans une trame SKY et l'utiliser comme valeur courante.
+- `nexstar_adapter` : le subsystem `tracking` n'était publié **qu'après** une init monture réussie — quand la monture est débranchée (mount=error), `/state` ne remontait que 4 subsystems au lieu des 5 attendus par la checklist. Fix : publier `tracking=off` dès l'entrée de `start()`, avant la tentative de connexion.
+
+64/64 tests verts après fix. Validation live post-deploy : `/state` remonte bien `tracking: off` + `satellites: 14`, les 5 subsystems présents.
+
+**À faire** : passe dédiée avec monture Celestron branchée pour clore la v0.1 backend (sections 3 et 7 de la checklist).
 
 ## Archives
 
