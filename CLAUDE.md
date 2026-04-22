@@ -57,11 +57,14 @@ Hybride : édition côté workstation, exécution côté Pi.
 
 ## Roadmap
 
+Philosophie : **chaque version = un livrable utilisable en session réelle**. On vise d'abord la parité avec la raquette Celestron (v0.1 → v0.3, sans caméra), puis on greffe la chaîne caméra/plate solve/guidage par-dessus.
+
 - **v0.1** : Joystick + tracking + GPS/heure
-- **v0.2** : Focuseur + plate solving + alignement auto
-- **v0.3** : GoTo + catalogue d'objets
-- **v0.4** : Catalogue intelligent (filtrage visuel/photo selon le tube)
-- **v0.5** : Module astrophoto (séquences, autofocus, guidage)
+- **v0.2** : GoTo + alignement assisté 3 étoiles (exploite GPS + compass + niveau pour pré-pointer les étoiles de référence)
+- **v0.3** : Catalogue intelligent + page "setup tube" (filtrage des objets selon focale/diamètre/obstruction du tube). **À ce stade, parité fonctionnelle avec la raquette Celestron.**
+- **v0.4** : Fondations caméras + Plate solving (stack INDI, config caméras, pipeline preview FITS→JPEG, page framing, machine d'état backend idle/focus/guide/image)
+- **v0.5** : Mise au point + Mise en station (page focus live + HFR/FWHM, wizard mise en station, réglages techniques monture comme courses ALT/AZ & backlash)
+- **v0.6** : Astrophoto (intégration PHD2 guidage, séquenceur de poses, dithering, autofocus périodique)
 
 ## Conventions
 
