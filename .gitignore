@@ -15,3 +15,7 @@ build/
 .idea/
 .vscode/
 .superpowers/
+
+# Références perso de câblage (images laissées dans docs/ pour consultation locale)
+docs/R-Pi-3-B-Pinout.webp
+docs/introduction-to-raspberry-pi-3-b-plus-2.png
