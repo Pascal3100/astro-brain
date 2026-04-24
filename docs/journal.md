@@ -6,7 +6,7 @@ Fil rouge du projet. Seule la **session en cours** vit ici en détail ; les sess
 
 **Version active** : `v0.1 backend` — code complet, service systemd `astro-brain.service` tournant sur le Pi à `http://astro-brain:8000`. Suite automatisée 64 tests verts. Validation physique **GPS + compass I2C + network + system** faite (voir `backend/deploy/INTEGRATION_CHECKLIST.md` sections 0, 1, 2, 4, 5, 6). **Monture pas encore branchée** : sections 3 et 7 à dérouler lors d'une passe dédiée.
 
-**Prochain jalon** : passe avec monture branchée pour clore la v0.1 backend → démarrer le plan app Flutter (design HUD speccé en `docs/superpowers/specs/2026-04-16-astro-brain-v01-design.md`).
+**Prochain jalon** : passe avec monture branchée pour clore la v0.1 backend (en attente des connecteurs). **En parallèle** : chantier app Flutter v0.1 en cours — thème + design system posés (voir Session 8). Design HUD speccé en `docs/superpowers/specs/2026-04-16-astro-brain-v01-design.md`.
 
 ## Session en cours
 
@@ -79,6 +79,40 @@ Arbitrage hardware sur la mesure d'inclinaison : choix de **2 × ADXL345** (acc�
 Justification : usage statique pur, la gravité suffit (`atan2(ay, az)`). Pas besoin de fusion de capteurs ni de cap tilt-compensé (le plate solve v0.4 prendra le relais pour le pointage précis). Les 2 modules cohabitent sur I2C1 grâce à la pin SDO qui sélectionne l'adresse — pas de multiplexeur, pas de conflit avec le LIS3MDL (`0x1E`).
 
 Capteurs commandés. Détails et pages UI associées dans `docs/backlog.md` (section "Capteurs d'inclinaison tube + monture"). Mentions liées mises à jour : v0.2 mise en station (niveau), v0.5 réglages techniques monture (courses ALT), et piste IMU de "Position persistante" (écartée).
+
+### Session 8 — démarrage app Flutter v0.1, thème + design system (2026-04-24)
+
+Attente des connecteurs monture → on ouvre le chantier app Flutter en parallèle. Choix d'archi : **pattern BLoC** (MVVM-like) via `flutter_bloc`, bible officielle `docs.flutter.dev`. Noté en mémoire persistante.
+
+Scaffold Flutter dans `app/` (`flutter create --org com.astrobrain --project-name astro_brain`, platforms `android,ios,linux`). Stack Flutter 3.41.6 / Dart 3.11.4. Dépendances ajoutées : `flutter_bloc`, `equatable`, `google_fonts` (Inter + JetBrains Mono), `phosphor_flutter`.
+
+**Design system posé en 5 fichiers sous `lib/theme/`** — l'objectif est de ne *plus* répéter couleurs/espaces/styles dans les pages à venir :
+
+- `design_tokens.dart` — constantes brutes extraites de la spec (couleurs jour/nuit, échelle d'espacement base 4, rayons, épaisseurs, durations, tailles d'icônes).
+- `app_colors.dart` — `AppColors` en `ThemeExtension<AppColors>` : slots sémantiques que M3 n'a pas (`accent`, `accentGlow`, `bgGradientTop/Bottom`, `grid`, `textPrimary/Muted`, `dotOk/Transition/Warn/Error`). Deux instances `const` : `AppColors.day` (bleu spatial) et `AppColors.night` (rouge astro, aucun bleu ni vert). Extension `context.colors` pour l'accès.
+- `app_typography.dart` — `buildInterTextTheme(color:)` pour le `TextTheme` M3 en Inter ; `AppTextStyles` en `ThemeExtension` pour les styles HUD monospace JetBrains Mono (`hudLabel`, `hudValue`, `hudCaption`, `hudBadge`). Extension `context.textStyles`.
+- `astro_theme.dart` — `AstroTheme.buildDay()` / `buildNight()` : `ThemeData` M3, `Brightness.dark` pour les deux (les deux thèmes sont sur fond sombre, le toggle ne change que la teinte d'accent), `ColorScheme` mappé à la main sur nos tokens, themes pour `FilledButton`, `OutlinedButton`, `TextButton`, `Card`, `AppBar`, `Divider`, `IconTheme`. `ThemeExtensions` injectées via `extensions:`.
+- `theme_cubit.dart` — `ThemeCubit extends Cubit<AstroThemeMode>` avec `toggle()`, `setDay()`, `setNight()`. Défaut = jour. Persistance `shared_preferences` à ajouter plus tard.
+
+**`main.dart`** : `AstroBrainApp` (StatelessWidget racine) expose `BlocProvider<ThemeCubit>` et un `BlocBuilder` qui choisit `ThemeMode.light`/`dark` → `MaterialApp.theme`/`darkTheme`. Une page provisoire `_ThemePreviewScreen` valide visuellement tous les tokens (dots d'état, typographie Inter + JBM, boutons, card HUD avec icône Phosphor `gpsFix` + pastille glow). Elle sera remplacée par la vraie `SplashScreen` au prochain plan.
+
+**Vérifications** :
+- `flutter analyze` → No issues found.
+- `flutter test` → 5/5 passent (AppColors × 2, ThemeCubit × 3). Les tests qui instancient directement `AstroTheme.buildDay()` sont volontairement absents : `google_fonts` tente un fetch HTTP au `GoogleFonts.jetBrainsMono()`, ce qui génère une erreur async non rattrapée en sandbox sans réseau. La validation visuelle se fait à `flutter run` ; on réactivera ces tests quand on bundlera les TTF en assets locaux.
+
+**Pattern d'accès aux tokens** (à utiliser dans les prochaines pages) :
+```dart
+final colors = context.colors;        // AppColors (ThemeExtension)
+final text = context.textStyles;      // AppTextStyles (ThemeExtension)
+DesignTokens.spaceLG;                 // constante brute
+```
+Aucun `Color(0xFF...)` ne devrait apparaître hors de `design_tokens.dart`. Aucun `GoogleFonts.inter(...)` hors de `app_typography.dart`.
+
+**À faire ensuite** :
+- Spec de détail Flutter v0.1 (plan d'implémentation des 3 écrans : `SplashScreen`, `HomeScreen`, `SystemScreen`). Le design est déjà défini dans la spec v0.1 (docs/superpowers/specs/…), il manque le plan tâches.
+- Modèles Pydantic ↔ Dart (`SubsystemState`, `SystemState`) + services `ApiService` / `EventStreamService` / `ConnectivityService` en parallèle.
+- Ajouter `shared_preferences` pour persister `AstroThemeMode` entre lancements.
+- Reprendre la validation monture dès que les connecteurs arrivent (sections 3 et 7 de `INTEGRATION_CHECKLIST.md`).
 
 ## Archives
 
