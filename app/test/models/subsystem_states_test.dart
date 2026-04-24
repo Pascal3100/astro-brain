@@ -24,12 +24,20 @@ void main() {
       expect(GpsState.fromJson('fix_2d'), GpsState.fix2d);
       expect(GpsState.fromJson('fix_3d'), GpsState.fix3d);
     });
+
+    test('throws sur une valeur inconnue', () {
+      expect(() => GpsState.fromJson('bogus'), throwsFormatException);
+    });
   });
 
   group('TrackingState.fromJson', () {
     test('parse off / sidereal', () {
       expect(TrackingState.fromJson('off'), TrackingState.off);
       expect(TrackingState.fromJson('sidereal'), TrackingState.sidereal);
+    });
+
+    test('throws sur une valeur inconnue', () {
+      expect(() => TrackingState.fromJson('bogus'), throwsFormatException);
     });
   });
 
@@ -39,6 +47,10 @@ void main() {
       expect(NetworkState.fromJson('client'), NetworkState.client);
       expect(NetworkState.fromJson('hotspot'), NetworkState.hotspot);
     });
+
+    test('throws sur une valeur inconnue', () {
+      expect(() => NetworkState.fromJson('bogus'), throwsFormatException);
+    });
   });
 
   group('SystemInfoState.fromJson', () {
@@ -46,6 +58,10 @@ void main() {
       expect(SystemInfoState.fromJson('ok'), SystemInfoState.ok);
       expect(SystemInfoState.fromJson('warning'), SystemInfoState.warning);
       expect(SystemInfoState.fromJson('critical'), SystemInfoState.critical);
+    });
+
+    test('throws sur une valeur inconnue', () {
+      expect(() => SystemInfoState.fromJson('bogus'), throwsFormatException);
     });
   });
 }

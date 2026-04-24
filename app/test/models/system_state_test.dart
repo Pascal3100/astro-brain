@@ -20,11 +20,28 @@ const _snapshot = '''
 }
 ''';
 
+Map<String, dynamic> _update({
+  required String kind,
+  required Map<String, dynamic> stateJson,
+  String overall = 'green',
+  int seq = 200,
+  String ts = '2026-04-17T20:35:00Z',
+}) =>
+    {
+      'subsystem': kind,
+      'state': stateJson,
+      'overall': overall,
+      'seq': seq,
+      'ts': ts,
+    };
+
+SystemState _initial() =>
+    SystemState.fromJson(jsonDecode(_snapshot) as Map<String, dynamic>);
+
 void main() {
   group('SystemState.fromJson', () {
     test('parse un snapshot complet', () {
-      final state = SystemState.fromJson(
-          jsonDecode(_snapshot) as Map<String, dynamic>);
+      final state = _initial();
 
       expect(state.overall, OverallStatus.green);
       expect(state.seq, 142);
@@ -38,8 +55,7 @@ void main() {
     });
 
     test('applyUpdate remplace un sous-système et incrémente seq', () {
-      final initial = SystemState.fromJson(
-          jsonDecode(_snapshot) as Map<String, dynamic>);
+      final initial = _initial();
       final updatedJson = {
         'subsystem': 'gps',
         'state': {
@@ -58,6 +74,89 @@ void main() {
       expect(next.overall, OverallStatus.orange);
       expect(next.seq, 143);
       expect(next.mount.state, MountState.ready);
+    });
+  });
+
+  group('SystemState.applyUpdate (multi-subsystems)', () {
+    test('update mount → MountState.moving, gps intact', () {
+      final initial = _initial();
+      final next = initial.applyUpdate(_update(
+        kind: 'mount',
+        stateJson: {
+          'state': 'moving',
+          'details': {'firmware_version': '11.01'},
+          'since': '2026-04-17T20:35:00Z',
+          'message': null,
+        },
+      ));
+      expect(next.mount.state, MountState.moving);
+      expect(next.gps, initial.gps);
+      expect(next.system, initial.system);
+    });
+
+    test('update tracking → TrackingState.off, mount intact', () {
+      final initial = _initial();
+      final next = initial.applyUpdate(_update(
+        kind: 'tracking',
+        stateJson: {
+          'state': 'off',
+          'details': <String, dynamic>{},
+          'since': '2026-04-17T20:35:00Z',
+          'message': null,
+        },
+      ));
+      expect(next.tracking.state, TrackingState.off);
+      expect(next.mount, initial.mount);
+      expect(next.network, initial.network);
+    });
+
+    test('update network → NetworkState.hotspot, gps intact', () {
+      final initial = _initial();
+      final next = initial.applyUpdate(_update(
+        kind: 'network',
+        stateJson: {
+          'state': 'hotspot',
+          'details': {'ssid': 'AstroBrain-AP'},
+          'since': '2026-04-17T20:35:00Z',
+          'message': null,
+        },
+      ));
+      expect(next.network.state, NetworkState.hotspot);
+      expect(next.gps, initial.gps);
+      expect(next.tracking, initial.tracking);
+    });
+
+    test('update system → SystemInfoState.warning, tracking intact', () {
+      final initial = _initial();
+      final next = initial.applyUpdate(_update(
+        kind: 'system',
+        stateJson: {
+          'state': 'warning',
+          'details': {'cpu_temp_c': 75.0},
+          'since': '2026-04-17T20:35:00Z',
+          'message': 'CPU chaud',
+        },
+        overall: 'orange',
+      ));
+      expect(next.system.state, SystemInfoState.warning);
+      expect(next.tracking, initial.tracking);
+      expect(next.mount, initial.mount);
+    });
+
+    test('update avec subsystem inconnu throws FormatException', () {
+      final initial = _initial();
+      expect(
+        () => initial.applyUpdate(_update(
+          kind: 'bogus',
+          stateJson: {
+            'state': 'whatever',
+            'details': <String, dynamic>{},
+            'since': '2026-04-17T20:35:00Z',
+            'message': null,
+          },
+        )),
+        throwsFormatException,
+      );
     });
   });
 }
