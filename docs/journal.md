@@ -4,9 +4,9 @@ Fil rouge du projet. Seule la **session en cours** vit ici en détail ; les sess
 
 ## État du projet
 
-**Version active** : `v0.1 backend` — code complet, service systemd `astro-brain.service` tournant sur le Pi à `http://astro-brain:8000`. Suite automatisée 64 tests verts. Validation physique **GPS + compass I2C + network + system** faite (voir `backend/deploy/INTEGRATION_CHECKLIST.md` sections 0, 1, 2, 4, 5, 6). **Monture pas encore branchée** : sections 3 et 7 à dérouler lors d'une passe dédiée.
+**Version active** : `v0.1 app Flutter livrée` — parité joystick + tracking avec la raquette Celestron via téléphone. 3 écrans (Splash, Home, System), 47/47 tests Dart verts, mDNS `astro-brain.local:8000`. Backend `v0.1 backend` toujours en place côté Pi (64 tests verts, service systemd actif). Validation physique backend faite sur **GPS + compass I2C + network + system** ; **monture pas encore branchée** (sections 3 et 7 de `backend/deploy/INTEGRATION_CHECKLIST.md` à dérouler).
 
-**Prochain jalon** : passe avec monture branchée pour clore la v0.1 backend (en attente des connecteurs). **En parallèle** : chantier app Flutter v0.1 en cours — thème + design system posés (voir Session 8). Design HUD speccé en `docs/superpowers/specs/2026-04-16-astro-brain-v01-design.md`.
+**Prochain jalon** : smoke test téléphone sur `flutter run` (checklist Step 14.4 du plan app) + passe avec monture Celestron branchée pour clore définitivement la v0.1 backend. Ensuite, ouverture v0.2 (GoTo + alignement 3 étoiles).
 
 ## Session en cours
 
@@ -113,6 +113,49 @@ Aucun `Color(0xFF...)` ne devrait apparaître hors de `design_tokens.dart`. Aucu
 - Modèles Pydantic ↔ Dart (`SubsystemState`, `SystemState`) + services `ApiService` / `EventStreamService` / `ConnectivityService` en parallèle.
 - Ajouter `shared_preferences` pour persister `AstroThemeMode` entre lancements.
 - Reprendre la validation monture dès que les connecteurs arrivent (sections 3 et 7 de `INTEGRATION_CHECKLIST.md`).
+
+### Session 9 — app Flutter v0.1 livrée (2026-04-24)
+
+Exécution du plan `docs/superpowers/plans/2026-04-24-astro-brain-v01-app.md` en mode **subagent-driven**, 17 tâches enchaînées. Résultat : 3 écrans fonctionnels, toute la mécanique REST + SSE + état global en place.
+
+**Écrans livrés** :
+- `SplashScreen` — 3 phases séquentielles (`contacting` → `loading` → `openingStream`), fallback `failure` avec bouton "continue offline" et icône Phosphor `planet` (pas de `telescope` en phosphor_flutter 2.1.0).
+- `HomeScreen` — gradient bg, `StatusBar` en haut (pastille globale + toggle thème + bouton reconnect conditionnel), `DPadControl` 3×3 central (caret icons, `onTapDown/Up/Cancel` → slew / stop), `RateControl` (9 barres + / - 1..9, clamp côté bloc), `TrackingToggle` (Switch + libellé `TRACKING SIDEREAL` / `TRACKING OFF`, grisé si `connection != connected`).
+- `SystemScreen` — 5 `SubsystemCard` (MOUNT / GPS / TRACKING / NETWORK / SYSTEM), chacune avec icône, libellé, détails contextuels (`firmware`, coordonnées GPS + sats, ssid + ip, temp + load), `depuis Xs/Xmin/Xh`, pastille `GlobalDot` calculée par subsystem, message d'erreur optionnel en rouge.
+
+**Blocs / Cubits** :
+- `AppBloc` — état global `(system: SystemState?, connection: ConnectionStatus)`, événements `AppStarted` / `AppSystemStateReceived` / `AppConnectionLost` / `AppReconnectRequested`. Expose `effectiveOverall` (calcul d'une pastille globale à partir des 5 sous-systèmes + statut connexion).
+- `HomeBloc` — `rate` 1..9 (défaut 5, clamp), event `HomeSlewPressed/Released` → `ApiService.slew/stop`, `HomeTrackingToggled` → `ApiService.setTracking`. try/catch autour de chaque appel, erreur exposée via `lastError`.
+- `SplashCubit` — orchestre la séquence de boot : `fetchState` → `appBloc.add(AppStarted)` → `success`. En cas d'exception, émet `failure` avec message ; l'utilisateur peut `continueOffline()`.
+- `ThemeCubit` — `AstroThemeMode { day, night }`, persistance `shared_preferences` (clé `astro.theme.mode`). Hydrate au démarrage via `await SharedPreferences.getInstance()` en tête de `main()`.
+
+**Services** :
+- `ApiService` — REST sur `astro-brain.local:8000`, timeout 3 s, `fetchState()` / `slew()` / `stop()` / `setTracking()`. Convertit les erreurs HTTP en `ApiException`.
+- `EventStreamService` — client SSE par-dessus `http.Client.send()`, broadcast `Stream<SystemState>`, reconnexion auto avec backoff exp `[1s, 2s, 4s, 10s]`. Distinction `stop()` (coupe la connexion, réutilisable) vs `dispose()` (ferme le controller — fin de vie). Le bouton reconnect manuel (Task 16) a forcé ce split.
+- `SseParser` — parse incrémental des chunks, supporte `event:` / `data:` / commentaires `:` / multi-lignes concaténées / split mid-ligne entre deux chunks.
+
+**Modèles** :
+- `SubsystemState<T>` générique (`state: T`, `since: DateTime`, `message: String?`, `details: Map<String, dynamic>`).
+- `SystemState` (5 subsystems typés) avec `fromJson` (snapshot) et `applyUpdate` (patch incrémental SSE, branche mount/gps/tracking/network/system, throw sur subsystem inconnu).
+- `OverallStatus { green, blue, orange, red, offline }` + 5 enums sous-systèmes (parse tolérant aux minuscules, throw sur valeur inconnue).
+
+**Racine app** : `lib/app.dart` — `AstroBrainApp({required SharedPreferences prefs})` avec `MultiRepositoryProvider` (PiHost → ApiService → EventStreamService), `MultiBlocProvider` (ThemeCubit, AppBloc, HomeBloc), `MaterialApp` pilotée par `ThemeCubit` (light↔day / dark↔night), `_RootRouter` qui flip un `_ready` bool quand le splash finit (via `onReady` callback déclenché dans le `BlocListener` du splash sur `SplashPhase.success`).
+
+**Tests** : 47/47 verts. Coverage majeur sur modèles (parse + applyUpdate), `SseParser` (5 cas), `ApiService` (5 cas avec `http.MockClient`), `EventStreamService` (2 cas avec fake client), `AppBloc` (2 blocTest), `HomeBloc` (3 blocTest avec `registerFallbackValue` pour `Axis` / `Direction`), `SplashCubit` (2 blocTest), `ThemeCubit` (3 cas, `SharedPreferences.setMockInitialValues({})` + async).
+
+**Hors scope v0.1, laissé pour plus tard** : configuration manuelle d'IP/port (écran de setup), mode hotspot côté Pi pour usage terrain sans Wi-Fi domestique, mDNS fallback sur IP en dur en cas d'échec résolution, smoke test téléphone (Step 14.4 du plan — validation manuelle sur Android physique à faire).
+
+**Contraintes rencontrées** :
+- Collision de nom `Axis` (Flutter `dart:ui` vs notre enum dans `api_service.dart`) — résolu par `import 'package:flutter/material.dart' hide Axis;` dans `dpad_control.dart`.
+- `PhosphorIconsBold.telescope` n'existe pas en 2.1.0 — substitué par `planet` sur le splash.
+- `google_fonts` fait un fetch HTTP au premier usage ; les tests qui instancient `AstroTheme.buildDay()` ne sont toujours pas dans la suite (déjà noté Session 8). Les validations visuelles passent par `flutter run`.
+
+**Commits** : 17 commits entre `16d38eb` (baseline scaffold + session 8) et `fceec5e` (Task 16 reconnect manuel).
+
+**À faire ensuite** :
+- Smoke test manuel sur téléphone Android (Step 14.4 du plan : splash → home → system → D-Pad → tracking → toggle thème → débranchement réseau → bouton reconnect).
+- Passe monture Celestron pour fermer la v0.1 backend (sections 3 et 7 de `INTEGRATION_CHECKLIST.md`).
+- Démarrage v0.2 : GoTo + alignement 3 étoiles (exploite GPS + compass LIS3MDL + ADXL345 tube).
 
 ## Archives
 
