@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Mode visuel de l'app Astro-Brain.
 ///
@@ -12,16 +13,37 @@ enum AstroThemeMode { day, night }
 /// Utilisé par le widget racine pour choisir entre `ThemeData` jour et nuit
 /// via `MaterialApp.themeMode`.
 ///
-/// Persistance (ex. dernier mode choisi) : à ajouter plus tard via
-/// `shared_preferences`. Pour l'instant le mode défaut est `day`.
+/// Le dernier mode choisi est persisté via `shared_preferences` et restauré
+/// automatiquement au démarrage.
 class ThemeCubit extends Cubit<AstroThemeMode> {
-  ThemeCubit({AstroThemeMode initial = AstroThemeMode.day}) : super(initial);
+  ThemeCubit({required SharedPreferences prefs})
+      : _prefs = prefs,
+        super(_read(prefs));
+
+  static const _key = 'astro.theme.mode';
+  final SharedPreferences _prefs;
+
+  static AstroThemeMode _read(SharedPreferences p) {
+    final v = p.getString(_key);
+    return v == 'night' ? AstroThemeMode.night : AstroThemeMode.day;
+  }
 
   /// Bascule jour ↔ nuit.
-  void toggle() => emit(
-        state == AstroThemeMode.day ? AstroThemeMode.night : AstroThemeMode.day,
-      );
+  void toggle() {
+    final next = state == AstroThemeMode.day
+        ? AstroThemeMode.night
+        : AstroThemeMode.day;
+    _prefs.setString(_key, next.name);
+    emit(next);
+  }
 
-  void setDay() => emit(AstroThemeMode.day);
-  void setNight() => emit(AstroThemeMode.night);
+  void setDay() {
+    _prefs.setString(_key, 'day');
+    emit(AstroThemeMode.day);
+  }
+
+  void setNight() {
+    _prefs.setString(_key, 'night');
+    emit(AstroThemeMode.night);
+  }
 }

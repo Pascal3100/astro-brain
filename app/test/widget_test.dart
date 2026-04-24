@@ -1,6 +1,7 @@
 import 'package:astro_brain/theme/app_colors.dart';
 import 'package:astro_brain/theme/theme_cubit.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // NOTE : les tests qui invoquent AstroTheme.buildDay()/buildNight() ne sont
 // pas ici — ces builders passent par google_fonts, qui fait un fetch HTTP
@@ -25,14 +26,18 @@ void main() {
   });
 
   group('ThemeCubit', () {
-    test('démarre en mode jour par défaut', () {
-      final cubit = ThemeCubit();
+    test('démarre en mode jour par défaut', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final cubit = ThemeCubit(prefs: prefs);
       expect(cubit.state, AstroThemeMode.day);
       cubit.close();
     });
 
-    test('toggle bascule jour ↔ nuit', () {
-      final cubit = ThemeCubit();
+    test('toggle bascule jour ↔ nuit', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final cubit = ThemeCubit(prefs: prefs);
       cubit.toggle();
       expect(cubit.state, AstroThemeMode.night);
       cubit.toggle();
@@ -40,8 +45,10 @@ void main() {
       cubit.close();
     });
 
-    test('setNight / setDay sont idempotents', () {
-      final cubit = ThemeCubit();
+    test('setNight / setDay sont idempotents', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final cubit = ThemeCubit(prefs: prefs);
       cubit.setNight();
       cubit.setNight();
       expect(cubit.state, AstroThemeMode.night);

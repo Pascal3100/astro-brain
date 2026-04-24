@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'features/home/home_bloc.dart';
 import 'features/home/home_screen.dart';
@@ -14,7 +15,9 @@ import 'theme/astro_theme.dart';
 import 'theme/theme_cubit.dart';
 
 class AstroBrainApp extends StatelessWidget {
-  const AstroBrainApp({super.key});
+  const AstroBrainApp({super.key, required this.prefs});
+
+  final SharedPreferences prefs;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +37,7 @@ class AstroBrainApp extends StatelessWidget {
       ],
       child: MultiBlocProvider(
         providers: [
-          BlocProvider<ThemeCubit>(create: (_) => ThemeCubit()),
+          BlocProvider<ThemeCubit>(create: (_) => ThemeCubit(prefs: prefs)),
           BlocProvider<AppBloc>(
             create: (ctx) => AppBloc(
               eventStream: ctx.read<EventStreamService>(),
