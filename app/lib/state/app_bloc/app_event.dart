@@ -25,3 +25,8 @@ class AppSystemStateReceived extends AppEvent {
 class AppConnectionLost extends AppEvent {
   const AppConnectionLost();
 }
+
+/// Émis par l'utilisateur pour déclencher une reconnexion manuelle.
+class AppReconnectRequested extends AppEvent {
+  const AppReconnectRequested();
+}

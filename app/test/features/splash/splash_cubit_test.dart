@@ -30,6 +30,7 @@ void main() {
         .thenAnswer((_) => const Stream<SystemState>.empty());
     when(() => svc.start()).thenAnswer((_) {});
     when(() => svc.stop()).thenAnswer((_) async {});
+    when(() => svc.dispose()).thenAnswer((_) async {});
     appBloc = AppBloc(eventStream: svc);
   });
 

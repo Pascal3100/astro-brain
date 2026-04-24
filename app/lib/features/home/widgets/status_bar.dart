@@ -52,6 +52,14 @@ class StatusBar extends StatelessWidget {
                 ),
               ),
               const Spacer(),
+              if (state.connection == ConnectionStatus.offline)
+                IconButton(
+                  tooltip: 'Reconnecter au Pi',
+                  icon: PhosphorIcon(PhosphorIconsBold.arrowClockwise,
+                      color: colors.accent),
+                  onPressed: () =>
+                      ctx.read<AppBloc>().add(const AppReconnectRequested()),
+                ),
               IconButton(
                 tooltip: mode == AstroThemeMode.day
                     ? 'Passer en mode nuit'

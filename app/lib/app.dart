@@ -32,7 +32,7 @@ class AstroBrainApp extends StatelessWidget {
         ),
         RepositoryProvider<EventStreamService>(
           create: (_) => EventStreamService(host: host),
-          dispose: (s) => s.stop(),
+          dispose: (s) => s.dispose(),
         ),
       ],
       child: MultiBlocProvider(

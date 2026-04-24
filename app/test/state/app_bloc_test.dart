@@ -26,6 +26,7 @@ void main() {
     when(() => svc.stream).thenAnswer((_) => controller.stream);
     when(() => svc.start()).thenAnswer((_) {});
     when(() => svc.stop()).thenAnswer((_) async {});
+    when(() => svc.dispose()).thenAnswer((_) async {});
   });
 
   tearDown(() => controller.close());

@@ -16,6 +16,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     on<AppStarted>(_onStarted);
     on<AppSystemStateReceived>(_onSystemStateReceived);
     on<AppConnectionLost>(_onConnectionLost);
+    on<AppReconnectRequested>(_onReconnect);
   }
 
   final EventStreamService _eventStream;
@@ -42,10 +43,22 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     emit(state.copyWith(connection: ConnectionStatus.offline));
   }
 
+  Future<void> _onReconnect(
+      AppReconnectRequested e, Emitter<AppState> emit) async {
+    emit(state.copyWith(connection: ConnectionStatus.connecting));
+    await _sub?.cancel();
+    _sub = _eventStream.stream.listen(
+      (sys) => add(AppSystemStateReceived(sys)),
+      onError: (_) => add(const AppConnectionLost()),
+    );
+    await _eventStream.stop();
+    _eventStream.start();
+  }
+
   @override
   Future<void> close() async {
     await _sub?.cancel();
-    await _eventStream.stop();
+    await _eventStream.dispose();
     return super.close();
   }
 }

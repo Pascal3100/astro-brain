@@ -33,7 +33,6 @@ class EventStreamService {
   StreamSubscription<List<int>>? _sub;
   Timer? _reconnectTimer;
   int _retryIndex = 0;
-  bool _stopped = false;
 
   static const List<Duration> _backoff = [
     Duration(seconds: 1),
@@ -45,17 +44,26 @@ class EventStreamService {
   Stream<SystemState> get stream => _out.stream;
 
   /// Démarre la connexion. Idempotent : un appel pendant qu'une connexion
-  /// est déjà active ne fait rien.
+  /// est déjà active ne fait rien. Sans effet si [dispose] a déjà été appelé.
   void start() {
-    if (_stopped) return;
+    if (_out.isClosed) return;
     _connect();
   }
 
+  /// Coupe la connexion courante sans fermer le stream [_out].
+  /// Un appel à [start] après [stop] reconnecte proprement.
   Future<void> stop() async {
-    _stopped = true;
     _reconnectTimer?.cancel();
     await _sub?.cancel();
     _client?.close();
+    _sub = null;
+    _client = null;
+  }
+
+  /// Fermeture définitive du service (fin de vie).
+  /// Appelle [stop] puis ferme [_out].
+  Future<void> dispose() async {
+    await stop();
     await _out.close();
   }
 
@@ -98,7 +106,7 @@ class EventStreamService {
   }
 
   void _scheduleReconnect() {
-    if (_stopped) return;
+    if (_out.isClosed) return;
     _sub?.cancel();
     _client?.close();
     _sub = null;
