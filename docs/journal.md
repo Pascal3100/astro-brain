@@ -69,6 +69,17 @@ GPS DroTek M8N branché sur UART GPIO + compass I2C. Passe de validation partiel
 
 **À faire** : passe dédiée avec monture Celestron branchée pour clore la v0.1 backend (sections 3 et 7 de la checklist).
 
+### Session 7 — décision capteurs d'inclinaison (2026-04-24)
+
+Arbitrage hardware sur la mesure d'inclinaison : choix de **2 × ADXL345** (accéléromètres I2C simples) plutôt qu'un IMU 9DOF.
+
+- **ADXL345 tube** (`0x53`) → zéro ALT + détection butées d'inclinaison
+- **ADXL345 monture** (`0x1D`) → mise à niveau pré-session (bulle virtuelle)
+
+Justification : usage statique pur, la gravité suffit (`atan2(ay, az)`). Pas besoin de fusion de capteurs ni de cap tilt-compensé (le plate solve v0.4 prendra le relais pour le pointage précis). Les 2 modules cohabitent sur I2C1 grâce à la pin SDO qui sélectionne l'adresse — pas de multiplexeur, pas de conflit avec le LIS3MDL (`0x1E`).
+
+Capteurs commandés. Détails et pages UI associées dans `docs/backlog.md` (section "Capteurs d'inclinaison tube + monture"). Mentions liées mises à jour : v0.2 mise en station (niveau), v0.5 réglages techniques monture (courses ALT), et piste IMU de "Position persistante" (écartée).
+
 ## Archives
 
 - [`2026-04-backend-v0.1.md`](journal/archive/2026-04-backend-v0.1.md) — Sessions 1→5 (brainstorm, spec design, monorepo + uv, Tasks 1-16 du plan backend, checklist hardware).

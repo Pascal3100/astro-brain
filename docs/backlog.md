@@ -41,10 +41,9 @@ Vue d'ensemble pour éviter la dispersion au fil des specs. La roadmap canonique
 
 Paramétrage persistant côté Pi, exposé par l'app :
 
-- **Courses min/max ALT/AZ** — safety pour éviter collision tube/trépied
+- **Courses min/max ALT/AZ** — safety pour éviter collision tube/trépied. Côté ALT : alimenté par l'ADXL345 tube (cf. section dédiée). Côté AZ : à traiter (probablement soft via position monture, pas de capteur dédié a priori).
 - **Caractéristiques du tube** (focale, diamètre, obstruction) — prérequis pour filtrage catalogue (v0.4) et calculs FOV astrophoto (v0.5)
 - **Compensation de backlash** — améliore tracking et futur GoTo (v0.3)
-- Capteurs à réfléchir : nature, nombre, protocole (fin de course mécaniques ? encodeurs ? Hall ?)
 - **TODO : auditer la raquette Celestron** — passer en revue tous les menus/réglages techniques exposés par le hand controller (backlash, anti-backlash, cone error, PEC, filter limits, custom slew rates, etc.) pour identifier ce qu'il faut exposer/récupérer côté app et/ou lire/écrire via NexStar
 
 ## Configuration des caméras (v0.4)
@@ -109,12 +108,39 @@ Procédure casse-pieds à faire manuellement, typiquement en début de session, 
 - Probablement une sous-section de la page "Setup" ou un onglet dédié dans le wizard de mise en station
 - À refaire "sporadiquement" (pas à chaque session), donc n'a pas besoin d'être au premier plan
 
+## Capteurs d'inclinaison tube + monture (ADXL345 × 2)
+
+**Décision 2026-04-24** : ajout de 2 accéléromètres **ADXL345** (I2C) au setup. Commandés.
+
+**Rôles distincts**
+- **ADXL345 tube** (adresse `0x53`, SDO=VCC) — mesure l'inclinaison du tube par rapport à l'horizontale. Sert à :
+    - Définir/retrouver le **zéro ALT** (tube à plat)
+    - Détecter l'approche des **butées ALT** (safety, complément des courses min/max de la page "Réglages techniques monture")
+- **ADXL345 monture** (adresse `0x1D`, SDO=GND) — mesure la planéité de l'embase. Sert à :
+    - **Mise à niveau pré-session** (remplace/complète la bulle physique sur trépied)
+    - Alimenter une page "Niveau monture" style HUD (bulle virtuelle XY, feedback < 0.5°)
+
+**Justification du choix** : usage statique pur, la gravité suffit (`atan2(ay, az)`). Pas besoin de fusion 9DOF ni de gyro. L'ADXL345 = accéléromètre simple ~2-3 €, très courant, **deux adresses I2C sélectionnables via la pin SDO** → les 2 modules cohabitent sur le même bus sans multiplexeur. Précision typique < 0.5° brute, < 0.1° après calibration statique — largement suffisant pour retrouver le zéro et poser des butées soft.
+
+**Bus I2C1 final**
+| Device | Adresse |
+|---|---|
+| LIS3MDL (compass DroTek) | `0x1E` |
+| ADXL345 tube | `0x53` |
+| ADXL345 monture | `0x1D` |
+
+**Pages UI associées** (à détailler dans les specs correspondants quand on y arrivera)
+- **Page "Niveau monture"** — bulle virtuelle XY, feedback rouge/vert < 0.5°. Probablement v0.2 (pré-session mise en station) ou v0.5 (wizard complet).
+- **Page "Calibration tube"** — bouton "définir le zéro" quand tube horizontal + affichage live de l'angle + alerte à l'approche des butées. Probablement rattachée à la page "Setup tube" (v0.3) ou aux "Réglages techniques monture" (v0.5).
+
+Cette décision remplace la piste IMU 9DOF évoquée ci-dessous : on n'a pas besoin d'un cap tilt-compensé pour le pointage, le plate solve v0.4 prendra le relais avec bien plus de précision.
+
 ## Position persistante + retour à l'origine (v0.4+)
 
 - "Home position" définie physiquement par capteurs (distincte de l'alignement logique Celestron)
 - Utilité : reprise après coupure, commande "retour à l'origine"
 - À clarifier : peut-on lire directement la position depuis la monture via NexStar (`get_position`) une fois alignée, ou faut-il des encodeurs/capteurs externes indépendants ? Lien avec le plate solving v0.4 qui donnera aussi une position absolue.
-- **Piste IMU plutôt que capteurs mécaniques** : le DroTek M8N n'a qu'un magnétomètre (LIS3MDL/HMC5883L), pas d'accéléromètre — il donne le cap seulement à plat, pas l'inclinaison. Ajouter un IMU (MPU6050 accel+gyro ~4€, ICM-20948 9DOF ~10€, ou BNO055 avec fusion intégrée ~20€) fournirait **inclinaison + cap tilt-compensé** en I2C, sans fin de course mécaniques ni encodeurs externes. Option à évaluer quand on creusera ce sujet.
+- **Inclinaison** : tranché (cf. section "Capteurs d'inclinaison tube + monture" plus haut) → 2 × ADXL345. La piste IMU 9DOF (MPU6050/ICM-20948/BNO055) pour un cap tilt-compensé est écartée : le plate solve v0.4 fournira le pointage précis, on n'a pas besoin de reconstituer un cap absolu par capteurs.
 
 ## Safety & robustesse (v0.2+, continu)
 
@@ -133,7 +159,7 @@ Scindé en deux livraisons selon la nouvelle roadmap :
 
 **v0.2 — version minimale (intégrée à l'alignement 3 étoiles)**
 - **Cap nord** via compass (LIS3MDL DroTek) pour pré-pointer la première étoile
-- **Niveau** : physique (bulle sur trépied) suffisant si pas d'IMU ; sinon aide visuelle via IMU
+- **Niveau** : via l'ADXL345 monture (cf. section "Capteurs d'inclinaison tube + monture"). Bulle virtuelle dans l'UI, feedback < 0.5°. La bulle physique sur trépied reste un fallback manuel.
 - **Alignement 3 étoiles** procédure NexStar assistée (le backend pilote le slew vers l'étoile proposée, l'utilisateur centre manuellement, valide, passe à la suivante)
 
 **v0.5 — wizard complet**
