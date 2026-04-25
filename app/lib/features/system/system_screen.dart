@@ -9,6 +9,7 @@ import '../../state/app_bloc/app_bloc.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/design_tokens.dart';
+import '../../utils/mount_error_messages.dart';
 import 'widgets/subsystem_card.dart';
 
 class SystemScreen extends StatelessWidget {
@@ -52,7 +53,7 @@ class SystemScreen extends StatelessWidget {
                   detailsText: _mountDetails(sys.mount),
                   since: sys.mount.since,
                   dotStatus: _mountDot(sys.mount.state),
-                  message: sys.mount.message,
+                  message: humanizeMountMessage(sys.mount.message),
                 ),
                 const SizedBox(height: DesignTokens.spaceLG),
                 SubsystemCard(

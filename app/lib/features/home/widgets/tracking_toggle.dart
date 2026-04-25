@@ -20,9 +20,13 @@ class TrackingToggle extends StatelessWidget {
     return BlocBuilder<AppBloc, AppState>(
       buildWhen: (a, b) =>
           a.connection != b.connection ||
-          a.system?.tracking.state != b.system?.tracking.state,
+          a.system?.tracking.state != b.system?.tracking.state ||
+          a.system?.mount.state != b.system?.mount.state,
       builder: (ctx, state) {
-        final disabled = state.connection != ConnectionStatus.connected;
+        final mountReady = state.system?.mount.state == MountState.ready ||
+            state.system?.mount.state == MountState.moving;
+        final disabled =
+            state.connection != ConnectionStatus.connected || !mountReady;
         final enabled = state.system?.tracking.state == TrackingState.sidereal;
         return Opacity(
           opacity: disabled ? 0.35 : 1,

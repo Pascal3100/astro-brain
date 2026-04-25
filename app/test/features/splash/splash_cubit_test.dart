@@ -40,7 +40,12 @@ void main() {
     'parcours nominal : contacting → loading → openingStream → success',
     build: () {
       when(() => api.fetchState()).thenAnswer((_) async => _FakeSystemState());
-      return SplashCubit(api: api, appBloc: appBloc);
+      return SplashCubit(
+        api: api,
+        appBloc: appBloc,
+        minPhaseDuration: Duration.zero,
+        successHoldDuration: Duration.zero,
+      );
     },
     act: (c) => c.start(),
     expect: () => [
@@ -56,7 +61,12 @@ void main() {
     build: () {
       when(() => api.fetchState())
           .thenThrow(ApiException('boom', statusCode: 500));
-      return SplashCubit(api: api, appBloc: appBloc);
+      return SplashCubit(
+        api: api,
+        appBloc: appBloc,
+        minPhaseDuration: Duration.zero,
+        successHoldDuration: Duration.zero,
+      );
     },
     act: (c) => c.start(),
     expect: () => [

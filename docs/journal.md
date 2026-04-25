@@ -157,6 +157,26 @@ Exécution du plan `docs/superpowers/plans/2026-04-24-astro-brain-v01-app.md` en
 - Passe monture Celestron pour fermer la v0.1 backend (sections 3 et 7 de `INTEGRATION_CHECKLIST.md`).
 - Démarrage v0.2 : GoTo + alignement 3 étoiles (exploite GPS + compass LIS3MDL + ADXL345 tube).
 
+### Session 10 — smoke test sur téléphone + 4 fixes UX (2026-04-25)
+
+Smoke test Step 14.4 du plan v0.1 app dérouké sur Moto g54 5G. Pour contourner un souci réseau Bbox (workstation joint le Pi mais pas le téléphone, malgré même BSSID 5 GHz), montage d'un workaround **tunnel SSH `localhost:8000` → Pi + `adb reverse tcp:8000`** : le téléphone voit le backend comme `localhost:8000`. Pour rendre l'override propre, `PiHost` accepte maintenant `--dart-define=PI_HOST=...` / `--dart-define=PI_PORT=...` (défaut `astro-brain.local:8000`).
+
+Backend live : MOUNT en `error` (ttyUSB0 absent, normal — connecteurs pas encore arrivés), GPS `fix_3d` 16 sats, NETWORK + SYSTEM verts. Tracking observable côté Pi via `journalctl -u astro-brain.service -f` (POST /slew, /stop, /tracking arrivent bien).
+
+**4 remarques relevées au fil → 4 fixes appliqués** :
+
+1. **Splash → Home trop bref / ghost screen** : `SplashCubit` accepte un `minPhaseDuration` (défaut 350 ms). Chaque phase (`contacting` / `loading` / `openingStream`) s'affiche au moins ce délai avant de basculer. Total ~1 s minimum au lieu d'un flash. Le test bloc passe `Duration.zero` pour rester instant.
+2. **D-Pad sans feedback au press** : `_Btn` en `StatefulWidget` avec état `_pressed` local + `AnimatedContainer` (`motionFast` 120 ms). Au tap-down : `Color.lerp(bg, accent, 0.32)` + bordure `strokeBold` + `BoxShadow(accentGlow, blur 16)`. Retour normal au tap-up / tap-cancel.
+3. **Message d'erreur MOUNT trop technique** (`[Errno 2] could not open port /dev/ttyUSB0...`) : nouvelle util `humanizeMountMessage(String?)` dans `lib/utils/mount_error_messages.dart` qui matche 3 patterns connus (port absent, permission denied, timeout) et fallback sur le brut sinon. Appliqué uniquement dans `system_screen.dart` côté affichage — le backend continue de remonter le message technique pour les logs. 6 tests sur le humanizer.
+4. **Toggle tracking cliquable malgré mount=error** : avant, le `disabled` du switch ne dépendait que de la connexion réseau. Ajout : `disabled = !connected || mount.state ∉ {ready, moving}`. Le `buildWhen` reconstruit aussi sur `mount.state`.
+
+**Tests** : 47 → 53 verts (+6 sur le humanizer, +0 régression). `flutter analyze` clean.
+
+**À faire ensuite** :
+- Validation visuelle des 4 fixes par l'utilisateur sur le téléphone (en cours).
+- Investiguer pourquoi le téléphone ne joint pas directement le Pi en Wi-Fi alors qu'ils sont sur le même BSSID que la workstation (workstation joint les deux, Pi et téléphone ne se voient pas). Piste isolation client Bbox sélective. Une fois résolu, retirer le tunnel et passer en mDNS classique.
+- Restant smoke test : test offline (`adb reverse --remove tcp:8000` + couper le tunnel SSH) → vérifier pastille offline + bouton reconnect.
+
 ## Archives
 
 - [`2026-04-backend-v0.1.md`](journal/archive/2026-04-backend-v0.1.md) — Sessions 1→5 (brainstorm, spec design, monorepo + uv, Tasks 1-16 du plan backend, checklist hardware).

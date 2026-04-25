@@ -61,35 +61,66 @@ class DPadControl extends StatelessWidget {
   }
 }
 
-class _Btn extends StatelessWidget {
+class _Btn extends StatefulWidget {
   const _Btn({required this.icon, required this.axis, required this.direction});
   final IconData icon;
   final Axis axis;
   final Direction direction;
 
   @override
+  State<_Btn> createState() => _BtnState();
+}
+
+class _BtnState extends State<_Btn> {
+  bool _pressed = false;
+
+  void _release() {
+    if (!_pressed) return;
+    setState(() => _pressed = false);
+    context.read<HomeBloc>().add(HomeSlewReleased(widget.axis));
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     return GestureDetector(
-      onTapDown: (_) => context
-          .read<HomeBloc>()
-          .add(HomeSlewPressed(axis: axis, direction: direction)),
-      onTapUp: (_) =>
-          context.read<HomeBloc>().add(HomeSlewReleased(axis)),
-      onTapCancel: () =>
-          context.read<HomeBloc>().add(HomeSlewReleased(axis)),
-      child: Container(
+      onTapDown: (_) {
+        setState(() => _pressed = true);
+        context.read<HomeBloc>().add(
+              HomeSlewPressed(axis: widget.axis, direction: widget.direction),
+            );
+      },
+      onTapUp: (_) => _release(),
+      onTapCancel: _release,
+      child: AnimatedContainer(
+        duration: DesignTokens.motionFast,
+        curve: Curves.easeOut,
         decoration: BoxDecoration(
-          color: Color.lerp(colors.bgGradientTop, colors.accent, 0.08),
+          color: Color.lerp(
+            colors.bgGradientTop,
+            colors.accent,
+            _pressed ? 0.32 : 0.08,
+          ),
           border: Border.all(
-            color: colors.accent.withValues(alpha: 0.4),
-            width: DesignTokens.strokeRegular,
+            color: colors.accent.withValues(alpha: _pressed ? 1 : 0.4),
+            width: _pressed
+                ? DesignTokens.strokeBold
+                : DesignTokens.strokeRegular,
           ),
           borderRadius: BorderRadius.circular(DesignTokens.radiusMD),
+          boxShadow: _pressed
+              ? [
+                  BoxShadow(
+                    color: colors.accentGlow,
+                    blurRadius: 16,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
         ),
         child: Center(
           child: PhosphorIcon(
-            icon,
+            widget.icon,
             color: colors.accent,
             size: DesignTokens.iconSizeXL,
           ),
