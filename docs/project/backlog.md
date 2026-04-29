@@ -147,6 +147,16 @@ Cette décision remplace la piste IMU 9DOF évoquée ci-dessous : on n'a pas bes
 - **Arrêt d'urgence** — bouton soft dans l'app (et/ou hardware GPIO) qui force un `stop` sur tous les axes, indépendamment du reste du système. Complément naturel des courses min/max. À concevoir comme un chemin de commande prioritaire, contournant la logique métier.
 - **Logs persistants côté Pi** — journalisation structurée des commandes monture, transitions d'état, erreurs série/GPS, événements orchestrateur. Rotation (journald ou logrotate). Permet le post-mortem d'une session ("pourquoi le tracking a décroché à 22h13 ?"). À prévoir dès qu'on aura des sessions réelles.
 
+## Night planner offline (post-v0.2)
+
+Décision d'archi v0.2 : **catalogue + calculs astro côté backend** (skyfield/astropy sur le Pi). Inconvénient identifié pour le futur night planner : impossible de planifier une soirée sans Pi allumé / accessible (canapé, bureau, déplacement).
+
+**Piste préférée** : pattern **snapshot/cache**. Quand l'app est connectée au Pi, elle télécharge un *planning bundle* pré-calculé (catalogue + courbes Alt/Az pour la nuit demandée à un site donné). L'app peut ensuite ouvrir le night planner offline sur ce snapshot. Pi reste source de vérité, l'app a juste un cache.
+
+**Alternative écartée** : embarquer une lib éphémérides Dart (Meeus/VSOP côté client) — duplication de logique astro, moins précis que skyfield, pas justifié.
+
+À spécifier quand on attaquera la version qui héberge le night planner.
+
 ## Ops & déploiement (à automatiser post-v0.1)
 
 - **Service systemd** pour le backend — aujourd'hui `uv run uvicorn` est lancé à la main sur le Pi. Passer à une unit systemd (start au boot, restart on-failure, logs vers journald).

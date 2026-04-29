@@ -6,34 +6,39 @@ Système de contrôle autonome pour télescope Maksutov Bresser 127/1900 sur mon
 
 ## Documentation
 
-- Architecture hardware initiale : `docs/architecture_hardware.txt`
-- Spec design v0.1 : `docs/superpowers/specs/2026-04-16-astro-brain-v01-design.md`
-- Backlog réflexions post-v0.1 : `docs/backlog.md` (idées transverses à arbitrer plus tard)
+**Point d'entrée unique** : [`docs/INDEX.md`](docs/INDEX.md) — référence trois vues `technical/`, `project/`, `product/`.
+
+- **Technique** ([`docs/technical/`](docs/technical/README.md)) : architecture, hardware/wiring, modèle d'état, API, déploiement.
+- **Projet** ([`docs/project/`](docs/project/README.md)) : roadmap, ADRs (`decisions.md`), journal (`journal.md`), backlog (`backlog.md`).
+- **Produit** ([`docs/product/`](docs/product/README.md)) : design system, fiches features.
+
+Specs et plans : `docs/superpowers/specs/` et `docs/superpowers/plans/`.
 
 ## Stack technique
 
 - **Backend** : FastAPI (Python 3.13) sur Raspberry Pi 3 B+
-- **Frontend** : App Flutter native sur téléphone (pas une PWA)
-- **Communication Pi <-> Monture** : nexstarpy via USB-série (port HC, protocole NexStar, 9600 baud)
-- **GPS** : Module DroTek Ublox M8N + compass magnétique (UART GPIO sur Pi, USB réservé aux caméras — voir `docs/hardware_wiring.md`)
-- **Plate Solving** (v0.2+) : Astrometry.net (local)
+- **Frontend** : App Flutter native sur téléphone (pas une PWA), pattern BLoC
+- **Communication Pi <-> Monture** : `nexstarpy` via USB-série (port HC, protocole NexStar, 9600 baud)
+- **Capteurs** : DroTek Ublox M8N (UART0 GPIO), compass LIS3MDL à `0x1E` (I2C1), 2× ADXL345 à `0x53`/`0x1D` (I2C1). Pas d'USB pour les capteurs (réservés caméras). Détails : [`docs/technical/hardware.md`](docs/technical/hardware.md).
+- **Plate Solving** (v0.5+) : Astrometry.net local
 
 ## Architecture
 
 ```
-App Flutter (téléphone) --[Wi-Fi / REST]--> FastAPI (Pi) --[USB-série]--> Monture Celestron
-                                                 │ UART GPIO (+ I2C pour compass)
-                                                 ▼
-                                           DroTek GPS + compass
+App Flutter (téléphone) --[Wi-Fi / REST + SSE]--> FastAPI (Pi) --[USB-série]--> Monture Celestron
+                                                       │ UART0 + I2C1 GPIO
+                                                       ▼
+                                           DroTek GPS + LIS3MDL + 2× ADXL345
 ```
 
 - Pas d'Arduino dans la chaîne
-- REST pour les commandes (`/slew`, `/stop`, `/tracking`), SSE pour le flux d'état (`/events`) — pas de WebSocket en v0.1
-- Le Pi gère la sync GPS → monture automatiquement au boot
+- REST pour les commandes, SSE pour l'état — pas de WebSocket
+- Pi gère la sync GPS → monture automatiquement au boot
+- Détails : [`docs/technical/architecture.md`](docs/technical/architecture.md)
 
 ## Accès Pi
 
-- Hostname : `astro-brain` (résolvable aussi via mDNS en `astro-brain.local` depuis l'install d'avahi-daemon)
+- Hostname : `astro-brain` (mDNS `astro-brain.local`)
 - User : `pascal3100`
 - SSH configuré avec clé (`~/.ssh/config`)
 
@@ -41,35 +46,40 @@ App Flutter (téléphone) --[Wi-Fi / REST]--> FastAPI (Pi) --[USB-série]--> Mon
 
 Monorepo à `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN/` :
 
-- `backend/` — package Python FastAPI (pyproject.toml + uv.lock au niveau de ce dossier)
-- `app/` — app Flutter (à créer dans un plan dédié)
-- `docs/` — specs (`docs/superpowers/specs/`), plans (`docs/superpowers/plans/`), journal, archi hardware
+- `backend/` — package Python FastAPI (pyproject.toml + uv.lock à ce niveau)
+- `app/` — app Flutter (`flutter_bloc`, design system dans `lib/theme/`)
+- `docs/` — `INDEX.md` + 3 vues (`technical/`, `project/`, `product/`) + `superpowers/{specs,plans}/`
 - `CLAUDE.md`, `README.md` — racine
 
 ## Workflow de dev
 
 Hybride : édition côté workstation, exécution côté Pi.
 
-- **Tooling Python** : `uv` (Python 3.13, venv, lockfile). Commandes clés depuis `backend/` : `uv sync`, `uv run pytest`, `uv run uvicorn astro_brain.main:app --reload`.
-- **Workstation** : édition + tests unitaires pur-logique (StateBus, aggregator, modèles Pydantic, SSE format) avec fakes — pas de hardware nécessaire. Deps hardware exclues par défaut.
-- **Pi** : clone à `~/code/astro-brain/`, `uv sync --extra hardware` pour installer `nexstarpy`/`gpsd-py3`/`pyserial`, puis `git pull && uv run uvicorn ...` pour tester avec le vrai matériel.
+- **Tooling Python** : `uv` (Python 3.13, venv, lockfile). Depuis `backend/` : `uv sync`, `uv run pytest`, `uv run uvicorn astro_brain.main:app --reload`.
+- **Workstation** : édition + tests unitaires pur-logique avec fakes. Deps hardware exclues par défaut.
+- **Pi** : clone à `~/code/astro-brain/`, `uv sync --extra hardware`, puis `git pull && systemctl restart astro-brain.service`.
 - **Git = source de vérité** : rien de sensible hors du repo ; pas de sync manuelle workstation ↔ Pi.
+- **App Flutter** : depuis `app/`, `flutter analyze` + `flutter test`. Validation visuelle sur Android physique en USB (pas Chrome / pas émulateur).
 
 ## Roadmap
 
-Philosophie : **chaque version = un livrable utilisable en session réelle**. On vise d'abord la parité avec la raquette Celestron (v0.1 → v0.3, sans caméra), puis on greffe la chaîne caméra/plate solve/guidage par-dessus.
+Philosophie : **chaque version = un livrable utilisable en session réelle**. On vise d'abord la parité avec la raquette Celestron (v0.1 → v0.4, sans caméra), puis on greffe la chaîne caméra/plate solve/guidage.
 
-- **v0.1** : Joystick + tracking + GPS/heure
-- **v0.2** : GoTo + alignement assisté 3 étoiles (exploite GPS + compass + niveau pour pré-pointer les étoiles de référence)
-- **v0.3** : Catalogue intelligent + page "setup tube" (filtrage des objets selon focale/diamètre/obstruction du tube). **À ce stade, parité fonctionnelle avec la raquette Celestron.**
-- **v0.4** : Fondations caméras + Plate solving (stack INDI, config caméras, pipeline preview FITS→JPEG, page framing, machine d'état backend idle/focus/guide/image)
-- **v0.5** : Mise au point + Mise en station (page focus live + HFR/FWHM, wizard mise en station, réglages techniques monture comme courses ALT/AZ & backlash)
-- **v0.6** : Astrophoto (intégration PHD2 guidage, séquenceur de poses, dithering, autofocus périodique)
+- **v0.1** ✓ Joystick + tracking + GPS/heure (livré 2026-04-25)
+- **v0.2** Setup : calibration compass + ADXL345 ×2, courses ALT/AZ, backlash, network/IP, à propos
+- **v0.3** Mise en station 3 étoiles + GoTo + catalogue minimal (Messier + planètes + ~50-100 étoiles brillantes) + Hub central
+- **v0.4** Catalogue complet (NGC/IC) + filtrage par tube (focale, diamètre, obstruction) — **parité raquette Celestron atteinte**
+- **v0.5** Caméras + plate solving (stack INDI, pipeline preview FITS→JPEG, framing)
+- **v0.6** Focus + mise en station complète (focus live HFR/FWHM, wizard avec option plate solve)
+- **v0.7** Astrophoto (PHD2 guidage, séquenceur, dithering, autofocus)
+
+Roadmap détaillée : [`docs/project/roadmap.md`](docs/project/roadmap.md). ADRs : [`docs/project/decisions.md`](docs/project/decisions.md).
 
 ## Conventions
 
-- Le journal de session est dans `docs/journal.md` — **fil rouge du projet**, à tenir à jour **régulièrement pendant la session** (décisions d'archi, commits importants, blocages), pas uniquement à la fin
-- **Structure du journal** : `docs/journal.md` reste compact (état projet + session en cours + index des archives). À chaque jalon significatif (plan achevé, version livrée), basculer la session courante dans `docs/journal/archive/AAAA-MM-<milestone>.md`, mettre à jour "État du projet", et repartir sur une session vide. Les archives sont consultables à la demande mais plus chargées par défaut.
-- Les specs de design sont dans `docs/superpowers/specs/`
-- Les plans d'implémentation sont dans `docs/superpowers/plans/`
-- Design UI : style HUD spatial, Material Design 3, thème bleu (jour) / rouge (nuit)
+- **Journal** : [`docs/project/journal.md`](docs/project/journal.md) — fil rouge du projet, à tenir à jour **pendant la session** (décisions, commits importants, blocages). **Plafond : 5-6 sessions max** ; au-delà, on archive par milestone dans `docs/project/journal/archive/<AAAA-MM-milestone>.md`.
+- **Backlog** : [`docs/project/backlog.md`](docs/project/backlog.md) — réflexions prospectives transverses à arbitrer plus tard. Pas de réflexions prospectives dans le journal.
+- **ADRs** : [`docs/project/decisions.md`](docs/project/decisions.md) — toute décision structurante (titre + contexte + choix + rationale).
+- **Docs courts et ciblés** : 1 sujet = 1 fichier, navigation par liens. Quand on touche un sujet, mettre à jour le doc correspondant.
+- **Specs de design** : `docs/superpowers/specs/`. **Plans d'implémentation** : `docs/superpowers/plans/`.
+- **Design UI** : Material Design 3, style HUD spatial, double thème bleu (jour) / rouge (nuit). AppBar partagée sur tous les écrans (pastille `overall` + toggle thème + reconnect conditionnel). Détails : [`docs/product/design-system.md`](docs/product/design-system.md).
