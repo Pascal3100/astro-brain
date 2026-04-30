@@ -1,6 +1,8 @@
 # Capacités `nexstarpy` 0.1.0 + protocole NexStar
 
-Source de vérité sur ce qu'on peut et ne peut pas faire avec la lib actuelle. Évite les hypothèses pendant les brainstorms et les plans d'implémentation.
+Source de vérité sur ce que la **lib `nexstarpy` 0.1.0** expose. Évite les hypothèses sur ce qui est wrappé dans le code actuel.
+
+> ⚠️ Pour la **liste exhaustive du protocole NexStar** lui-même (HC + AUX), incluant sync, backlash, cordwrap, hibernate, et toutes les commandes que la lib n'expose pas mais que la HC NexStar+ supporte : voir [`nexstar-protocol-reference.md`](nexstar-protocol-reference.md). Le présent document ne couvre que ce qui est wrappé par la lib Python actuelle.
 
 > Lib utilisée : `nexstarpy==0.1.0` (PyPI, `requires-python >= 3.13`). Wrapper minimaliste autour du protocole série NexStar (9600 baud, 8N1, terminateur `#`, timeout 3.5 s).
 
@@ -42,53 +44,62 @@ Source de vérité sur ce qu'on peut et ne peut pas faire avec la lib actuelle. 
 - ⚠️ **Pas de `is_goto_in_progress`** (la commande `0x4C` est définie en constants mais pas wrappée).
 - ⚠️ **Pas d'`echo`** (la commande `0x4B` est définie mais pas wrappée).
 
-## Ce que le protocole NexStar **n'expose pas** (côté série)
+## Ce que la lib **n'expose pas** mais que le protocole **supporte**
 
-Ces fonctions existent **uniquement dans le menu de la raquette HC**, pas dans le protocole série standard :
+> Mise à jour suite à la recherche complète du protocole (cf. [`nexstar-protocol-reference.md`](nexstar-protocol-reference.md)). La conclusion change radicalement par rapport à la version initiale de ce doc : presque tout ce qui manque dans `nexstarpy` est en réalité **disponible dans le protocole** — soit côté HC (PDF Celestron 2006 v1.2), soit côté AUX (Andre Paquette 2003).
 
-- ❌ **Sync / alignment point** — pas de `sync_radec(ra, dec)`. Le wizard d'alignement de la HC est interne à la monture et n'est pas pilotable via `0x50` ou autre. On devra **soit** étendre la lib (si une commande non-documentée existe — à creuser), **soit** faire l'alignement **Pi-side** (matrice de rotation 3D maintenue par notre backend, monture vue comme actuator dumb).
-- ❌ **Cordwrap on/off** — toggle exclusivement HC. Pas de commande série standard. Notre seule option : tracker l'AZ cumulé Pi-side via `get_azm_alt` polled.
-- ❌ **Backlash compensation** — réglages HC. Pas d'API série pour les régler ni les lire. Notre option : faire la **compensation backlash software Pi-side** (intercepteur dans `nexstar_adapter` qui ajoute un mouvement de pré-charge à chaque inversion de direction).
-- ❌ **Custom slew rates** — la raquette permet de personnaliser les 9 rates fixes ; pas exposé série.
-- ❌ **PEC (Periodic Error Correction)** — réglage HC, pas pilotable série.
-- ❌ **GoTo limits / slew limits** — pas de courses ALT/AZ à régler côté monture.
-- ❌ **État alignement** — pas de commande "es-tu alignée ?". Si on alimente la monture sans HC, elle n'est jamais "alignée" dans son sens interne. C'est nous qui maintenons l'état d'alignement Pi-side.
+| Fonction | Statut protocole | Wrappé par nexstarpy ? |
+|---|---|---|
+| **Sync `S`/`s`** (3-star wizard) | ✅ HC ≥ 4.10, dans le PDF officiel | ❌ |
+| **Backlash get/set** (par axe, pos/neg, 0-99) | ✅ AUX `MC_GET/SET_*_BACKLASH` (msgIds 0x10/0x11/0x40/0x41) | ❌ |
+| **Cordwrap on/off/poll/pos** | ✅ AUX (msgIds 0x38/0x39/0x3B/0x3A/0x3C, AZM only) | ❌ |
+| **Is Aligned `J`** | ✅ HC, dans le PDF | ❌ |
+| **GoTo in progress `L`** | ✅ HC | ⚠️ constant défini, méthode absente |
+| **Echo `K`** | ✅ HC | ⚠️ constant défini, méthode absente |
+| **Get Location `w` / Get Time `h`** | ✅ HC ≥ 2.3 | ⚠️ constants définies, méthodes absentes |
+| **Hibernate `x` / Wake `y`** | ✅ Community (NexStar+ HC ≥ 5.22 GEM / 5.24 fork) | ❌ |
+| **Autoguide rate** (par axe) | ✅ AUX `MC_SET/GET_AUTOGUIDE_RATE` | ❌ |
+| **Slew Done par axe** (polling fin GoTo) | ✅ AUX `MC_SLEW_DONE` (cap polling à 10 Hz, sinon overshoot) | ❌ |
+| **PEC** (record/playback) | ✅ AUX (mounts EQ uniquement — pas SLT) | ❌ |
+| **Custom slew rates** | ✅ AUX (taux variables sur chaque axe) | ⚠️ partiel via `slew_variable` 0-150 |
+| **Slew limits / courses ALT-AZ** | ❌ pas dans le protocole — réglages HC internes seulement | n/a |
+
+**Conséquence importante** : la position « monture vue comme actuator dumb » prise dans la version précédente de ce doc n'est plus la bonne. On peut, via le protocole, faire `sync_radec` natif, lire `is_aligned`, régler le backlash et le cordwrap directement côté monture. C'est juste que **`nexstarpy` 0.1.0 n'a pas de wrapper** pour ces commandes.
 
 ## Conséquences pour la roadmap
 
-### v0.2 (Setup)
+### v0.2 (Setup) — implémentations révisées
 
 | Item | Implémentation | Source |
 |---|---|---|
 | Calibration LIS3MDL (compass) | Off-mount, full Pi-side (lecture I2C, persistance disque). | Indépendant de NexStar. |
 | Calibration ADXL345 ×2 | Off-mount, full Pi-side. | Indépendant de NexStar. |
-| Courses ALT min/max | Lecture position via **ADXL345 tube**, pas via `get_azm_alt`. Stockées Pi-side. | L'ADXL345 donne l'ALT physique vraie, indépendante du référentiel monture. |
-| **Cordwrap protection AZ** | **Option 2 retenue** : counter software Pi-side qui intègre les variations d'AZ depuis `get_azm_alt`. Alerte UI quand on approche d'un seuil (~1.5 tour). Optionnel : intercepter un GoTo qui éloignerait davantage. **Options 1 (NexStar) écartée** : pas exposée. | Polling `get_azm_alt` dans `MountService`. |
-| **Backlash ALT/AZ** | **Software Pi-side** : à chaque inversion de direction de slew, on ajoute un mouvement de préambule (ex. 0.5° ALT en plus avant de slew dans la direction inverse). Valeurs réglées par calibration : la routine demande à l'utilisateur de centrer une étoile, puis renverse — elle mesure le retard avant que la monture ne réponde. | Wrapper autour de `slew_fixed`/`slew_variable` dans `nexstar_adapter`. |
+| Courses ALT min/max | Lecture position via **ADXL345 tube**. Stockées Pi-side, appliquées en software (clamp côté backend avant émission slew/goto). | Pas de slew limits dans le protocole. |
+| **Cordwrap protection AZ** | **Côté monture, via AUX** : `MC_CWRAP_ENABLE/DISABLE` (msgId 0x38/0x39), `MC_CWRAP_GET_POS/SET_POS` (0x3B/0x3C). On expose un toggle dans Setup + une position de cordwrap. | AUX pass-through, AZM motor (0x10). |
+| **Backlash ALT/AZ** | **Côté monture, via AUX** : `MC_GET/SET_POS_BACKLASH` (msgId 0x40/0x10), `MC_GET/SET_NEG_BACKLASH` (0x41/0x11), valeur 0-99 par axe par direction. La monture gère le préambule elle-même. La routine de calibration mesure puis push la valeur. | AUX pass-through, motor 0x10 (AZ) et 0x11 (ALT). |
 | Network/IP config | Côté Pi (config réseau / hotspot). | Indépendant de NexStar. |
-| À propos | Lecture `get_version`, `get_model`. | OK avec lib actuelle. |
+| À propos | Lecture `get_version`, `get_model`, + `get_location`/`get_time` à ajouter. | HC standard. |
 
 ### v0.3 (Mise en station + GoTo)
 
-L'alignement 3 étoiles devra **vivre Pi-side**, parce que `nexstarpy` n'expose pas de sync :
+L'alignement 3 étoiles peut désormais **utiliser le sync natif de la monture** :
 
-- Notre backend maintient une matrice de rotation entre repère monture (AZ/ALT bruts de la monture, qui démarrent toujours à `(0,0)` au boot) et repère ciel (RA/Dec).
-- Pour un GoTo sur RA/Dec : on convertit en AZ/ALT-monture via la matrice + `goto_azm_alt`.
-- Pour un slew manuel : direct sur l'axe, pas de transformation.
-- Pour la lecture position courante : on lit `get_azm_alt` puis on applique la matrice inverse pour afficher RA/Dec.
+- À chaque étoile centrée, on push `sync_radec(ra, dec)` (commande HC `S` / `s`, présente dans la firmware ≥ 4.10).
+- La monture maintient son propre modèle d'alignement interne ; on lui demande ensuite des `goto_radec` natifs.
+- Plus besoin de matrice de rotation Pi-side (Wahba/SVD) — fallback uniquement si le firmware s'avère < 4.10 (très improbable, à vérifier en début de plan v0.3 via `get_version`).
+- Avant le wizard : `is_aligned()` (`J`) pour vérifier l'état initial.
+- Pendant un GoTo : `is_goto_in_progress()` (`L`) pour le polling fin.
 
-Trois `sync_star` accumulent 3 paires `(v_sky, v_mount)`, on résout Wahba (SVD) pour fitter la rotation rigide.
+### Conséquence : étendre `nexstarpy` ou bypasser
 
-> **À investiguer au moment du plan v0.3** : certains forks/fork de protocole NexStar exposent une commande `Q` (Sync). Vérifier si la firmware de notre monture la supporte (commande série brute, hors `nexstarpy`). Si oui, ça simplifie tout — on push les 3 syncs à la monture et on lit les coordonnées RA/Dec qu'elle calcule. Si non, fallback Pi-side comme décrit.
+L'agent de recherche recommande de **ne pas dépendre de la lib upstream** pour la suite — c'est un wrapper minimaliste 0.1.0 mono-auteur, et on a besoin de l'AUX pass-through (cordwrap, backlash) qu'elle ne wrappera probablement jamais.
 
-### Ce qui demanderait de patcher `nexstarpy`
+Deux options à arbitrer au plan v0.2 :
 
-Si on a besoin d'aller plus loin, candidats à ajouter (fork ou PR upstream) :
+1. **Fork interne** dans `backend/astro_brain/adapters/nexstar/` — réécriture maison ciblée, ne dépend plus du tout de `nexstarpy`. On garde l'interface du `Protocol` actuel pour ne rien casser au reste du backend.
+2. **Patch local** + dépendance Git pinned — plus rapide à mettre en place mais on porte deux dettes : la lib upstream + nos additions.
 
-- `is_goto_in_progress() -> bool` — utile pour bloquer les commandes pendant un GoTo.
-- `get_location() / get_time()` — useful pour vérifier la sync GPS-monture.
-- `echo(byte) -> byte` — heartbeat pour vérifier que la connexion est vivante (le watchdog actuel utilise `get_version`, ce qui marche aussi).
-- Hypothétique `sync_radec(ra, dec)` si la firmware le supporte — à tester avec un capture série de la HC en mode alignement.
+Recommandation : option 1 (fork interne), parce que les ajouts AUX sont structurellement différents du wrapper HC actuel et qu'on aura besoin de la liberté.
 
 ## Notes opérationnelles
 
