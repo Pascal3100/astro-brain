@@ -12,9 +12,8 @@ dependencies = [
 
 [project.optional-dependencies]
 hardware = [
-    "nexstarpy",
+    "pyindi-client>=2.0",
     "gpsd-py3",
-    "pyserial",
 ]
 
 [dependency-groups]

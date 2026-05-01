@@ -40,11 +40,11 @@ def _select_services(bus: StateBus, *, use_hardware: bool) -> dict[str, Any]:
     """Return the five services, either fakes or real hardware adapters."""
     if use_hardware:
         from astro_brain.adapters.gpsd_adapter import GpsdAdapter
-        from astro_brain.adapters.nexstar_adapter import NexStarMountAdapter
+        from astro_brain.adapters.mount_indi_adapter import MountIndiAdapter
         from astro_brain.adapters.network_info import NetworkInfoAdapter
         from astro_brain.adapters.system_info import SystemInfoAdapter
 
-        mount = NexStarMountAdapter(bus)
+        mount = MountIndiAdapter(bus)
         # The mount adapter also implements ``set_tracking`` — re-use it
         # as the tracking service so ``/tracking`` drives real hardware.
         return {
