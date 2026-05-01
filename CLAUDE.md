@@ -18,7 +18,7 @@ Specs et plans : `docs/superpowers/specs/` et `docs/superpowers/plans/`.
 
 - **Backend** : FastAPI (Python 3.13) sur Raspberry Pi 3 B+
 - **Frontend** : App Flutter native sur téléphone (pas une PWA), pattern BLoC
-- **Communication Pi <-> Monture** : `nexstarpy` via USB-série (port HC, protocole NexStar, 9600 baud)
+- **Communication Pi <-> Monture** : stack INDI (`indiserver` + driver `indi_celestron_aux`) côté Pi, client Python `pyindi-client` dans le backend FastAPI. Liaison physique : port HC RJ12 → dongle USB-TTL CP2102 (5V) → `/dev/ttyUSB0` (NexStar 9600 baud, AUX en pass-through `'P'`)
 - **Capteurs** : DroTek Ublox M8N (UART0 GPIO), compass LIS3MDL à `0x1E` (I2C1), 2× ADXL345 à `0x53`/`0x1D` (I2C1). Pas d'USB pour les capteurs (réservés caméras). Détails : [`docs/technical/hardware.md`](docs/technical/hardware.md).
 - **Plate Solving** (v0.5+) : Astrometry.net local
 

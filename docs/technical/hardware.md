@@ -7,7 +7,7 @@ Référence pratique pour le matériel et les branchements physiques.
 | Composant | Rôle | Connexion |
 |---|---|---|
 | **Raspberry Pi 3 B+** | Backend FastAPI, GPS, calculs astro, plate solving (v0.5+) | — |
-| **Monture Celestron** | GoTo + suivi sidéral | USB-série (port HC, protocole NexStar 9600 baud) |
+| **Monture Celestron** | GoTo + suivi sidéral | USB-série via dongle CP2102 (port HC RJ12 → `/dev/ttyUSB0`, driver INDI `indi_celestron_aux`) |
 | **GPS DroTek Ublox M8N + compass XL** | Géolocalisation, heure UTC, cap magnétique | UART0 GPIO (GPS) + I2C1 GPIO (compass LIS3MDL) |
 | **ADXL345 tube** (`0x53`) | Zéro ALT + détection butées d'inclinaison | I2C1 GPIO |
 | **ADXL345 monture** (`0x1D`) | Mise à niveau pré-session (bulle virtuelle) | I2C1 GPIO |
@@ -154,6 +154,39 @@ sudo i2cset -y 1 0x1e 0x23 0x0C      # CTRL_REG4 : high-perf Z
 sudo i2cset -y 1 0x1e 0x22 0x00      # CTRL_REG3 : mode continu
 ```
 
+## Monture — USB-série via dongle CP2102 (port HC)
+
+Le HC Celestron parle en TTL **5V** sur connecteur RJ12 6P6C. Pour éviter un level shifter + un conflit UART avec le GPS (qui occupe `ttyAMA0`), on passe par un dongle USB-TTL CP2102 (ou FT232RL) en mode 5V, branché sur un port USB du Pi. Le HC apparaît alors en `/dev/ttyUSB0`.
+
+### Brochage RJ12 HC Celestron → dongle CP2102
+
+Vue clip vers le bas, broches numérotées 1→6 de gauche à droite :
+
+| Broche RJ12 | Fonction | Côté dongle |
+|---|---|---|
+| 1 | N/C | — |
+| 2 | N/C **ou +12V selon HC** ⚠️ | **ne pas connecter** |
+| 3 | RX (HC reçoit) | TX du dongle |
+| 4 | TX (HC envoie) | RX du dongle |
+| 5 | GND | GND du dongle |
+| 6 | N/C | — |
+
+⚠️ **À valider au multimètre avant mise sous tension.** Certains HC NexStar+ exposent +12 V sur la broche 2 ; un contact accidentel grille le dongle voire le port USB du Pi.
+
+⚠️ **Sélecteur du dongle sur 5V**, pas 3.3V. Un dongle qui ne sort qu'en 3.3V ne dialoguera pas correctement avec le HC.
+
+### Vérification
+
+```bash
+# Avec dongle branché côté Pi, monture ALIMENTÉE et HC connectée au dongle :
+ls -l /dev/ttyUSB0                        # doit exister, owner dialout
+dmesg | grep -i cp2102                    # vu côté kernel
+echo -e -n '\x4b\xa5' > /dev/ttyUSB0      # commande HC Echo (K + byte 0xA5)
+                                          # (alternative : tester via INDI une fois en place)
+```
+
+L'utilisateur Pi (`pascal3100`) doit être dans le groupe `dialout` (`groups | grep dialout`, sinon `sudo usermod -aG dialout pascal3100` + re-login).
+
 ## ADXL345 ×2 — I2C1
 
 Câblage identique au compass (SDA/SCL partagés). Sélection d'adresse via pin SDO :
@@ -173,6 +206,7 @@ GPS  RX   ──── Pin 8  (TXD0)
 Mag  SDA  ──── Pin 3  (SDA1)
 Mag  SCL  ──── Pin 5  (SCL1)
 ADXL ×2   ──── Pin 3 + Pin 5 (parallèle sur I2C1)
+HC RJ12   ──── dongle CP2102 (5V) ──── port USB Pi (→ /dev/ttyUSB0)
 ```
 
 ## Dépannage rapide

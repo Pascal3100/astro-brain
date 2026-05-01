@@ -8,9 +8,9 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 
 **Contexte** : design initial prévoyait un Arduino comme intermédiaire entre Pi et monture pour temps-réel.
 
-**Décision** : Pi communique directement avec la monture via USB-série (port HC, protocole NexStar 9600 baud, lib `nexstarpy`).
+**Décision** : Pi communique directement avec la monture via série (port HC NexStar). _Lib révisée par l'ADR du 2026-05-01 (INDI)._
 
-**Rationale** : la monture Celestron a déjà son micro-contrôleur interne pour le temps-réel moteur. Un Arduino ajouterait une couche série de plus, sans valeur. Le Pi reste réactif via `asyncio.to_thread` pour les appels série bloquants.
+**Rationale** : la monture Celestron a déjà son micro-contrôleur interne pour le temps-réel moteur. Un Arduino ajouterait une couche série de plus, sans valeur. Le Pi reste réactif côté FastAPI via les patterns asyncio.
 
 ---
 
@@ -89,6 +89,26 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 **Décision** : Setup devient le milestone v0.2. La mise en station + GoTo passe en v0.3. Le décalage propage sur tout le reste.
 
 **Rationale** : shipper un alignement sans calibration capteurs serait shipper une feature qui ne marche pas en pratique. Mieux vaut un Setup robuste qui débloque l'alignement, que l'inverse.
+
+---
+
+## 2026-05-01 — Pilotage monture via INDI (drop nexstarpy)
+
+**Contexte** : v0.1 utilise `nexstarpy` 0.1.0 (HC-only, mono-auteur, pas d'AUX). v0.2 a besoin de backlash + cordwrap + sync RA/Dec + `is_aligned` + `goto_in_progress`, qui passent par les commandes AUX (pass-through `'P'`/0x50 du HC). v0.5 amène les caméras → INDI sera de toute façon dans la stack pour le plate solving / framing / capture.
+
+**Décision** : pivoter dès v0.2 sur l'écosystème **INDI** — `indiserver` + driver `indi_celestron_aux` (BETA, repo `indi-3rdparty`) + client Python `pyindi-client`. Le nouveau backend wrappe INDI derrière la même interface `MountAdapter` (REST `/slew`, `/stop`, `/tracking`, `/goto` inchangés côté Flutter).
+
+**Rationale** : tout code écrit autour de `nexstarpy` serait jeté à v0.5 — coût zéro de jeter maintenant vs cycle complet plus tard. INDI couvre 6 des 7 besoins v0.2/v0.3 nativement (vérifié par lecture source). Manque uniquement le mount-axis backlash (opcodes `MC_*_BACKLASH` non câblés dans `auxproto.h`) → patch upstream estimé ~70 lignes C++. Spec : [`docs/superpowers/specs/2026-05-01-mount-indi-design.md`](../superpowers/specs/2026-05-01-mount-indi-design.md). Doc onboarding : [`docs/technical/indi-reference.md`](../technical/indi-reference.md).
+
+---
+
+## 2026-05-01 — Câblage monture via dongle CP2102 USB-TTL 5V (port HC RJ12)
+
+**Contexte** : la monture s'attache au Pi par le port HC en RJ12 (TTL 5V). Le DroTek GPS occupe déjà l'UART matériel (PL011, `ttyAMA0`) en GPIO. Pas de level shifter ni de câble Celestron #93920 dans le tiroir au moment de la décision.
+
+**Décision** : interfacer le HC par un dongle USB-TTL **CP2102** (sélecteur sur **5V**) branché côté Pi sur un port USB libre, et côté HC sur un bornier maison RJ12 6P6C. Le HC apparaît en `/dev/ttyUSB0`. Les broches RX/TX/GND sont câblées 3↔TX-dongle / 4↔RX-dongle / 5↔GND ; broche 2 **non connectée** (peut exposer +12 V selon HC, à valider au multimètre).
+
+**Rationale** : (1) zéro conflit avec le GPS (qui garde l'UART matériel pour lui), (2) coût équivalent à un level shifter + câble UART, (3) compatible avec le standard INDI (`/dev/ttyUSBx`), (4) chaud-débranchable contrairement au GPIO. Câblage et avertissements : [`docs/technical/hardware.md`](../technical/hardware.md#monture--usb-série-via-dongle-cp2102-port-hc).
 
 ---
 
