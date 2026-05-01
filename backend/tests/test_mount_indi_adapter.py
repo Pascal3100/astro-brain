@@ -201,3 +201,46 @@ async def test_set_location_pushes_geographic_coord() -> None:
     geo = dev.getNumber("GEOGRAPHIC_COORD")
     assert geo["LAT"].getValue() == pytest.approx(43.6043)
     assert geo["LONG"].getValue() == pytest.approx(1.4437)
+
+
+def _seed_tracking_property(client: FakeIndiClient) -> None:
+    dev = client.getDevice(INDI_DEVICE_NAME)
+    assert dev is not None
+    dev.add_switch(
+        "TELESCOPE_TRACK_STATE", {"TRACK_ON": "OFF", "TRACK_OFF": "ON"}
+    )
+
+
+@pytest.mark.asyncio
+async def test_set_tracking_true_pushes_track_on_and_publishes_sidereal() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_tracking_property(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    await adapter.set_tracking(True)
+
+    track = client.getDevice(INDI_DEVICE_NAME).getSwitch("TELESCOPE_TRACK_STATE")
+    assert track["TRACK_ON"].getState() == "ON"
+    assert track["TRACK_OFF"].getState() == "OFF"
+    assert bus.get_full_state().subsystems["tracking"].state == "sidereal"
+
+
+@pytest.mark.asyncio
+async def test_set_tracking_false_pushes_track_off_and_publishes_off() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_tracking_property(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    await adapter.set_tracking(True)
+
+    await adapter.set_tracking(False)
+
+    track = client.getDevice(INDI_DEVICE_NAME).getSwitch("TELESCOPE_TRACK_STATE")
+    assert track["TRACK_OFF"].getState() == "ON"
+    assert track["TRACK_ON"].getState() == "OFF"
+    assert bus.get_full_state().subsystems["tracking"].state == "off"

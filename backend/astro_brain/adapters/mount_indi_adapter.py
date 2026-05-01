@@ -289,3 +289,28 @@ class MountIndiAdapter:
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),
             )
+
+    # --- tracking (TrackingService surface) -------------------------------
+
+    async def set_tracking(self, enabled: bool) -> None:
+        if self._device is None:
+            return
+        try:
+            track = self._device.getSwitch("TELESCOPE_TRACK_STATE")
+            if track is None:
+                raise RuntimeError("TELESCOPE_TRACK_STATE property not found")
+            set_switch_one_of_many(
+                track, "TRACK_ON" if enabled else "TRACK_OFF"
+            )
+            await asyncio.to_thread(self._client.sendNewProperty, track)
+            self._bus.publish(
+                "tracking",
+                SubsystemState(
+                    state="sidereal" if enabled else "off", since=_now()
+                ),
+            )
+        except Exception as exc:
+            self._bus.publish(
+                "mount",
+                SubsystemState(state="error", message=str(exc), since=_now()),
+            )
