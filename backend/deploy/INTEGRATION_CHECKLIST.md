@@ -12,7 +12,7 @@ Ces réglages OS ne sont pas gérés par `install.sh` — à faire manuellement 
 
 ### GPS UART + compass I2C
 
-- [x] Câblage physique conforme à `docs/hardware_wiring.md` (GPS sur UART0, compass sur I2C1)
+- [x] Câblage physique conforme à `docs/technical/hardware.md` (GPS sur UART0, compass sur I2C1)
 - [x] Dans `/boot/firmware/config.txt` :
   - [x] `enable_uart=1`
   - [x] `dtoverlay=disable-bt` (libère le PL011 du Bluetooth pour un UART plus stable)

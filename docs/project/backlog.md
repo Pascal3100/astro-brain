@@ -130,7 +130,7 @@ Procédure casse-pieds à faire manuellement, typiquement en début de session, 
 | ADXL345 monture | `0x1D` |
 
 **Pages UI associées** (à détailler dans les specs correspondants quand on y arrivera)
-- **Page "Niveau monture"** — bulle virtuelle XY, feedback rouge/vert < 0.5°. Probablement v0.2 (pré-session mise en station) ou v0.5 (wizard complet).
+- **Page "Niveau monture"** — bulle virtuelle XY, feedback rouge/vert < 0.5°. Intégrée à v0.2 (Setup).
 - **Page "Calibration tube"** — bouton "définir le zéro" quand tube horizontal + affichage live de l'angle + alerte à l'approche des butées. Probablement rattachée à la page "Setup tube" (v0.3) ou aux "Réglages techniques monture" (v0.5).
 
 Cette décision remplace la piste IMU 9DOF évoquée ci-dessous : on n'a pas besoin d'un cap tilt-compensé pour le pointage, le plate solve v0.4 prendra le relais avec bien plus de précision.
