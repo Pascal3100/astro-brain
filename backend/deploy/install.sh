@@ -16,6 +16,12 @@ fi
 echo "Syncing Python dependencies with uv (hardware extra)..."
 uv sync --extra hardware
 
+echo "Installing INDI server systemd unit..."
+sudo cp deploy/indiserver.service /etc/systemd/system/indiserver.service
+sudo systemctl daemon-reload
+sudo systemctl enable indiserver.service
+sudo systemctl restart indiserver.service
+
 echo "Installing systemd unit..."
 sudo cp deploy/astro-brain.service /etc/systemd/system/astro-brain.service
 sudo systemctl daemon-reload

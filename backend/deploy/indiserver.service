@@ -1,0 +1,18 @@
+[Unit]
+Description=INDI server (Celestron AUX driver)
+Documentation=https://docs.indilib.org/
+After=network.target
+
+[Service]
+Type=simple
+User=pascal3100
+# -v: verbose log to journal (essential for debug). -p 7624: explicit port.
+# Bind on loopback only — see ADR 2026-05-01 (no remote EKOS in v0.2).
+ExecStart=/usr/bin/indiserver -v -p 7624 indi_celestron_aux
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

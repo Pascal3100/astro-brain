@@ -1,7 +1,8 @@
 [Unit]
 Description=Astro-Brain backend (FastAPI)
-After=network-online.target gpsd.service
+After=network-online.target gpsd.service indiserver.service
 Wants=network-online.target
+Requires=indiserver.service
 
 [Service]
 Type=simple
