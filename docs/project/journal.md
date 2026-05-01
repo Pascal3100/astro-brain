@@ -6,9 +6,9 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 
 **Version active** : `v0.1 livrée` — parité joystick + tracking avec la raquette Celestron via app Flutter native. Backend (64 tests) et app (53 tests) sur main. Smoke test téléphone fait sur Moto g54 5G. Validation physique faite sur **GPS + compass I2C + network + system** ; **monture pas encore branchée** (sections 3 et 7 de `backend/deploy/INTEGRATION_CHECKLIST.md` à dérouler — connecteurs en attente).
 
-**Cap suivant** : `v0.2 = Setup` (calibration capteurs, courses, backlash, cordwrap, network/IP, à propos). Le wizard de mise en station + GoTo + catalogue passent en v0.3.
+**Cap suivant** : **lib NexStar** — arbitrer fork interne de `nexstarpy 0.1.0` vs lib plus aboutie, puis l'étendre pour exposer sync / backlash / cordwrap / is_aligned / goto_in_progress. Prérequis dur de v0.2 (Setup pilote backlash + cordwrap mount-side) et v0.3 (wizard utilise sync natif).
 
-**Spec v0.2 validée** : `docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md` (Session 13). Prochaine étape : `superpowers:writing-plans` pour le plan d'implémentation.
+**Spec v0.2 validée** : `docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md` (Session 13). En attente que la lib NexStar soit prête avant de lancer `superpowers:writing-plans`.
 
 **Doc tree** : nouvelle arborescence `docs/INDEX.md` → 3 vues (`technical/`, `project/`, `product/`). Petits docs ciblés, navigation par liens. Voir Session 12.
 
@@ -58,8 +58,8 @@ Audit complet (Explore agent) après les nombreuses itérations de la session :
 Commit `ae2b74f`. Push : 5 commits sur `origin/main` (`d4e93a8..ae2b74f`).
 
 **À faire ensuite** :
-- Lancer `superpowers:writing-plans` sur la spec v0.2 Setup pour produire le plan d'implémentation.
-- Au début du plan : arbitrer fork `nexstarpy` vs lib plus aboutie.
+- **Chantier lib NexStar avant le plan v0.2** : arbitrer fork `nexstarpy 0.1.0` vs lib plus aboutie, puis brainstorm + spec + plan dédiés. Doit exposer ce dont v0.2 (backlash + cordwrap AUX) et v0.3 (sync_radec, is_aligned, goto_in_progress) auront besoin.
+- Une fois la lib prête : `superpowers:writing-plans` sur la spec v0.2 Setup.
 - Toujours en parallèle : passe monture quand connecteurs arrivent (sections 3 et 7 de `INTEGRATION_CHECKLIST.md`) pour fermer la v0.1 backend.
 
 ### Session 12 — réorganisation roadmap + arborescence docs (2026-04-29)
