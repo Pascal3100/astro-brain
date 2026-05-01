@@ -81,3 +81,21 @@ ssh pascal3100@astro-brain
 Aujourd'hui : édition workstation → commit/push → SSH Pi → `git pull && systemctl restart`.
 
 À automatiser post-v0.2 (cf. backlog) : script `deploy.sh` ou cible Make.
+
+## Driver INDI patché (backlash mount-axis)
+
+Le driver upstream `indi_celestron_aux` n'expose pas le backlash mount-axis. Astro-Brain en utilise un fork patché jusqu'au merge de la PR upstream.
+
+Procédure de (re)build sur le Pi :
+
+```bash
+~/code/astro-brain/backend/deploy/build-indi-celestronaux.sh
+sudo systemctl restart indiserver
+```
+
+Le paquet est tenu (`apt-mark hold`) pour qu'`apt upgrade` ne l'écrase pas. Quand la PR upstream est mergée :
+
+```bash
+sudo apt-mark unhold indi-celestronaux
+sudo apt update && sudo apt upgrade indi-celestronaux
+```

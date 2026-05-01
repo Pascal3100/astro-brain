@@ -3,10 +3,12 @@
 ## Vue d'ensemble
 
 ```
-App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[USB-série]─▶  Monture Celestron
-                                                       │ UART GPIO + I2C1
-                                                       ▼
-                                                 GPS DroTek + LIS3MDL + ADXL345
+App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[pyindi-client]─▶  indiserver
+                                                       │ UART GPIO + I2C1              │ indi_celestron_aux
+                                                       ▼                               ▼
+                                                 GPS DroTek + LIS3MDL + ADXL345    /dev/ttyUSB0 (CP2102)
+                                                                                       │
+                                                                                    HC RJ12 ─▶ Monture Celestron
 ```
 
 - **Backend** : FastAPI (Python 3.13) sur Raspberry Pi 3 B+. Pas d'Arduino dans la chaîne.
@@ -28,6 +30,18 @@ App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[USB-
 - `pyindi-client` (monture, via `indiserver` local), `gpsd-py3` (GPS), `smbus2` (I2C compass + accelerometers)
 - Flutter 3.41+ / Dart 3.11+, `flutter_bloc`, `equatable`, `google_fonts`, `phosphor_flutter`, `shared_preferences`
 - Style UI : Material Design 3, thème bleu (jour) / rouge (nuit)
+
+## Processus sur le Pi
+
+Trois processus cohabitent sur le Pi :
+
+| Processus | Rôle | Systemd |
+|-----------|------|---------|
+| `astro-brain.service` | Backend FastAPI | `Requires=indiserver.service gpsd.service` |
+| `indiserver` | Broker INDI + driver `indi_celestron_aux` | `indiserver.service` (démarré avant FastAPI) |
+| `gpsd` | Démon GPS (UART0) | `gpsd.service` |
+
+Le service FastAPI déclare `Requires=indiserver.service` pour garantir que le broker INDI est actif avant la tentative de connexion `pyindi-client`.
 
 ## Workflow de dev
 

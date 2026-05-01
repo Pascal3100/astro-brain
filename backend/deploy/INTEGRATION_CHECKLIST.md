@@ -10,6 +10,15 @@ Hostname utilisé ici : `astro-brain` (DNS local). Si ça ne résout pas, tomber
 
 Ces réglages OS ne sont pas gérés par `install.sh` — à faire manuellement la première fois.
 
+### Stack INDI
+
+- [ ] `sudo apt install indi-bin python3-indi-client libindi1` (paquet PPA INDI activé)
+- [ ] Driver patché installé via `backend/deploy/build-indi-celestronaux.sh` (cf. `docs/technical/deployment.md`)
+- [ ] `dpkg -l indi-celestronaux` affiche le paquet `holds` (`apt-mark showhold | grep indi-celestronaux`)
+- [ ] `sudo systemctl --no-pager status indiserver.service` → active (running)
+- [ ] `sudo journalctl -u indiserver.service -n 30 --no-pager` → driver `indi_celestron_aux` chargé, pas de "ERROR" récurrent
+- [ ] Côté workstation, port forward SSH si besoin de debug avec `INDI Control Panel` : `ssh -L 7624:localhost:7624 astro-brain` puis pointer le client local sur `localhost:7624`
+
 ### GPS UART + compass I2C
 
 - [x] Câblage physique conforme à `docs/technical/hardware.md` (GPS sur UART0, compass sur I2C1)
@@ -46,19 +55,30 @@ Ces réglages OS ne sont pas gérés par `install.sh` — à faire manuellement 
 - [x] `curl -s http://astro-brain:8000/state | python3 -m json.tool` → 200, 5 subsystems présents (mount, gps, network, system, tracking)
 - [ ] `curl -N http://astro-brain:8000/events` (Ctrl+C pour sortir) → émet `event: snapshot` immédiatement, puis au moins un `event: update` dans les 15 s (ping keep-alive ou publish réel)
 
-## 3. Mount — smoke test
+## 3. Mount — smoke test (INDI)
 
-Prérequis : monture sous tension, câble USB branché.
+Prérequis : monture sous tension, dongle CP2102 sur USB Pi, indiserver actif, driver patché installé.
 
-- [ ] Au démarrage, `mount.state` atteint `ready` avec `details.firmware_version` non-null
-- [ ] `tracking.state` apparaît à `off` (publish initial dans `NexStarMountAdapter.start()`)
-- [ ] `POST /slew` avec `{"axis":"alt","direction":"+","rate":1}` → slew lent visible sur la monture ; `mount.state=moving` avec `details.active_slews` peuplé
-- [ ] `POST /stop` avec `{}` → slew arrêté ; `mount.state=ready`
-- [ ] `POST /tracking` avec `{"enabled":true}` → drive RA s'engage ; `tracking.state=sidereal`
-- [ ] `POST /tracking` avec `{"enabled":false}` → tracking coupé ; `tracking.state=off`
-- [ ] Débrancher l'USB brièvement → `mount.state=error` dans ≤ 2 s (watchdog) ; rebranchement + `sudo systemctl restart astro-brain` → `mount.state=ready`
+- [ ] Au démarrage, `mount.state` atteint `ready` avec `details.device="Celestron AUX"`
+- [ ] `tracking.state` apparaît à `off` (publish initial dans `MountIndiAdapter.start()`)
+- [ ] `POST /slew` `{"axis":"alt","direction":"+","rate":4}` → slew visible ; `mount.state=moving` avec `details.active_slews` peuplé
+- [ ] `POST /stop` `{}` → `TELESCOPE_ABORT_MOTION` envoyé ; `mount.state=ready`
+- [ ] `POST /tracking` `{"enabled":true}` → drive RA s'engage ; `tracking.state=sidereal`
+- [ ] `POST /tracking` `{"enabled":false}` → tracking coupé ; `tracking.state=off`
+- [ ] Débrancher le dongle USB → `mount.state=error` dans ≤ 3 s (callback `serverDisconnected` du driver) ; rebrancher + `sudo systemctl restart astro-brain` → `mount.state=ready`
 
-**Si le tracking sidéral ne s'engage pas** : la constante `TRACKING_MODE_SIDEREAL = 1` dans `backend/astro_brain/adapters/nexstar_adapter.py` ne correspond pas au firmware. Essayer 2, puis 3, et mettre à jour une fois identifié.
+### Backlash (driver patché)
+
+- [ ] Côté Python : `curl -X POST localhost:8000/admin/backlash -d '{"axis":"alt","direction":"+","value":15}'` (à activer si endpoint admin exposé en v0.2 Setup ; sinon test via Python REPL `await mount.set_backlash("alt", "+", 15)`)
+- [ ] `await mount.get_backlash("alt", "+")` retourne 15 après set
+- [ ] Vérifier dans `INDI Control Panel` (port-forwarded) que `MOUNT_AXIS_BACKLASH.ALT_POS = 15`
+- [ ] `i2cdetect`-style : depuis Python, `client.getDevice("Celestron AUX").getNumber("MOUNT_AXIS_BACKLASH")` ne renvoie pas `None`
+
+### Cordwrap
+
+- [ ] `await mount.cordwrap_set_enabled(True)` → property `CORDWRAP.INDI_ENABLED=ON` (visible dans INDI Control Panel)
+- [ ] `await mount.cordwrap_get_enabled()` → `True`
+- [ ] `await mount.cordwrap_set_position("E")` → `CORDWRAP_POS.CORDWRAP_E=ON`
 
 ## 4. GPS — smoke test
 
