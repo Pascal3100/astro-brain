@@ -314,3 +314,67 @@ class MountIndiAdapter:
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),
             )
+
+    # --- cordwrap (AUX driver native) ------------------------------------
+
+    _CORDWRAP_POS_ELEMENTS: dict[str, str] = {
+        "N": "CORDWRAP_N",
+        "E": "CORDWRAP_E",
+        "S": "CORDWRAP_S",
+        "W": "CORDWRAP_W",
+    }
+
+    async def cordwrap_get_enabled(self) -> bool:
+        if self._device is None:
+            return False
+        cw = self._device.getSwitch("CORDWRAP")
+        if cw is None:
+            return False
+        return cw["INDI_ENABLED"].getState() == "ON"
+
+    async def cordwrap_set_enabled(self, enabled: bool) -> None:
+        if self._device is None:
+            return
+        try:
+            cw = self._device.getSwitch("CORDWRAP")
+            if cw is None:
+                raise RuntimeError("CORDWRAP property not found")
+            set_switch_one_of_many(
+                cw, "INDI_ENABLED" if enabled else "INDI_DISABLED"
+            )
+            await asyncio.to_thread(self._client.sendNewProperty, cw)
+        except Exception as exc:
+            self._bus.publish(
+                "mount",
+                SubsystemState(state="error", message=str(exc), since=_now()),
+            )
+
+    async def cordwrap_get_position(self) -> str:
+        if self._device is None:
+            return "N"
+        cw_pos = self._device.getSwitch("CORDWRAP_POS")
+        if cw_pos is None:
+            return "N"
+        for cardinal, elem_name in self._CORDWRAP_POS_ELEMENTS.items():
+            if cw_pos[elem_name].getState() == "ON":
+                return cardinal
+        return "N"
+
+    async def cordwrap_set_position(self, position: str) -> None:
+        if position not in self._CORDWRAP_POS_ELEMENTS:
+            raise ValueError(f"invalid cordwrap position: {position!r}")
+        if self._device is None:
+            return
+        try:
+            cw_pos = self._device.getSwitch("CORDWRAP_POS")
+            if cw_pos is None:
+                raise RuntimeError("CORDWRAP_POS property not found")
+            set_switch_one_of_many(
+                cw_pos, self._CORDWRAP_POS_ELEMENTS[position]
+            )
+            await asyncio.to_thread(self._client.sendNewProperty, cw_pos)
+        except Exception as exc:
+            self._bus.publish(
+                "mount",
+                SubsystemState(state="error", message=str(exc), since=_now()),
+            )

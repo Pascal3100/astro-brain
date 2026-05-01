@@ -244,3 +244,84 @@ async def test_set_tracking_false_pushes_track_off_and_publishes_off() -> None:
     assert track["TRACK_OFF"].getState() == "ON"
     assert track["TRACK_ON"].getState() == "OFF"
     assert bus.get_full_state().subsystems["tracking"].state == "off"
+
+
+def _seed_cordwrap_properties(client: FakeIndiClient) -> None:
+    dev = client.getDevice(INDI_DEVICE_NAME)
+    assert dev is not None
+    dev.add_switch(
+        "CORDWRAP", {"INDI_ENABLED": "OFF", "INDI_DISABLED": "ON"}
+    )
+    dev.add_switch(
+        "CORDWRAP_POS",
+        {"CORDWRAP_N": "ON", "CORDWRAP_E": "OFF", "CORDWRAP_S": "OFF", "CORDWRAP_W": "OFF"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_cordwrap_set_enabled_true_toggles_indi_enabled_on() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_cordwrap_properties(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    await adapter.cordwrap_set_enabled(True)
+
+    cw = client.getDevice(INDI_DEVICE_NAME).getSwitch("CORDWRAP")
+    assert cw["INDI_ENABLED"].getState() == "ON"
+    assert cw["INDI_DISABLED"].getState() == "OFF"
+
+
+@pytest.mark.asyncio
+async def test_cordwrap_get_enabled_reads_current_state() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_cordwrap_properties(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    assert await adapter.cordwrap_get_enabled() is False
+    await adapter.cordwrap_set_enabled(True)
+    assert await adapter.cordwrap_get_enabled() is True
+
+
+@pytest.mark.asyncio
+async def test_cordwrap_set_position_east() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_cordwrap_properties(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    await adapter.cordwrap_set_position("E")
+
+    cw_pos = client.getDevice(INDI_DEVICE_NAME).getSwitch("CORDWRAP_POS")
+    assert cw_pos["CORDWRAP_E"].getState() == "ON"
+    assert cw_pos["CORDWRAP_N"].getState() == "OFF"
+
+
+@pytest.mark.asyncio
+async def test_cordwrap_set_position_invalid_raises() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_cordwrap_properties(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    with pytest.raises(ValueError):
+        await adapter.cordwrap_set_position("Z")
+
+
+@pytest.mark.asyncio
+async def test_cordwrap_get_position_reads_active_cardinal() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_cordwrap_properties(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    await adapter.cordwrap_set_position("S")
+    assert await adapter.cordwrap_get_position() == "S"

@@ -7,7 +7,7 @@ the ``[hardware]`` extras.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from astro_brain.bus import StateBus
@@ -16,7 +16,7 @@ from astro_brain.subsystems import SubsystemState
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class FakeMount:
@@ -89,6 +89,25 @@ class FakeMount:
 
     async def set_location(self, lat: float, lon: float) -> None:
         return None
+
+    # --- cordwrap (in-memory toggles) ------------------------------------
+
+    _cordwrap_enabled: bool = False
+    _cordwrap_position: str = "N"
+
+    async def cordwrap_get_enabled(self) -> bool:
+        return self._cordwrap_enabled
+
+    async def cordwrap_set_enabled(self, enabled: bool) -> None:
+        self._cordwrap_enabled = bool(enabled)
+
+    async def cordwrap_get_position(self) -> str:
+        return self._cordwrap_position
+
+    async def cordwrap_set_position(self, position: str) -> None:
+        if position not in {"N", "E", "S", "W"}:
+            raise ValueError(f"invalid cordwrap position: {position!r}")
+        self._cordwrap_position = position
 
 
 class FakeTracking:
