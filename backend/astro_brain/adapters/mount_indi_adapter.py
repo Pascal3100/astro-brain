@@ -17,8 +17,9 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
+from astro_brain.adapters._indi_property_helpers import set_switch_one_of_many
 from astro_brain.bus import StateBus
-from astro_brain.services.interfaces import Axis, Direction  # noqa: F401
+from astro_brain.services.interfaces import Axis, Direction
 from astro_brain.subsystems import SubsystemState
 
 INDI_HOST_ENV = "ASTRO_BRAIN_INDI_HOST"
@@ -128,3 +129,125 @@ class MountIndiAdapter:
             f"INDI device {self._device_name!r} not advertised within "
             f"{DEVICE_DISCOVERY_TIMEOUT_S}s"
         )
+
+    # --- joystick / slew --------------------------------------------------
+
+    _AXIS_TO_MOTION_VECTOR: dict[str, str] = {
+        "alt": "TELESCOPE_MOTION_NS",
+        "az": "TELESCOPE_MOTION_WE",
+    }
+    _AXIS_DIR_TO_ELEMENT: dict[tuple[str, str], tuple[str, str]] = {
+        ("alt", "+"): ("MOTION_NORTH", "MOTION_SOUTH"),
+        ("alt", "-"): ("MOTION_SOUTH", "MOTION_NORTH"),
+        ("az", "+"): ("MOTION_WEST", "MOTION_EAST"),
+        ("az", "-"): ("MOTION_EAST", "MOTION_WEST"),
+    }
+
+    async def slew(self, axis: Axis, direction: Direction, rate: int) -> None:
+        """Start a slew on ``axis`` in ``direction`` at ``rate`` (1–8).
+
+        Pushes ``TELESCOPE_SLEW_RATE`` (1-of-many) then the appropriate
+        ``TELESCOPE_MOTION_NS`` or ``TELESCOPE_MOTION_WE`` switch.
+        Replaces any prior slew on the same axis (joystick semantics).
+        """
+        if self._device is None:
+            return
+        # Replace any existing slew on the same axis.
+        self._active_slews = [s for s in self._active_slews if s["axis"] != axis]
+        self._active_slews.append(
+            {"axis": axis, "direction": direction, "rate": rate}
+        )
+
+        try:
+            # 1. Push the slew rate (1-of-many switch).
+            rate_vec = self._device.getSwitch("TELESCOPE_SLEW_RATE")
+            if rate_vec is None:
+                raise RuntimeError("TELESCOPE_SLEW_RATE property not found")
+            set_switch_one_of_many(rate_vec, f"SLEW_RATE_{rate}")
+            await asyncio.to_thread(self._client.sendNewProperty, rate_vec)
+
+            # 2. Start motion on the correct axis.
+            motion_name = self._AXIS_TO_MOTION_VECTOR[axis]
+            on_elem, off_elem = self._AXIS_DIR_TO_ELEMENT[(axis, direction)]
+            motion_vec = self._device.getSwitch(motion_name)
+            if motion_vec is None:
+                raise RuntimeError(f"{motion_name} property not found")
+            motion_vec[on_elem].setState("ON")
+            motion_vec[off_elem].setState("OFF")
+            await asyncio.to_thread(self._client.sendNewProperty, motion_vec)
+        except Exception as exc:
+            self._bus.publish(
+                "mount",
+                SubsystemState(state="error", message=str(exc), since=_now()),
+            )
+            return
+
+        self._bus.publish(
+            "mount",
+            SubsystemState(
+                state="moving",
+                details={
+                    "device": self._device_name,
+                    "active_slews": list(self._active_slews),
+                },
+                since=_now(),
+            ),
+        )
+
+    async def stop_slew(self, axis: Axis | None) -> None:
+        """Stop slew on a single ``axis``, or abort all motion when ``None``.
+
+        When ``axis`` is ``None`` uses ``TELESCOPE_ABORT_MOTION`` as a
+        belt-and-braces stop covering anything still moving.
+        """
+        if self._device is None:
+            return
+        try:
+            if axis is None:
+                abort_vec = self._device.getSwitch("TELESCOPE_ABORT_MOTION")
+                if abort_vec is None:
+                    raise RuntimeError(
+                        "TELESCOPE_ABORT_MOTION property not found"
+                    )
+                abort_vec["ABORT_MOTION"].setState("ON")
+                await asyncio.to_thread(self._client.sendNewProperty, abort_vec)
+                self._active_slews = []
+            else:
+                motion_name = self._AXIS_TO_MOTION_VECTOR[axis]
+                motion_vec = self._device.getSwitch(motion_name)
+                if motion_vec is None:
+                    raise RuntimeError(f"{motion_name} property not found")
+                for elem in motion_vec:
+                    elem.setState("OFF")
+                await asyncio.to_thread(self._client.sendNewProperty, motion_vec)
+                self._active_slews = [
+                    s for s in self._active_slews if s["axis"] != axis
+                ]
+        except Exception as exc:
+            self._bus.publish(
+                "mount",
+                SubsystemState(state="error", message=str(exc), since=_now()),
+            )
+            return
+
+        if self._active_slews:
+            self._bus.publish(
+                "mount",
+                SubsystemState(
+                    state="moving",
+                    details={
+                        "device": self._device_name,
+                        "active_slews": list(self._active_slews),
+                    },
+                    since=_now(),
+                ),
+            )
+        else:
+            self._bus.publish(
+                "mount",
+                SubsystemState(
+                    state="ready",
+                    details={"device": self._device_name},
+                    since=_now(),
+                ),
+            )
