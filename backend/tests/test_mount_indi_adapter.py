@@ -325,3 +325,79 @@ async def test_cordwrap_get_position_reads_active_cardinal() -> None:
     await adapter.start()
     await adapter.cordwrap_set_position("S")
     assert await adapter.cordwrap_get_position() == "S"
+
+
+def _seed_backlash_property(client: FakeIndiClient) -> None:
+    dev = client.getDevice(INDI_DEVICE_NAME)
+    assert dev is not None
+    dev.add_number(
+        "MOUNT_AXIS_BACKLASH",
+        {"AZ_POS": 0.0, "AZ_NEG": 0.0, "ALT_POS": 0.0, "ALT_NEG": 0.0},
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_backlash_reads_property_element() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_backlash_property(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    bl = client.getDevice(INDI_DEVICE_NAME).getNumber("MOUNT_AXIS_BACKLASH")
+    bl["ALT_POS"].setValue(12.0)
+
+    assert await adapter.get_backlash("alt", "+") == 12
+
+
+@pytest.mark.asyncio
+async def test_set_backlash_writes_property_element() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_backlash_property(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    await adapter.set_backlash("az", "-", 25)
+
+    bl = client.getDevice(INDI_DEVICE_NAME).getNumber("MOUNT_AXIS_BACKLASH")
+    assert bl["AZ_NEG"].getValue() == 25.0
+
+
+@pytest.mark.asyncio
+async def test_set_backlash_value_out_of_range_raises() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_backlash_property(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    with pytest.raises(ValueError):
+        await adapter.set_backlash("alt", "+", 150)
+
+
+@pytest.mark.asyncio
+async def test_get_backlash_returns_zero_when_property_absent() -> None:
+    """Driver not patched yet — property is absent. Don't crash, return 0."""
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    # Note: no backlash property seeded.
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    assert await adapter.get_backlash("alt", "+") == 0
+
+
+@pytest.mark.asyncio
+async def test_set_backlash_when_property_absent_publishes_error() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    # No backlash property — simulating an unpatched driver.
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    await adapter.set_backlash("alt", "+", 5)
+
+    assert bus.get_full_state().subsystems["mount"].state == "error"

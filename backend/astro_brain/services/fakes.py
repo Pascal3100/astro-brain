@@ -109,6 +109,25 @@ class FakeMount:
             raise ValueError(f"invalid cordwrap position: {position!r}")
         self._cordwrap_position = position
 
+    # --- backlash (in-memory 4-value table) -----------------------------
+
+    _backlash_table: dict[tuple[str, str], int] = {  # noqa: RUF012
+        ("alt", "+"): 0,
+        ("alt", "-"): 0,
+        ("az", "+"): 0,
+        ("az", "-"): 0,
+    }
+
+    async def get_backlash(self, axis: Axis, direction: Direction) -> int:
+        return self._backlash_table[(axis, direction)]
+
+    async def set_backlash(
+        self, axis: Axis, direction: Direction, value: int
+    ) -> None:
+        if not 0 <= int(value) <= 99:
+            raise ValueError(f"backlash value out of range: {value}")
+        self._backlash_table[(axis, direction)] = int(value)
+
 
 class FakeTracking:
     """Sidereal tracking toggle published on the bus."""

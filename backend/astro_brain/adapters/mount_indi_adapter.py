@@ -378,3 +378,46 @@ class MountIndiAdapter:
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),
             )
+
+    # --- backlash (driver patch required upstream) ----------------------
+
+    _BACKLASH_ELEMENT: dict[tuple[str, str], str] = {
+        ("az", "+"): "AZ_POS",
+        ("az", "-"): "AZ_NEG",
+        ("alt", "+"): "ALT_POS",
+        ("alt", "-"): "ALT_NEG",
+    }
+
+    async def get_backlash(self, axis: Axis, direction: Direction) -> int:
+        if self._device is None:
+            return 0
+        bl = self._device.getNumber("MOUNT_AXIS_BACKLASH")
+        if bl is None:
+            # Property missing -> driver not patched yet. Return 0 silently
+            # so UI sliders still render; writes will surface the error.
+            return 0
+        elem_name = self._BACKLASH_ELEMENT[(axis, direction)]
+        return int(bl[elem_name].getValue())
+
+    async def set_backlash(
+        self, axis: Axis, direction: Direction, value: int
+    ) -> None:
+        if not 0 <= int(value) <= 99:
+            raise ValueError(f"backlash value out of range: {value}")
+        if self._device is None:
+            return
+        try:
+            bl = self._device.getNumber("MOUNT_AXIS_BACKLASH")
+            if bl is None:
+                raise RuntimeError(
+                    "MOUNT_AXIS_BACKLASH not advertised by driver — "
+                    "patch required (see plan Task 12)"
+                )
+            elem_name = self._BACKLASH_ELEMENT[(axis, direction)]
+            bl[elem_name].setValue(float(int(value)))
+            await asyncio.to_thread(self._client.sendNewProperty, bl)
+        except Exception as exc:
+            self._bus.publish(
+                "mount",
+                SubsystemState(state="error", message=str(exc), since=_now()),
+            )
