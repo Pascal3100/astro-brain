@@ -251,3 +251,41 @@ class MountIndiAdapter:
                     since=_now(),
                 ),
             )
+
+    # --- time / location --------------------------------------------------
+
+    async def set_time(self, utc_iso: str) -> None:
+        if self._device is None:
+            return
+        try:
+            dt = datetime.fromisoformat(utc_iso)
+            # INDI TIME_UTC.UTC expects ISO without tzinfo (UTC implicit).
+            utc_naive = dt.astimezone(UTC).replace(tzinfo=None)
+            time_vec = self._device.getText("TIME_UTC")
+            if time_vec is None:
+                raise RuntimeError("TIME_UTC property not found")
+            time_vec["UTC"].setText(utc_naive.isoformat())
+            time_vec["OFFSET"].setText("0")
+            await asyncio.to_thread(self._client.sendNewProperty, time_vec)
+        except Exception as exc:
+            self._bus.publish(
+                "mount",
+                SubsystemState(state="error", message=str(exc), since=_now()),
+            )
+
+    async def set_location(self, lat: float, lon: float) -> None:
+        if self._device is None:
+            return
+        try:
+            geo = self._device.getNumber("GEOGRAPHIC_COORD")
+            if geo is None:
+                raise RuntimeError("GEOGRAPHIC_COORD property not found")
+            geo["LAT"].setValue(float(lat))
+            geo["LONG"].setValue(float(lon))
+            # ELEV left at its current value (set by user/setup later).
+            await asyncio.to_thread(self._client.sendNewProperty, geo)
+        except Exception as exc:
+            self._bus.publish(
+                "mount",
+                SubsystemState(state="error", message=str(exc), since=_now()),
+            )

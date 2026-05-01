@@ -158,3 +158,46 @@ async def test_stop_slew_no_axis_uses_abort_motion() -> None:
     abort = client.getDevice(INDI_DEVICE_NAME).getSwitch("TELESCOPE_ABORT_MOTION")
     assert abort["ABORT_MOTION"].getState() == "ON"
     assert bus.get_full_state().subsystems["mount"].state == "ready"
+
+
+def _seed_time_location_properties(client: FakeIndiClient) -> None:
+    dev = client.getDevice(INDI_DEVICE_NAME)
+    assert dev is not None
+    dev.add_text("TIME_UTC", {"UTC": "", "OFFSET": "0"})
+    dev.add_number(
+        "GEOGRAPHIC_COORD", {"LAT": 0.0, "LONG": 0.0, "ELEV": 0.0}
+    )
+
+
+@pytest.mark.asyncio
+async def test_set_time_pushes_utc_text() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_time_location_properties(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    await adapter.set_time("2026-05-01T18:30:00+00:00")
+
+    dev = client.getDevice(INDI_DEVICE_NAME)
+    time_vec = dev.getText("TIME_UTC")
+    assert time_vec["UTC"].getText() == "2026-05-01T18:30:00"
+    assert time_vec["OFFSET"].getText() == "0"
+
+
+@pytest.mark.asyncio
+async def test_set_location_pushes_geographic_coord() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_time_location_properties(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    await adapter.set_location(43.6043, 1.4437)
+
+    dev = client.getDevice(INDI_DEVICE_NAME)
+    geo = dev.getNumber("GEOGRAPHIC_COORD")
+    assert geo["LAT"].getValue() == pytest.approx(43.6043)
+    assert geo["LONG"].getValue() == pytest.approx(1.4437)
