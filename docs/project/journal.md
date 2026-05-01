@@ -6,13 +6,61 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 
 **Version active** : `v0.1 livrée` — parité joystick + tracking avec la raquette Celestron via app Flutter native. Backend (64 tests) et app (53 tests) sur main. Smoke test téléphone fait sur Moto g54 5G. Validation physique faite sur **GPS + compass I2C + network + system** ; **monture pas encore branchée** (sections 3 et 7 de `backend/deploy/INTEGRATION_CHECKLIST.md` à dérouler — connecteurs en attente).
 
-**Cap suivant** : `v0.2 = Setup` (calibration capteurs, courses, backlash, network/IP, à propos). Le wizard de mise en station + GoTo + catalogue passent en v0.3 : on ne peut pas aligner sérieusement sans calibration capteurs.
+**Cap suivant** : `v0.2 = Setup` (calibration capteurs, courses, backlash, cordwrap, network/IP, à propos). Le wizard de mise en station + GoTo + catalogue passent en v0.3.
 
-**Brainstorm en cours** : v0.2 Setup. Décisions hub/AppBar/catalogue backend prises pendant la session 11, à recoller au scope Setup à la prochaine reprise.
+**Spec v0.2 validée** : `docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md` (Session 13). Prochaine étape : `superpowers:writing-plans` pour le plan d'implémentation.
 
-**Doc tree** : nouvelle arborescence `docs/INDEX.md` → 3 vues (`technical/`, `project/`, `product/`). Petits docs ciblés, navigation par liens. Voir Session 12 pour le rationale.
+**Doc tree** : nouvelle arborescence `docs/INDEX.md` → 3 vues (`technical/`, `project/`, `product/`). Petits docs ciblés, navigation par liens. Voir Session 12.
 
 ## Session en cours
+
+### Session 13 — brainstorm v0.2 bouclé + protocole NexStar exhaustivement documenté + assainissement repo (2026-05-01)
+
+Session longue qui clôt le brainstorm v0.2 Setup et nettoie le repo après les itérations récentes.
+
+**1. Recherche protocole NexStar — l'inconnue principale levée**
+
+Constat : `nexstarpy 0.1.0` est un wrapper minimaliste qui n'expose ni sync, ni backlash, ni cordwrap, alors que la raquette les gère. Recherche complète menée sur la spec officielle Celestron (PDF v1.2 2006) + AUX Commands 1.0 (Andre Paquette 2003) + libnexstar / nexstar-evo / forums INDI.
+
+Conclusion : **toutes ces capacités sont dans le protocole**. Sync `S`/`s` côté HC (firmware ≥ 4.10), backlash + cordwrap côté AUX (pass-through `0x50` vers les motor controllers `0x10`/`0x11` avec msgIds dédiés). C'est `nexstarpy` qui ne wrappe pas — pas le protocole qui ne supporte pas.
+
+Conséquence archi : v0.2 fait du **mount-side** pour cordwrap et backlash (la monture compense elle-même), pas du Pi-side counter. Pour v0.3 le wizard 3 étoiles peut s'appuyer sur `sync_radec` natif (plus besoin de matrice de rotation Pi-side, fallback uniquement si firmware < 4.10).
+
+Deux nouveaux docs sous `docs/technical/` :
+- `nexstar-capabilities.md` — ce que `nexstarpy 0.1.0` wrappe (et ne wrappe pas), avec table de mapping vers le protocole.
+- `nexstar-protocol-reference.md` — référence exhaustive HC + AUX, pour servir de source quand on étendra l'adapter.
+
+Décision repoussée au plan v0.2 : fork interne de `nexstarpy` dans `backend/astro_brain/adapters/nexstar/` vs chercher une lib plus aboutie.
+
+**2. Brainstorm v0.2 Setup — spec validée**
+
+9 entrées dans Setup : niveau monture, calibration compass, zéro ALT, courses ALT, backlash ALT, backlash AZ, cordwrap AZ, réseau, à propos. Pivot architectural important après une première proposition over-engineered :
+
+- **3 surfaces séparées** : bus système (santé sparse latch-y, inchangé v0.1), sessions de calibration (REST + SSE temporaires), live sensor streams (SSE dédiés à la demande). Pas de conflation entre les trois.
+- **Persistance SQLite** (`aiosqlite`, `/var/lib/astro-brain/state.db` via systemd `StateDirectory`) plutôt que JSON files — typage, migrations, requêtes structurées.
+- **Pas de cache mount_tuning** : la lecture AUX backlash/cordwrap est ~50 ms, pas la peine de doubler l'état Pi-side.
+- **APIs dans le sens du flux de données** : c'est le Pi qui sample I2C, donc l'app suit la calibration via stream — pas de `POST /sample`.
+
+Spec écrite : `docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md` (commit `5f976a6`).
+
+**Mémoire ajoutée** : `feedback_architecture_sharpness.md` — 5 pièges à éviter (conflation bus/live/config, cache sans cause, sur-promotion de helpers en services, APIs à contre-sens, endpoints dangereux mal regroupés). Indexée dans `MEMORY.md` comme "Archi affûtée".
+
+**3. Assainissement du repo**
+
+Audit complet (Explore agent) après les nombreuses itérations de la session :
+- `README.md` réécrit (roadmap périmée pointait encore "Motorized focuser + plate solving" en v0.2 ; lien `docs/journal.md` cassé).
+- `backend/deploy/INTEGRATION_CHECKLIST.md` — chemin `docs/hardware_wiring.md` → `docs/technical/hardware.md`.
+- `docs/project/backlog.md` — formulation "v0.2 (pré-session mise en station)" alignée sur Setup.
+- `MEMORY.md` — 3 chemins relatifs corrigés (journal, hardware, backlog).
+- Mémoire `feedback_no_venv.md` supprimée : contredisait le passage à `uv` (qui crée un `.venv`).
+- Plans + spec v0.1 archivés dans `docs/superpowers/{plans,specs}/archive/` — la v0.1 est livrée.
+
+Commit `ae2b74f`. Push : 5 commits sur `origin/main` (`d4e93a8..ae2b74f`).
+
+**À faire ensuite** :
+- Lancer `superpowers:writing-plans` sur la spec v0.2 Setup pour produire le plan d'implémentation.
+- Au début du plan : arbitrer fork `nexstarpy` vs lib plus aboutie.
+- Toujours en parallèle : passe monture quand connecteurs arrivent (sections 3 et 7 de `INTEGRATION_CHECKLIST.md`) pour fermer la v0.1 backend.
 
 ### Session 12 — réorganisation roadmap + arborescence docs (2026-04-29)
 
