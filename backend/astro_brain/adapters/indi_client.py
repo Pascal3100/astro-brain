@@ -16,6 +16,7 @@ Responsibilities:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 
@@ -37,6 +38,9 @@ class AstroBrainIndiClient(PyIndi.BaseClient):
     def __init__(self, *, bus: StateBus) -> None:
         super().__init__()
         self._bus = bus
+        # Capture the loop so callbacks fired from PyIndi's C++ thread
+        # can hand work back to asyncio safely.
+        self._loop = asyncio.get_running_loop()
 
     # --- callbacks --------------------------------------------------------
 
@@ -45,17 +49,15 @@ class AstroBrainIndiClient(PyIndi.BaseClient):
 
     def serverDisconnected(self, code: int) -> None:  # noqa: N802
         logger.warning("indi: server disconnected (code=%s)", code)
-        self._bus.publish(
-            "mount",
-            SubsystemState(
-                state="error",
-                message=(
-                    f"indiserver disconnected (code={code}). "
-                    "Restart astro-brain.service to reconnect."
-                ),
-                since=_now(),
+        state = SubsystemState(
+            state="error",
+            message=(
+                f"indiserver disconnected (code={code}). "
+                "Restart astro-brain.service to reconnect."
             ),
+            since=_now(),
         )
+        self._loop.call_soon_threadsafe(self._bus.publish, "mount", state)
 
     def newDevice(self, dev: PyIndi.BaseDevice) -> None:  # noqa: N802
         logger.info("indi: device available: %s", dev.getDeviceName())

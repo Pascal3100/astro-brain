@@ -32,7 +32,7 @@ uv sync --extra hardware
 ASTRO_BRAIN_HARDWARE=1 uv run uvicorn astro_brain.main:app --host 0.0.0.0 --port 8000
 ```
 
-The `[hardware]` extra pulls in `nexstarpy`, `gpsd-py3`, and `pyserial`.
+The `[hardware]` extra pulls in `pyindi-client` and `gpsd-py3` (installed via apt on the Pi; see `docs/technical/hardware.md`). The mount is controlled via INDI (`MountIndiAdapter` / `indiserver`) over USB-serial — no direct serial protocol.
 
 ## Deployment (Pi, systemd)
 

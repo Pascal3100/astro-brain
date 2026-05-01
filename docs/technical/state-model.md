@@ -12,7 +12,7 @@ Document vivant. Liste les sous-systèmes, leurs états, et les règles d'agrég
 
 | Kind | Service | États | Détails clés |
 |---|---|---|---|
-| `mount` | `MountService` (nexstar) | `unknown / ready / moving / error / off` | `firmware_version` |
+| `mount` | `MountService` (INDI) | `unknown / ready / moving / error / off` | `firmware_version` |
 | `gps` | `GpsService` (gpsd) | `unknown / acquiring / fix_2d / fix_3d / off / error` | `lat, lon, alt, satellites, hdop, time_utc` |
 | `tracking` | `MountService` | `off / sidereal / lunar / solar / error` | — |
 | `network` | `NetworkInfoService` | `unknown / client / hotspot / offline / error` | `ssid, ip, iface, mode` |
