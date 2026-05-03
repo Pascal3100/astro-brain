@@ -15,13 +15,13 @@ import 'theme/astro_theme.dart';
 import 'theme/theme_cubit.dart';
 
 class AstroBrainApp extends StatelessWidget {
-  const AstroBrainApp({super.key, required this.prefs});
+  const AstroBrainApp({super.key, required this.prefs, required this.host});
 
   final SharedPreferences prefs;
+  final PiHost host;
 
   @override
   Widget build(BuildContext context) {
-    const host = PiHost();
 
     return MultiRepositoryProvider(
       providers: [
