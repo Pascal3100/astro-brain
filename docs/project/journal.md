@@ -62,6 +62,12 @@ Commit `ae2b74f`. Push : 5 commits sur `origin/main` (`d4e93a8..ae2b74f`).
 - Une fois la lib prête : `superpowers:writing-plans` sur la spec v0.2 Setup.
 - Toujours en parallèle : passe monture quand connecteurs arrivent (sections 3 et 7 de `INTEGRATION_CHECKLIST.md`) pour fermer la v0.1 backend.
 
+### Session 14 — scaffold v0.2 (2026-05-03)
+
+**Task 2 — AstroAppBar partagée** (commit `e4443c2`)
+
+`StatusBar` remplacée par `AstroAppBar(current: AstroScreen)` en HudPanel. L'enum `AstroScreen` (`home`/`system`/`setup`) contrôle quelle icône est désactivée. La pastille `overall` est non-tappable sur System ; le gear `gearSix` est `onPressed: null` sur Setup. Placeholder `SetupScreen` créé (sera écrasé en Task 4). HomeScreen et SystemScreen migrés ; `onOpenSystem` callback supprimé de `_RootRouter`. 2 nouveaux tests widget (gear présent + disabled). Tests : 56 → 58.
+
 ### Session 12 — réorganisation roadmap + arborescence docs (2026-04-29)
 
 Deux pivots majeurs pris pendant la session de brainstorm v0.2 :
