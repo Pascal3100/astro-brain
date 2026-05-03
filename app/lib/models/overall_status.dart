@@ -1,11 +1,13 @@
 /// Statut global agrégé (spec v0.1 : règles 1→4 dans `overall`).
-/// `offline` est un état CÔTÉ APP (Pi injoignable), pas émis par le backend.
+/// `offline` et `gray` sont des états CÔTÉ APP (Pi injoignable, neutre/désactivé),
+/// pas émis par le backend.
 enum OverallStatus {
   green,
   blue,
   orange,
   red,
-  offline;
+  offline,
+  gray;
 
   static OverallStatus fromJson(String v) => switch (v) {
         'green' => OverallStatus.green,

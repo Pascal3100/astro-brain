@@ -45,6 +45,7 @@ class _GlobalDotState extends State<GlobalDot>
         OverallStatus.orange => colors.dotWarn,
         OverallStatus.red => colors.dotError,
         OverallStatus.offline => colors.dotError,
+        OverallStatus.gray => colors.textMuted,
       };
 
   @override
