@@ -6,7 +6,6 @@ import 'features/home/home_bloc.dart';
 import 'features/home/home_screen.dart';
 import 'features/splash/splash_cubit.dart';
 import 'features/splash/splash_screen.dart';
-import 'features/system/system_screen.dart';
 import 'services/api_service.dart';
 import 'services/event_stream_service.dart';
 import 'services/pi_host.dart';
@@ -85,12 +84,6 @@ class _RootRouterState extends State<_RootRouter> {
         child: SplashScreen(onReady: () => setState(() => _ready = true)),
       );
     }
-    return HomeScreen(
-      onOpenSystem: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const SystemScreen()),
-        );
-      },
-    );
+    return const HomeScreen();
   }
 }
