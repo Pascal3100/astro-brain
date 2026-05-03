@@ -24,6 +24,7 @@ class AstroBrainApp extends StatelessWidget {
 
     return MultiRepositoryProvider(
       providers: [
+        RepositoryProvider<SharedPreferences>.value(value: prefs),
         RepositoryProvider<PiHost>.value(value: host),
         RepositoryProvider<ApiService>(
           create: (_) => ApiService(host: host),
