@@ -62,6 +62,37 @@ Commit `ae2b74f`. Push : 5 commits sur `origin/main` (`d4e93a8..ae2b74f`).
 - Une fois la lib prête : `superpowers:writing-plans` sur la spec v0.2 Setup.
 - Toujours en parallèle : passe monture quand connecteurs arrivent (sections 3 et 7 de `INTEGRATION_CHECKLIST.md`) pour fermer la v0.1 backend.
 
+### Session 14 — scaffold v0.2 Setup + #8 Réseau (2026-05-03)
+
+Travail Flutter en parallèle pendant que la stack INDI compile sur le Pi. Branche dédiée `feat/v02-setup-scaffold`. Plan focalisé : [`docs/superpowers/plans/2026-05-03-v02-setup-scaffold-network.md`](../superpowers/plans/2026-05-03-v02-setup-scaffold-network.md). Backend pas touché.
+
+**Task 1 — PiHost runtime** (commit `dd0e828`)
+
+`PiHost` était un `const` lisant uniquement `--dart-define`. Ajout d'une factory `PiHost.fromPrefs(prefs)` qui charge `astro.host` / `astro.port` depuis `SharedPreferences` (précédence : prefs > define > défaut mDNS `astro-brain.local:8000`). `main.dart` build le `PiHost` avant `runApp` ; `AstroBrainApp` reçoit `host` en paramètre. 3 nouveaux tests. 53 anciens toujours verts.
+
+**Task 2 — AstroAppBar partagée** (commit `e4443c2`)
+
+`StatusBar` remplacée par `AstroAppBar(current: AstroScreen)` en HudPanel. L'enum `AstroScreen` (`home`/`system`/`setup`) contrôle quelle icône est désactivée. La pastille `overall` est non-tappable sur System ; le gear `gearSix` est `onPressed: null` sur Setup. Placeholder `SetupScreen` créé. HomeScreen et SystemScreen migrés ; `onOpenSystem` callback supprimé de `_RootRouter`. 2 nouveaux tests widget. Tests : 56 → 58.
+
+**Tasks 3+4 — SetupCard + SetupScreen 9 cartes** (commits `079bd23` + `6b74591`)
+
+`SetupCard` (HudPanel + InkWell) prend `index/icon/label/sublabel/dotStatus/onTap?`. Quand `onTap == null`, la carte est greyed (`textMuted`). `SetupScreen` = `ListView.separated` de 9 cartes avec helper `_cardForIndex`. En v0.2, seule la carte #8 RÉSEAU a un `onTap` (push `NetworkScreen`) ; les 8 autres sont en placeholder désactivé. Ajout de `OverallStatus.gray` (state app, pas backend) pour rendre les pastilles muted des cartes désactivées ; `GlobalDot` mappe `gray → textMuted`. 2 nouveaux tests (9 cartes + seule #8 cliquable). Bug pré-existant fixé en passant : `GlobalDot._pulse` était en `late final` et déclenchait un assert dispose si l'animation ne tournait jamais → init dans `initState`. Tests : 58 → 60.
+
+**Tasks 5+6 — NetworkBloc + NetworkScreen** (commit `d019bc2`)
+
+Pattern bloc complet : `NetworkState` (Equatable, sentinel `copyWith` pour `testError`), `NetworkEvent` (6 events : Loaded/HostChanged/PortChanged/TestRequested/SaveRequested/ResetRequested), `NetworkBloc` :
+
+- `Loaded` → lit prefs (fallback défauts) et hydrate `savedHost`/`savedPort`
+- `Test` → `GET http://<host>:<port>/state` timeout 3 s, met `testStatus ∈ {idle, testing, ok, error}`
+- `Save` → écrit prefs, met `savedHost/savedPort` à jour (rend `dirty == false`)
+- `Reset` → efface prefs, revient aux défauts mDNS
+
+`NetworkScreen` : 2 TextField (host + port int), pastille statut, 3 boutons. **ENREGISTRER** disabled tant que `!dirty || testStatus != ok`. **RÉINITIALISER** toujours actif. Snackbar "Redémarrer l'app pour appliquer" déclenché via `BlocListener` sur changement de `savedHost`. `RepositoryProvider<SharedPreferences>` ajouté à la racine pour permettre au screen de créer son propre bloc. 4 bloc tests + 1 widget smoke test. Tests : 60 → 65.
+
+**État au 2026-05-03 23h00**
+
+Branche prête, 65/65 tests verts, `flutter analyze` clean. Reste : smoke test visuel sur Android physique (à faire pendant la prochaine session quand le téléphone est branché), puis merge `feat/v02-setup-scaffold` → `main`. La stack INDI continue de compiler sur le Pi en arrière-plan (libindi 2.x source build).
+
 ### Session 12 — réorganisation roadmap + arborescence docs (2026-04-29)
 
 Deux pivots majeurs pris pendant la session de brainstorm v0.2 :

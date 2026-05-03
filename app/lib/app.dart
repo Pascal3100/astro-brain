@@ -6,7 +6,6 @@ import 'features/home/home_bloc.dart';
 import 'features/home/home_screen.dart';
 import 'features/splash/splash_cubit.dart';
 import 'features/splash/splash_screen.dart';
-import 'features/system/system_screen.dart';
 import 'services/api_service.dart';
 import 'services/event_stream_service.dart';
 import 'services/pi_host.dart';
@@ -15,16 +14,17 @@ import 'theme/astro_theme.dart';
 import 'theme/theme_cubit.dart';
 
 class AstroBrainApp extends StatelessWidget {
-  const AstroBrainApp({super.key, required this.prefs});
+  const AstroBrainApp({super.key, required this.prefs, required this.host});
 
   final SharedPreferences prefs;
+  final PiHost host;
 
   @override
   Widget build(BuildContext context) {
-    const host = PiHost();
 
     return MultiRepositoryProvider(
       providers: [
+        RepositoryProvider<SharedPreferences>.value(value: prefs),
         RepositoryProvider<PiHost>.value(value: host),
         RepositoryProvider<ApiService>(
           create: (_) => ApiService(host: host),
@@ -85,12 +85,6 @@ class _RootRouterState extends State<_RootRouter> {
         child: SplashScreen(onReady: () => setState(() => _ready = true)),
       );
     }
-    return HomeScreen(
-      onOpenSystem: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const SystemScreen()),
-        );
-      },
-    );
+    return const HomeScreen();
   }
 }
