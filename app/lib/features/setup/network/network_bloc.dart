@@ -14,7 +14,7 @@ class NetworkBloc extends Bloc<NetworkEvent, NetworkState> {
       : _prefs = prefs,
         _http = httpClient ?? http.Client(),
         _ownsHttp = httpClient == null,
-        super(NetworkState.initial()) {
+        super(_initialFromPrefs(prefs)) {
     on<NetworkLoaded>(_onLoaded);
     on<NetworkHostChanged>((e, emit) =>
         emit(state.copyWith(hostInput: e.host, testStatus: TestStatus.idle, testError: null)));
@@ -29,15 +29,19 @@ class NetworkBloc extends Bloc<NetworkEvent, NetworkState> {
   final http.Client _http;
   final bool _ownsHttp;
 
-  void _onLoaded(NetworkLoaded e, Emitter<NetworkState> emit) {
-    final host = _prefs.getString(PiHost.prefsHostKey) ?? 'astro-brain.local';
-    final port = _prefs.getInt(PiHost.prefsPortKey) ?? 8000;
-    emit(NetworkState(
+  static NetworkState _initialFromPrefs(SharedPreferences prefs) {
+    final host = prefs.getString(PiHost.prefsHostKey) ?? 'astro-brain.local';
+    final port = prefs.getInt(PiHost.prefsPortKey) ?? 8000;
+    return NetworkState(
       hostInput: host,
       portInput: port,
       savedHost: host,
       savedPort: port,
-    ));
+    );
+  }
+
+  void _onLoaded(NetworkLoaded e, Emitter<NetworkState> emit) {
+    emit(_initialFromPrefs(_prefs));
   }
 
   Future<void> _onTest(NetworkTestRequested e, Emitter<NetworkState> emit) async {
