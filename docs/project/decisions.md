@@ -112,6 +112,16 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 
 ---
 
+## 2026-05-04 — Stack INDI installée via repo Astroberry Debian Trixie arm64
+
+**Contexte** : exécution de la Task 0 du plan migration INDI (Session 15). Trois sources possibles pour `libindi` 2.x + `indi_celestron_aux` sur Pi 3 B+ Debian Trixie arm64 : (1) compilation source `indi-3rdparty`, (2) PPA officielle `ppa:mutlaqja/ppa`, (3) repo Astroberry. La compilation source à `-j3 / -j4` finit par tourner mais reste laborieuse sur 1 GB RAM même avec swap, et n'apporte rien tant qu'on ne patche pas le driver. La PPA mutlaqja `ppa.launchpadcontent.net:443` rejette activement les TCP depuis ce Pi (reset 47 ms IPv4 et IPv6, le reste du net OK) — pas exploitable aujourd'hui. Le repo Astroberry "old" `astroberry.io/repo/` est mort (404). Le repo "new" `astroberry.io/debian/` est documenté sur `indilib.org/download/raspberry-pi.html`, actif, signé GPG, et fournit `libindi 2.2.0` + `indi-celestronaux 1.5` + `indi-gpsd 0.6` pour Trixie arm64.
+
+**Décision** : utiliser le repo Astroberry `https://astroberry.io/debian/` (suite `trixie`, composant `main`, archi `arm64`) comme source apt pour les paquets INDI sur le Pi. Source au format deb822 dans `/etc/apt/sources.list.d/astroberry.sources`, clé GPG dans `/etc/apt/keyrings/astroberry.gpg`. Paquets installés : `indi-bin`, `indi-celestronaux`, `indi-gpsd`, `libindi-dev`.
+
+**Rationale** : (1) install en < 2 min, 0 conflit avec Debian Trixie (0 `apt-pin` requis, seules deps Debian tirées : `libxisf0`, `librtlsdr0`), (2) versions cohérentes avec la cible (`libindi 2.2.0`, plus récente que la 1.9.9 de Trixie qui ne contient pas le driver AUX), (3) repo restreint au scope INDI (pas tout l'écosystème astrophoto Astroberry, donc empreinte raisonnable malgré le RAM 1 GB), (4) déblocage du chantier migration sans dépendre de la PPA inaccessible. Compilation source restera l'option de fallback **uniquement** si on doit patcher upstream (typiquement les opcodes `MC_*_BACKLASH` mount-axis manquants dans `auxproto.h`). Détail repro Session 15 du journal : `docs/project/journal.md`.
+
+---
+
 ## 2026-04-30 — Arborescence de docs en 3 vues
 
 **Décision** : `docs/INDEX.md` référence trois vues — `technical/`, `project/`, `product/`. Chaque vue a un `README.md` index, et regroupe des docs courts et ciblés (1 sujet = 1 fichier).

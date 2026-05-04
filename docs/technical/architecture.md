@@ -11,7 +11,7 @@ App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[USB-
 
 - **Backend** : FastAPI (Python 3.13) sur Raspberry Pi 3 B+. Pas d'Arduino dans la chaîne.
 - **Frontend** : app Flutter native (pas une PWA), pattern BLoC.
-- **Communication Pi ↔ Monture** : `nexstarpy` via USB-série (port HC, protocole NexStar, 9600 baud).
+- **Communication Pi ↔ Monture** : stack INDI — `indiserver` + driver `indi_celestron_aux` côté Pi, client Python `pyindi-client` dans le backend FastAPI. Liaison physique : port HC RJ12 → dongle USB-TTL CP2102 (5V) → `/dev/ttyUSB0` (NexStar 9600 baud, AUX en pass-through). Détails : [`indi-reference.md`](indi-reference.md). ADR : [2026-05-01 — Pilotage monture via INDI (drop nexstarpy)](../project/decisions.md).
 - **Plate solving (v0.5+)** : Astrometry.net local sur le Pi.
 
 ## Décisions structurantes
@@ -25,7 +25,7 @@ App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[USB-
 
 - Python 3.13, gestion des deps avec `uv` (lockfile par projet)
 - FastAPI + Uvicorn, SSE via `sse-starlette`
-- `nexstarpy` (monture), `gpsd-py3` (GPS), `smbus2` (I2C compass + accelerometers)
+- `pyindi-client` (monture, via `indiserver` local), `gpsd-py3` (GPS), `smbus2` (I2C compass + accelerometers)
 - Flutter 3.41+ / Dart 3.11+, `flutter_bloc`, `equatable`, `google_fonts`, `phosphor_flutter`, `shared_preferences`
 - Style UI : Material Design 3, thème bleu (jour) / rouge (nuit)
 
@@ -34,7 +34,7 @@ App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[USB-
 Hybride : édition côté workstation, exécution côté Pi.
 
 - **Workstation** : tests unitaires pur-logique (StateBus, aggregator, modèles, SSE format) avec fakes. Deps hardware exclues par défaut.
-- **Pi** : `uv sync --extra hardware` pour `nexstarpy`/`gpsd-py3`/`pyserial`/`smbus2`, puis `git pull && uv run uvicorn ...` pour tester avec le matériel.
+- **Pi** : `uv sync --extra hardware` pour `pyindi-client`/`gpsd-py3`/`pyserial`/`smbus2`, plus packages apt INDI (`indi-bin`, `indi-celestronaux`, `indi-gpsd`, `libindi-dev` — repo Astroberry Trixie arm64). `indiserver` lancé via unit systemd dédiée, FastAPI s'y connecte sur `localhost:7624`. Cycle dev : `git pull && uv run uvicorn ...`.
 - **Git = source de vérité** — pas de sync manuelle workstation ↔ Pi.
 
 Voir [deployment.md](deployment.md) pour les détails d'installation et le service systemd.

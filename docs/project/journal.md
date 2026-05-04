@@ -6,13 +6,60 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 
 **Version active** : `v0.1 livrée` — parité joystick + tracking avec la raquette Celestron via app Flutter native. Backend (64 tests) et app (53 tests) sur main. Smoke test téléphone fait sur Moto g54 5G. Validation physique faite sur **GPS + compass I2C + network + system** ; **monture pas encore branchée** (sections 3 et 7 de `backend/deploy/INTEGRATION_CHECKLIST.md` à dérouler — connecteurs en attente).
 
-**Cap suivant** : **lib NexStar** — arbitrer fork interne de `nexstarpy 0.1.0` vs lib plus aboutie, puis l'étendre pour exposer sync / backlash / cordwrap / is_aligned / goto_in_progress. Prérequis dur de v0.2 (Setup pilote backlash + cordwrap mount-side) et v0.3 (wizard utilise sync natif).
+**Stack INDI installée** sur le Pi (Session 15) : `libindi` 2.2.0 + driver `indi_celestron_aux` 1.5 + `indi-gpsd` 0.6, via repo Astroberry Debian Trixie arm64 (`https://astroberry.io/debian/`). Driver fonctionnel en test isolé (`indiserver -v indi_celestron_aux` démarre, port 7624, plugins SVD + Nearest). Monture pas encore branchée.
 
-**Spec v0.2 validée** : `docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md` (Session 13). En attente que la lib NexStar soit prête avant de lancer `superpowers:writing-plans`.
+**Cap suivant** : **migration backend monture nexstarpy → INDI**, conformément à l'ADR `2026-05-01 — Pilotage monture via INDI (drop nexstarpy)`. Spec design : `docs/superpowers/specs/2026-05-01-mount-indi-design.md`. Plan d'implémentation : `docs/superpowers/plans/2026-05-01-mount-indi-migration.md`. La Task 0 du plan (install Pi de la stack INDI) est désormais **faite** via Session 15. Prérequis dur de v0.2 (Setup pilote backlash + cordwrap mount-side) et v0.3 (wizard utilise sync natif).
+
+**Spec v0.2 validée** : `docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md` (Session 13). En attente que la migration INDI soit livrée avant de lancer `superpowers:writing-plans` sur Setup v0.2.
 
 **Doc tree** : nouvelle arborescence `docs/INDEX.md` → 3 vues (`technical/`, `project/`, `product/`). Petits docs ciblés, navigation par liens. Voir Session 12.
 
 ## Session en cours
+
+### Session 15 — install INDI 2.2.0 + driver Celestron AUX sur le Pi (2026-05-04)
+
+Session ops sur le Pi, dans le prolongement direct de Session 14 (où le build INDI from source tournait en arrière-plan pendant le scaffold Flutter v0.2). Plusieurs détours avant de trouver la voie propre.
+
+**1. Diagnostic du build interrompu**
+
+Le `make` source démarré en Session 14 s'était arrêté à 39 % sans message d'erreur dans le log et sans trace OOM dans `dmesg`. Pi rebooté entre-temps (uptime 4 min). Hypothèse retenue : déconnexion SSH → SIGHUP → make tué. Pas un manque de mémoire — zram ~926 Mi tenait largement.
+
+**2. Détour build (~2 h)**
+
+Première tentative de redémarrage encadré : install `tmux`, ajout swapfile disque 2 Go priorité 10 (en backup du zram prio 100), relance `make -j3` détaché en tmux, surveillance via cron 20 min. Build qui dépasse 41 % avec 143 targets construits, swap qui s'allume à 1.3 Go (l'ajout swap était bien utile pour les `.cpp` lourds malgré l'absence d'OOM précédent). Question légitime de l'utilisateur en cours de route : *"si on ne modifie rien, pourquoi compiler ?"*. Première confusion de ma part : j'ai d'abord regardé le paquet `indi-bin` Debian Trixie (1.9.9, sans driver AUX, donc inadapté au cap projet visé en libindi 2.x). J'ai relancé le build source en pensant que c'était la seule option.
+
+**3. Bascule Astroberry après diagnostic réseau**
+
+Sur retour de l'utilisateur (*"pourquoi accepter de faire des choses qui n'ont pas sens ?"*), réexamen complet :
+
+- **PPA mutlaqja** (`ppa:mutlaqja/ppa`) — recommandée par INDI, mais `ppa.launchpadcontent.net:443` rejette activement les connexions TCP depuis le Pi (refus en 47 ms en IPv4 et IPv6). Pas un timeout, un reset actif. Le reste du net fonctionne (Debian, indilib.org). Inutilisable aujourd'hui.
+- **Astroberry "old repo"** (`astroberry.io/repo/`) — mort, 404 sur tous les paths apt.
+- **Astroberry "new repo"** (`astroberry.io/debian/`) — **actif**, release Trixie arm64 avec clé GPG 2 260 octets, documenté comme source officielle Pi par `indilib.org/download/raspberry-pi.html`.
+
+Inspection du `Packages.gz` Astroberry Trixie : `libindi1` / `indi-bin` / `libindi-dev` en **2.2.0**, `indi-celestronaux` en **1.5**, plus `indi-gpsd 0.6`, `indi-gpsnmea 0.2`, `indi-rpi-gpio`. Tout ce dont la stack INDI a besoin pour l'archi du projet.
+
+**4. Install effective**
+
+Source `astroberry.sources` (deb822) installée à `/etc/apt/sources.list.d/`, clé GPG dans `/etc/apt/keyrings/astroberry.gpg`. Simulation `apt install -s indi-bin indi-celestronaux libindi-dev indi-gpsd` : 0 conflit, 8 paquets nouveaux (6 Astroberry + 2 deps Debian Trixie : `libxisf0`, `librtlsdr0`). Install vrai en moins de 2 minutes.
+
+Vérifs :
+- `which indi_celestron_aux` → `/usr/bin/indi_celestron_aux` (195K, daté 2024-08-26)
+- `indiserver -v indi_celestron_aux` démarre, écoute port **7624** + socket `/tmp/indiserver`, snoope GPS Simulator + Dome Simulator, enumère 2 math plugins d'alignement (**SVD + Nearest** — bonus utile pour le wizard 3 étoiles v0.3)
+- `pascal3100` ajouté automatiquement au groupe `dialout` (accès `/dev/ttyUSB0` quand connecteurs arrivent)
+
+**5. Cleanup**
+
+`/swapfile` 2 Go retiré (swapoff + rm + sed fstab) → retour à zram seul, état initial. `~/code/indi/` (source + 41 % de cache build, 971 Mi) supprimé. Disque libéré : 7.4 Go → 4.5 Go.
+
+**Conséquence pour le cap migration INDI**
+
+L'ADR `2026-05-01 — Pilotage monture via INDI (drop nexstarpy)` avait déjà tranché : on bascule sur `indi_celestron_aux` + `pyindi-client`. Cette session **concrétise la Task 0** du plan `docs/superpowers/plans/2026-05-01-mount-indi-migration.md` (install Pi de la stack INDI). Capacités vérifiées en sanity check (sync, alignement SVD + Nearest, properties cordwrap, slew rates 8 niveaux) cohérentes avec la couverture documentée dans `docs/technical/indi-reference.md`. Le seul vrai trou identifié reste **backlash mount-axis 4 valeurs** (opcodes `MC_*_BACKLASH` non câblés dans `auxproto.h` du driver), traité côté plan migration via patch upstream.
+
+Reste à faire côté plan migration (cf. `docs/superpowers/plans/2026-05-01-mount-indi-migration.md`) : `MountIndiAdapter`, retrait de `NexStarMountAdapter` + extra hardware `nexstarpy`, unit systemd `indiserver.service`, smoke test connecteurs branchés.
+
+**Refs**
+- Repo : `https://astroberry.io/debian/` — clé `/etc/apt/keyrings/astroberry.gpg`, sources `/etc/apt/sources.list.d/astroberry.sources`
+- Nouvelle ADR ajoutée : `2026-05-04 — Stack INDI installée via repo Astroberry Debian Trixie arm64` (cf. `docs/project/decisions.md`)
 
 ### Session 13 — brainstorm v0.2 bouclé + protocole NexStar exhaustivement documenté + assainissement repo (2026-05-01)
 
@@ -166,84 +213,7 @@ Ouverture du chantier v0.2 (mise en station 3 étoiles + GoTo, à l'époque). Br
 - Catalogue côté backend (cf. ADR). Décalé en v0.3 avec le wizard.
 - Sur le scope Setup (post-Session-12), le wizard ne passe pas en v0.2 — seules les calibrations capteurs + courses + backlash + network y passent.
 
-### Session 10 — smoke test sur téléphone + 4 fixes UX (2026-04-25)
-
-Smoke test Step 14.4 du plan v0.1 app déroulé sur Moto g54 5G. Pour contourner un souci réseau Bbox (workstation joint le Pi mais pas le téléphone, malgré même BSSID 5 GHz), montage d'un workaround **tunnel SSH `localhost:8000` → Pi + `adb reverse tcp:8000`** : le téléphone voit le backend comme `localhost:8000`. Pour rendre l'override propre, `PiHost` accepte maintenant `--dart-define=PI_HOST=...` / `--dart-define=PI_PORT=...` (défaut `astro-brain.local:8000`).
-
-Backend live : MOUNT en `error` (ttyUSB0 absent, normal — connecteurs pas encore arrivés), GPS `fix_3d` 16 sats, NETWORK + SYSTEM verts. Tracking observable côté Pi via `journalctl -u astro-brain.service -f` (POST /slew, /stop, /tracking arrivent bien).
-
-**4 remarques relevées au fil → 4 fixes appliqués** :
-
-1. **Splash → Home trop bref / ghost screen** : `SplashCubit` accepte un `minPhaseDuration` (défaut 350 ms). Chaque phase s'affiche au moins ce délai. Total ~1 s minimum au lieu d'un flash.
-2. **D-Pad sans feedback au press** : `_Btn` en `StatefulWidget` avec état `_pressed` + `AnimatedContainer` (`motionFast` 120 ms). Au tap-down : `Color.lerp(bg, accent, 0.32)` + bordure `strokeBold` + `BoxShadow(accentGlow, blur 16)`.
-3. **Message d'erreur MOUNT trop technique** (`[Errno 2] could not open port…`) : nouvelle util `humanizeMountMessage(String?)` dans `lib/utils/mount_error_messages.dart` qui matche 3 patterns connus + fallback. Appliqué uniquement côté affichage SystemScreen — les logs serveur restent techniques. 6 tests sur le humanizer.
-4. **Toggle tracking cliquable malgré mount=error** : `disabled = !connected || mount.state ∉ {ready, moving}`. `buildWhen` reconstruit aussi sur `mount.state`.
-
-**Tests** : 47 → 53 verts (+6 sur le humanizer, +0 régression). `flutter analyze` clean.
-
-**Reste smoke test** : test offline (`adb reverse --remove tcp:8000` + couper le tunnel SSH) → vérifier pastille offline + bouton reconnect. Investiguer isolation client Bbox sélective Pi↔téléphone.
-
-### Session 9 — app Flutter v0.1 livrée (2026-04-24)
-
-Exécution du plan `docs/superpowers/plans/2026-04-24-astro-brain-v01-app.md` en mode subagent-driven, 17 tâches enchaînées. Résultat : 3 écrans fonctionnels, toute la mécanique REST + SSE + état global en place.
-
-**Écrans livrés** :
-- `SplashScreen` — 3 phases séquentielles, fallback avec bouton "continue offline" et icône Phosphor `planet`.
-- `HomeScreen` — gradient bg, `StatusBar` (pastille + toggle thème + reconnect conditionnel), `DPadControl` 3×3, `RateControl` (9 barres + boutons ±), `TrackingToggle` (Switch + libellé, grisé si déconnecté).
-- `SystemScreen` — 5 `SubsystemCard` (MOUNT / GPS / TRACKING / NETWORK / SYSTEM), chacune avec icône, libellé, détails contextuels, `depuis Xs/Xmin/Xh`, pastille `GlobalDot`, message d'erreur optionnel.
-
-**Blocs / Cubits** :
-- `AppBloc` — `(system: SystemState?, connection: ConnectionStatus)`. Expose `effectiveOverall` (pastille globale = max des 5 sous-systèmes + statut connexion).
-- `HomeBloc` — `rate` 1..9 (clamp), event `HomeSlewPressed/Released` → `ApiService.slew/stop`, `HomeTrackingToggled` → `ApiService.setTracking`. try/catch + `lastError`.
-- `SplashCubit` — orchestre `fetchState` → `appBloc.add(AppStarted)` → `success` ; `failure` + `continueOffline()`.
-- `ThemeCubit` — `AstroThemeMode { day, night }`, persistance `shared_preferences` (clé `astro.theme.mode`).
-
-**Services** :
-- `ApiService` — REST sur `astro-brain.local:8000`, timeout 3 s, `fetchState/slew/stop/setTracking`. Erreurs HTTP → `ApiException`.
-- `EventStreamService` — client SSE par-dessus `http.Client.send()`, broadcast `Stream<SystemState>`, reconnexion auto avec backoff `[1s, 2s, 4s, 10s]`. Distinction `stop()` / `dispose()` (reconnect manuel).
-- `SseParser` — parse incrémental (event/data/commentaires/multi-lignes/split mid-ligne).
-
-**Modèles** : `SubsystemState<T>` générique, `SystemState` avec `fromJson` (snapshot) et `applyUpdate` (patch incrémental SSE). `OverallStatus { green, blue, orange, red, offline }` + 5 enums sous-systèmes (parse tolérant aux minuscules).
-
-**Racine app** : `lib/app.dart` — `AstroBrainApp({required SharedPreferences prefs})` avec `MultiRepositoryProvider`, `MultiBlocProvider`, `MaterialApp` pilotée par `ThemeCubit`, `_RootRouter` qui flip un `_ready` bool quand le splash finit.
-
-**Tests** : 47/47 verts. Modèles, `SseParser` (5 cas), `ApiService` (5 cas avec `http.MockClient`), `EventStreamService` (2 cas), `AppBloc` (2 blocTest), `HomeBloc` (3 blocTest), `SplashCubit` (2 blocTest), `ThemeCubit` (3 cas).
-
-**Hors scope v0.1** : configuration manuelle d'IP/port, mode hotspot Pi, mDNS fallback, smoke test téléphone (déplacé en Session 10).
-
-**Contraintes rencontrées** :
-- Collision de nom `Axis` (Flutter `dart:ui` vs notre enum) — résolu par `import 'package:flutter/material.dart' hide Axis;`.
-- `PhosphorIconsBold.telescope` n'existe pas en 2.1.0 — substitué par `planet`.
-- `google_fonts` fait un fetch HTTP au premier usage : tests `AstroTheme.buildDay()` toujours hors suite.
-
-**Commits** : 17 commits entre `16d38eb` (baseline) et `fceec5e` (Task 16 reconnect manuel).
-
-### Session 8 — démarrage app Flutter v0.1, thème + design system (2026-04-24)
-
-Attente des connecteurs monture → on ouvre le chantier app Flutter en parallèle. Choix d'archi : **pattern BLoC** (MVVM-like) via `flutter_bloc`, bible officielle `docs.flutter.dev`. Noté en mémoire persistante.
-
-Scaffold Flutter dans `app/` (Flutter 3.41.6 / Dart 3.11.4). Dépendances : `flutter_bloc`, `equatable`, `google_fonts` (Inter + JetBrains Mono), `phosphor_flutter`.
-
-**Design system posé en 5 fichiers sous `lib/theme/`** :
-
-- `design_tokens.dart` — constantes brutes (couleurs jour/nuit, échelle d'espacement base 4, rayons, durations, tailles d'icônes).
-- `app_colors.dart` — `AppColors` en `ThemeExtension<AppColors>` : slots sémantiques que M3 n'a pas (`accent`, `accentGlow`, `bgGradientTop/Bottom`, `grid`, `textPrimary/Muted`, `dotOk/Transition/Warn/Error`). Deux instances `const` : `AppColors.day` (bleu spatial) et `AppColors.night` (rouge astro, aucun bleu ni vert). Extension `context.colors`.
-- `app_typography.dart` — `buildInterTextTheme(color:)` pour `TextTheme` M3 ; `AppTextStyles` en `ThemeExtension` pour styles HUD monospace JetBrains Mono. Extension `context.textStyles`.
-- `astro_theme.dart` — `AstroTheme.buildDay()` / `buildNight()` : `ThemeData` M3, `Brightness.dark` pour les deux, `ColorScheme` mappé sur tokens, themes pour `FilledButton`, `OutlinedButton`, `Card`, `AppBar`, `Divider`, `IconTheme`. `ThemeExtensions` injectées via `extensions:`.
-- `theme_cubit.dart` — `ThemeCubit extends Cubit<AstroThemeMode>`.
-
-**`main.dart`** : `AstroBrainApp` racine expose `BlocProvider<ThemeCubit>` + `BlocBuilder` qui choisit `ThemeMode.light`/`dark` → `MaterialApp.theme`/`darkTheme`. Page provisoire `_ThemePreviewScreen` valide visuellement tous les tokens.
-
-**Vérifications** : `flutter analyze` clean. `flutter test` 5/5 verts (AppColors × 2, ThemeCubit × 3). Tests qui instancient `AstroTheme.buildDay()` absents : `google_fonts` tente un fetch HTTP qui foire en sandbox sans réseau. À réactiver quand on bundlera les TTF en assets.
-
-**Pattern d'accès aux tokens** :
-```dart
-final colors = context.colors;        // AppColors (ThemeExtension)
-final text = context.textStyles;      // AppTextStyles (ThemeExtension)
-DesignTokens.spaceLG;                 // constante brute
-```
-Aucun `Color(0xFF...)` ne devrait apparaître hors de `design_tokens.dart`. Aucun `GoogleFonts.inter(...)` hors de `app_typography.dart`.
-
 ## Archives
 
 - [`2026-04-backend-v0.1.md`](journal/archive/2026-04-backend-v0.1.md) — Sessions 1→7 : brainstorm, spec design, monorepo + uv, Tasks 1-17 du plan backend, revue/renforcement, validation physique GPS + compass, décision capteurs ADXL345.
+- [`2026-04-frontend-v0.1.md`](journal/archive/2026-04-frontend-v0.1.md) — Sessions 8→10 : démarrage app Flutter (thème + design system), livraison v0.1 (Splash / Home / System, blocs, services REST + SSE, 47 tests), smoke test Moto g54 5G + 4 fixes UX (53 tests).
