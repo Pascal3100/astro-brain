@@ -78,7 +78,18 @@ Smoke test E2E (Task 14 du plan migration) bloque sur la livraison du **dongle U
 - `MountIndiAdapter._serial_device` stocké mais jamais poussé au driver via `DEVICE_PORT`. À traiter selon comportement réel : pousser `DEVICE_PORT` si le default ne tape pas `/dev/ttyUSB0`, ou supprimer le champ mort.
 - `_await_device()` polle `getDevice()` sur le thread asyncio (pas dans `to_thread`). Reviewer initial juge low-risk pour un flow one-shot de startup ; à reconsidérer si pause observable au boot.
 
-**5. Méta**
+**5. Plan v0.2 Setup écrit**
+
+Tour de spec v0.2 (`docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md`) après le merge migration. Génération du plan d'implémentation via `Plan` agent : `docs/superpowers/plans/2026-05-04-v02-setup-implementation.md` — 34 tasks structurées en 5 slices (INFRA / A capteurs / B courses ALT / C about / D mount-tuning bloqué dongle), stratégie 1 branche par slice avec merge incrémental.
+
+Décisions arbitrées en relisant le plan :
+- **Algo ellipsoid fit LIS3MDL** : Li-Lawley analytique simplifié (~50 LOC) + filtre outliers, fallback least-squares si terrain bruité.
+- **Heading compass tilt-compensé en v0.2** (initialement reporté v0.3) : ADXL co-localisé sur la base tournante avec compass + DroTek → fusion possible. Justification utilisateur : la mise en station impose une monture nivelée, donc l'ordre #1 → #2 est naturel. Helper pure numpy ajouté en Task A-5b ; stream payload `/sensors/compass/stream` gagne `tilt_compensated: bool`. Fallback naïve documenté.
+- **Merge slice par slice** dans `main` plutôt qu'attendre le milestone complet. Plus simple, moins de conflits.
+
+Slice D reste mergeable seulement après livraison dongle CP2102 + smoke INDI vert (Task 14 du plan migration).
+
+**6. Méta**
 
 Journal au plafond après cette session (Sessions 9-16 = 8 sessions). Prochaine session : archiver Sessions 9-14 dans `journal/archive/2026-04-mount-indi-migration.md` (milestone : migration mount nexstarpy → INDI), garder Sessions 15-16 + la suivante en tête de file.
 
