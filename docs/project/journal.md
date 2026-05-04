@@ -51,7 +51,12 @@ Patch C++ du driver dans un repo séparé : `/tmp/indi-research/indi-3rdparty/`,
 
 **3. Final review post-rebase**
 
-[À compléter après revue de code : forces / issues à traiter / approbation.]
+`superpowers:code-reviewer` (Sonnet) sur `ae29dca..HEAD` pré-fix : **approuvé avec fixes**, aucun issue critique. 2 items "Important" appliqués immédiatement (commit `93e59bc`) :
+
+- `logger.exception(...)` dans chaque `except` de `MountIndiAdapter` (start/stop/slew/stop_slew/set_time/set_location/set_tracking/cordwrap_set_*/set_backlash). Le smoke test Pi sera diagnosticable via `journalctl` au lieu d'un état `error` opaque.
+- `active_slews` deep-copié (`[dict(s) for s in ...]`) avant publish bus, côté `MountIndiAdapter` ET `FakeMount`, pour fermer la possibilité qu'une mutation in-place change silencieusement un `SubsystemState.details` déjà émis.
+
+Items "Minor" (~10) non bloquants laissés en suspens — la plupart sont liés à des comportements à observer pendant le smoke test (driver round-trip `TIME_UTC`, vrais noms d'éléments `CORDWRAP_POS`, ordre de lecture env vars). Détail dans le rapport reviewer (non archivé). 89/89 tests verts post-fix.
 
 **4. Hardware en attente — dongle CP2102 5V**
 
