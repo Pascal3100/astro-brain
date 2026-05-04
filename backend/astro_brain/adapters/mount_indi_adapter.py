@@ -13,6 +13,7 @@ of ``PyIndi.BaseClient``) under the hood.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from datetime import UTC, datetime
 from typing import Any
@@ -21,6 +22,8 @@ from astro_brain.adapters._indi_property_helpers import set_switch_one_of_many
 from astro_brain.bus import StateBus
 from astro_brain.services.interfaces import Axis, Direction
 from astro_brain.subsystems import SubsystemState
+
+logger = logging.getLogger(__name__)
 
 INDI_HOST_ENV = "ASTRO_BRAIN_INDI_HOST"
 INDI_HOST_DEFAULT = "127.0.0.1"
@@ -100,6 +103,7 @@ class MountIndiAdapter:
                 ),
             )
         except Exception as exc:
+            logger.exception("indi: start failed")
             self._bus.publish(
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),
@@ -111,7 +115,7 @@ class MountIndiAdapter:
             if self._client is not None:
                 await asyncio.to_thread(self._client.disconnectServer)
         except Exception:
-            pass
+            logger.warning("indi: disconnect on stop raised", exc_info=True)
         self._device = None
         self._bus.publish(
             "mount", SubsystemState(state="disconnected", since=_now())
@@ -176,6 +180,7 @@ class MountIndiAdapter:
             motion_vec[off_elem].setState("OFF")
             await asyncio.to_thread(self._client.sendNewProperty, motion_vec)
         except Exception as exc:
+            logger.exception("indi: slew failed")
             self._bus.publish(
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),
@@ -188,7 +193,7 @@ class MountIndiAdapter:
                 state="moving",
                 details={
                     "device": self._device_name,
-                    "active_slews": list(self._active_slews),
+                    "active_slews": [dict(s) for s in self._active_slews],
                 },
                 since=_now(),
             ),
@@ -224,6 +229,7 @@ class MountIndiAdapter:
                     s for s in self._active_slews if s["axis"] != axis
                 ]
         except Exception as exc:
+            logger.exception("indi: stop_slew failed")
             self._bus.publish(
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),
@@ -237,7 +243,7 @@ class MountIndiAdapter:
                     state="moving",
                     details={
                         "device": self._device_name,
-                        "active_slews": list(self._active_slews),
+                        "active_slews": [dict(s) for s in self._active_slews],
                     },
                     since=_now(),
                 ),
@@ -268,6 +274,7 @@ class MountIndiAdapter:
             time_vec["OFFSET"].setText("0")
             await asyncio.to_thread(self._client.sendNewProperty, time_vec)
         except Exception as exc:
+            logger.exception("indi: set_time failed")
             self._bus.publish(
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),
@@ -285,6 +292,7 @@ class MountIndiAdapter:
             # ELEV left at its current value (set by user/setup later).
             await asyncio.to_thread(self._client.sendNewProperty, geo)
         except Exception as exc:
+            logger.exception("indi: set_location failed")
             self._bus.publish(
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),
@@ -310,6 +318,7 @@ class MountIndiAdapter:
                 ),
             )
         except Exception as exc:
+            logger.exception("indi: set_tracking failed")
             self._bus.publish(
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),
@@ -344,6 +353,7 @@ class MountIndiAdapter:
             )
             await asyncio.to_thread(self._client.sendNewProperty, cw)
         except Exception as exc:
+            logger.exception("indi: cordwrap_set_enabled failed")
             self._bus.publish(
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),
@@ -374,6 +384,7 @@ class MountIndiAdapter:
             )
             await asyncio.to_thread(self._client.sendNewProperty, cw_pos)
         except Exception as exc:
+            logger.exception("indi: cordwrap_set_position failed")
             self._bus.publish(
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),
@@ -417,6 +428,7 @@ class MountIndiAdapter:
             bl[elem_name].setValue(float(int(value)))
             await asyncio.to_thread(self._client.sendNewProperty, bl)
         except Exception as exc:
+            logger.exception("indi: set_backlash failed")
             self._bus.publish(
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),

@@ -52,7 +52,7 @@ class FakeMount:
             "mount",
             SubsystemState(
                 state="moving",
-                details={"active_slews": list(self._active_slews)},
+                details={"active_slews": [dict(s) for s in self._active_slews]},
                 since=_now(),
             ),
         )
@@ -69,7 +69,7 @@ class FakeMount:
                 "mount",
                 SubsystemState(
                     state="moving",
-                    details={"active_slews": list(self._active_slews)},
+                    details={"active_slews": [dict(s) for s in self._active_slews]},
                     since=_now(),
                 ),
             )
