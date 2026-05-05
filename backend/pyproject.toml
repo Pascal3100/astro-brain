@@ -8,12 +8,15 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
     "sse-starlette>=2.1",
+    "aiosqlite>=0.20",
+    "numpy>=2.0",
 ]
 
 [project.optional-dependencies]
 hardware = [
     "pyindi-client>=2.0",
     "gpsd-py3",
+    "smbus2>=0.4",
 ]
 
 [dependency-groups]
