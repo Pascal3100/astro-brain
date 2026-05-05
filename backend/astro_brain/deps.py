@@ -13,6 +13,8 @@ build their own ``FastAPI`` instance and set ``app.state.*`` directly.
 
 from __future__ import annotations
 
+from typing import Any
+
 import aiosqlite
 from fastapi import Request
 
@@ -57,3 +59,27 @@ def get_db(request: Request) -> aiosqlite.Connection:
 
 def get_calibration_service(request: Request) -> CalibrationService:
     return request.app.state.calibration_service
+
+
+def get_adxl_mount(request: Request) -> Any:
+    return request.app.state.adxl_mount
+
+
+def get_adxl_tube(request: Request) -> Any:
+    return request.app.state.adxl_tube
+
+
+def get_lis3mdl(request: Request) -> Any:
+    return request.app.state.lis3mdl
+
+
+def get_lazy_adxl_mount(request: Request) -> Any:
+    return request.app.state.lazy_adxl_mount
+
+
+def get_lazy_adxl_tube(request: Request) -> Any:
+    return request.app.state.lazy_adxl_tube
+
+
+def get_lazy_lis3mdl(request: Request) -> Any:
+    return request.app.state.lazy_lis3mdl

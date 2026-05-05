@@ -31,6 +31,8 @@ from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.calibration import router as calibration_router
 from astro_brain.routes.commands import router as commands_router
 from astro_brain.routes.events import router as events_router
+from astro_brain.routes.sensors import _LazySensor
+from astro_brain.routes.sensors import router as sensors_router
 from astro_brain.routes.state import router as state_router
 from astro_brain.services.calibration import CalibrationServiceImpl
 from astro_brain.services.fakes import (
@@ -129,6 +131,14 @@ def build_app(
         )
         _app.state.calibration_service = calibration_service
 
+        _app.state.adxl_mount = services["adxl_mount"]
+        _app.state.adxl_tube = services["adxl_tube"]
+        _app.state.lis3mdl = services["lis3mdl"]
+
+        _app.state.lazy_adxl_mount = _LazySensor(services["adxl_mount"])
+        _app.state.lazy_adxl_tube = _LazySensor(services["adxl_tube"])
+        _app.state.lazy_lis3mdl = _LazySensor(services["lis3mdl"])
+
         await services["mount"].start()
         await services["gps"].start()
         await services["network"].start()
@@ -161,6 +171,7 @@ def build_app(
     app.include_router(state_router)
     app.include_router(events_router)
     app.include_router(calibration_router)
+    app.include_router(sensors_router)
     return app
 
 
