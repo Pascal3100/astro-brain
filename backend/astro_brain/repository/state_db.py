@@ -53,12 +53,10 @@ def _discover_migrations() -> list[tuple[int, object]]:
 
     found: list[tuple[str, int, object]] = []
     for info in pkgutil.iter_modules(migrations_pkg.__path__):
-        match = _MIGRATION_RE.match(info.name)
-        if match is None:
+        if _MIGRATION_RE.match(info.name) is None:
             continue
         module = importlib.import_module(f"{migrations_pkg.__name__}.{info.name}")
-        version = int(getattr(module, "VERSION", int(match.group(1))))
-        found.append((info.name, version, module))
+        found.append((info.name, int(module.VERSION), module))
 
     found.sort(key=lambda item: item[0])
     return [(version, module) for _, version, module in found]
@@ -79,16 +77,12 @@ async def run_migrations(db: aiosqlite.Connection) -> int:
         if version <= current:
             continue
         sql = module.SQL
-        try:
-            await db.executescript(sql)
-            await db.execute(
-                "INSERT OR IGNORE INTO schema_version (version, applied_at) VALUES (?, ?)",
-                (version, datetime.now(UTC).isoformat()),
-            )
-            await db.commit()
-        except Exception:
-            await db.rollback()
-            raise
+        await db.executescript(sql)
+        await db.execute(
+            "INSERT OR IGNORE INTO schema_version (version, applied_at) VALUES (?, ?)",
+            (version, datetime.now(UTC).isoformat()),
+        )
+        await db.commit()
         latest = version
 
     return latest
