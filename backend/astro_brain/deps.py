@@ -18,6 +18,7 @@ from fastapi import Request
 
 from astro_brain.bus import StateBus
 from astro_brain.services.interfaces import (
+    CalibrationService,
     GpsService,
     MountService,
     NetworkService,
@@ -52,3 +53,7 @@ def get_system_info(request: Request) -> SystemInfoService:
 
 def get_db(request: Request) -> aiosqlite.Connection:
     return request.app.state.db
+
+
+def get_calibration_service(request: Request) -> CalibrationService:
+    return request.app.state.calibration_service
