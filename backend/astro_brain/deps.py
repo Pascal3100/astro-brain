@@ -13,6 +13,7 @@ build their own ``FastAPI`` instance and set ``app.state.*`` directly.
 
 from __future__ import annotations
 
+import aiosqlite
 from fastapi import Request
 
 from astro_brain.bus import StateBus
@@ -47,3 +48,7 @@ def get_network(request: Request) -> NetworkService:
 
 def get_system_info(request: Request) -> SystemInfoService:
     return request.app.state.system_info
+
+
+def get_db(request: Request) -> aiosqlite.Connection:
+    return request.app.state.db
