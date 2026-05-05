@@ -100,8 +100,16 @@ class CompassStreamService {
 
   void _onEvent(SseEvent event) {
     if (event.event != 'compass') return;
-    final json = jsonDecode(event.data) as Map<String, dynamic>;
-    _out.add(CompassReading.fromJson(json));
+    try {
+      final json = jsonDecode(event.data) as Map<String, dynamic>;
+      _out.add(CompassReading.fromJson(json));
+    } catch (_) {
+      // Payload mal formé : on le drop et on garde la connexion ouverte.
+      // Sans ce try/catch, l'exception synchrone à l'intérieur du callback
+      // `data` de `resp.stream.listen` combinée à `cancelOnError: true`
+      // détruit la souscription sans déclencher `onError`, et donc sans
+      // appeler `_scheduleReconnect` — le stream meurt en silence.
+    }
   }
 
   void _scheduleReconnect() {

@@ -111,6 +111,32 @@ void main() {
     await bytes2.close();
   });
 
+  test('un payload JSON mal formé ne casse pas le stream', () async {
+    final bytes = StreamController<List<int>>();
+    final client = _FakeClient([(200, bytes.stream)]);
+    final svc = CompassStreamService(
+      host: const PiHost(),
+      clientFactory: () => client,
+    );
+
+    final readings = <CompassReading>[];
+    final sub = svc.stream.listen(readings.add);
+    svc.start();
+
+    // Event mal formé : doit être droppé sans tuer la souscription.
+    bytes.add(utf8.encode('event: compass\ndata: {not valid json\n\n'));
+    // Event valide qui suit : doit toujours arriver.
+    bytes.add(utf8.encode('event: compass\ndata: $_payload\n\n'));
+
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(readings, hasLength(1));
+    expect(readings.first.headingDeg, closeTo(142.7, 1e-9));
+
+    await sub.cancel();
+    await svc.stop();
+    await bytes.close();
+  });
+
   test('ignore les events autres que compass', () async {
     final bytes = StreamController<List<int>>();
     final client = _FakeClient([(200, bytes.stream)]);

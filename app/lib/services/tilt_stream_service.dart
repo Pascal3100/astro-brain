@@ -100,8 +100,16 @@ class TiltStreamService {
 
   void _onEvent(SseEvent event) {
     if (event.event != 'tilt') return;
-    final json = jsonDecode(event.data) as Map<String, dynamic>;
-    _out.add(TiltReading.fromJson(json));
+    try {
+      final json = jsonDecode(event.data) as Map<String, dynamic>;
+      _out.add(TiltReading.fromJson(json));
+    } catch (_) {
+      // Payload mal formé : on le drop et on garde la connexion ouverte.
+      // Sans ce try/catch, l'exception synchrone à l'intérieur du callback
+      // `data` de `resp.stream.listen` combinée à `cancelOnError: true`
+      // détruit la souscription sans déclencher `onError`, et donc sans
+      // appeler `_scheduleReconnect` — le stream meurt en silence.
+    }
   }
 
   void _scheduleReconnect() {
