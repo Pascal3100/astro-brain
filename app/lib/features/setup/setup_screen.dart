@@ -1,85 +1,103 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../../models/calibration.dart';
 import '../../models/overall_status.dart';
+import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/design_tokens.dart';
 import '../../widgets/astro_app_bar.dart';
+import 'calibration/adxl_mount_screen.dart';
 import 'network/network_screen.dart';
 import 'widgets/setup_card.dart';
 
-class SetupScreen extends StatelessWidget {
+/// Formate une durée écoulée pour le sublabel "Calibré il y a Xs/min/h/j".
+String formatRelativeAge(Duration d) {
+  if (d.inSeconds < 60) return 'Calibré il y a ${d.inSeconds}s';
+  if (d.inMinutes < 60) return 'Calibré il y a ${d.inMinutes}min';
+  if (d.inHours < 24) return 'Calibré il y a ${d.inHours}h';
+  return 'Calibré il y a ${d.inDays}j';
+}
+
+class SetupScreen extends StatefulWidget {
   const SetupScreen({super.key});
 
-  SetupCard _cardForIndex(BuildContext ctx, int n) {
-    return switch (n) {
-      1 => const SetupCard(
+  @override
+  State<SetupScreen> createState() => _SetupScreenState();
+}
+
+class _SetupScreenState extends State<SetupScreen> {
+  /// Compteur incrémenté à chaque retour de l'écran de calibration #1
+  /// pour forcer le `FutureBuilder` à re-fetcher le statut.
+  int _adxlMountRefresh = 0;
+
+  Future<void> _openAdxlMount() async {
+    final didCalibrate = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const AdxlMountScreen()));
+    if (didCalibrate == true && mounted) {
+      setState(() => _adxlMountRefresh++);
+    }
+  }
+
+  Widget _buildAdxlMountCard() {
+    return FutureBuilder<CalibrationStatus>(
+      key: ValueKey(_adxlMountRefresh),
+      future: context.read<ApiService>().getCalibrationStatus('adxl345_mount'),
+      builder: (ctx, snap) {
+        final calibratedAt = snap.data?.calibratedAt;
+        final isCalibrated = calibratedAt != null;
+        final sublabel = isCalibrated
+            ? formatRelativeAge(DateTime.now().difference(calibratedAt))
+            : 'Non calibré';
+        final dot = isCalibrated ? OverallStatus.green : OverallStatus.gray;
+
+        return SetupCard(
           index: 1,
           icon: PhosphorIconsBold.scales,
           label: 'NIVEAU MONTURE',
-          sublabel: 'À implémenter (v0.2)',
-          dotStatus: OverallStatus.gray,
-        ),
-      2 => const SetupCard(
-          index: 2,
-          icon: PhosphorIconsBold.compass,
-          label: 'COMPASS',
-          sublabel: 'À implémenter (v0.2)',
-          dotStatus: OverallStatus.gray,
-        ),
-      3 => const SetupCard(
-          index: 3,
-          icon: PhosphorIconsBold.arrowsVertical,
-          label: 'ZÉRO ALT',
-          sublabel: 'À implémenter (v0.2)',
-          dotStatus: OverallStatus.gray,
-        ),
-      4 => const SetupCard(
-          index: 4,
-          icon: PhosphorIconsBold.arrowsOutLineVertical,
-          label: 'COURSES ALT',
-          sublabel: 'À implémenter (v0.2)',
-          dotStatus: OverallStatus.gray,
-        ),
-      5 => const SetupCard(
-          index: 5,
-          icon: PhosphorIconsBold.arrowsClockwise,
-          label: 'BACKLASH ALT',
-          sublabel: 'À implémenter (v0.2)',
-          dotStatus: OverallStatus.gray,
-        ),
-      6 => const SetupCard(
-          index: 6,
-          icon: PhosphorIconsBold.arrowsClockwise,
-          label: 'BACKLASH AZ',
-          sublabel: 'À implémenter (v0.2)',
-          dotStatus: OverallStatus.gray,
-        ),
-      7 => const SetupCard(
-          index: 7,
-          icon: PhosphorIconsBold.arrowClockwise,
-          label: 'CORDWRAP AZ',
-          sublabel: 'À implémenter (v0.2)',
-          dotStatus: OverallStatus.gray,
-        ),
+          sublabel: sublabel,
+          dotStatus: dot,
+          onTap: _openAdxlMount,
+        );
+      },
+    );
+  }
+
+  SetupCard _placeholder(int n, IconData icon, String label) => SetupCard(
+    index: n,
+    icon: icon,
+    label: label,
+    sublabel: 'À implémenter (v0.2)',
+    dotStatus: OverallStatus.gray,
+  );
+
+  Widget _cardForIndex(BuildContext ctx, int n) {
+    return switch (n) {
+      1 => _buildAdxlMountCard(),
+      2 => _placeholder(2, PhosphorIconsBold.compass, 'COMPASS'),
+      3 => _placeholder(3, PhosphorIconsBold.arrowsVertical, 'ZÉRO ALT'),
+      4 => _placeholder(
+        4,
+        PhosphorIconsBold.arrowsOutLineVertical,
+        'COURSES ALT',
+      ),
+      5 => _placeholder(5, PhosphorIconsBold.arrowsClockwise, 'BACKLASH ALT'),
+      6 => _placeholder(6, PhosphorIconsBold.arrowsClockwise, 'BACKLASH AZ'),
+      7 => _placeholder(7, PhosphorIconsBold.arrowClockwise, 'CORDWRAP AZ'),
       8 => SetupCard(
-          index: 8,
-          icon: PhosphorIconsBold.wifiHigh,
-          label: 'RÉSEAU',
-          sublabel: 'Override host/port app',
-          dotStatus: OverallStatus.green,
-          onTap: () => Navigator.of(ctx).push(
-            MaterialPageRoute(builder: (_) => const NetworkScreen()),
-          ),
-        ),
-      9 => const SetupCard(
-          index: 9,
-          icon: PhosphorIconsBold.info,
-          label: 'À PROPOS',
-          sublabel: 'À implémenter (v0.2)',
-          dotStatus: OverallStatus.gray,
-        ),
+        index: 8,
+        icon: PhosphorIconsBold.wifiHigh,
+        label: 'RÉSEAU',
+        sublabel: 'Override host/port app',
+        dotStatus: OverallStatus.green,
+        onTap: () => Navigator.of(
+          ctx,
+        ).push(MaterialPageRoute(builder: (_) => const NetworkScreen())),
+      ),
+      9 => _placeholder(9, PhosphorIconsBold.info, 'À PROPOS'),
       _ => throw RangeError('index $n hors plage 1–9'),
     };
   }
