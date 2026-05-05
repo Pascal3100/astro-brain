@@ -31,7 +31,7 @@ Contenu minimum :
 - Toggle thème jour/nuit (icône soleil/lune).
 - Bouton reconnect conditionnel quand `connection == offline`.
 
-Source de vérité actuelle : `app/lib/features/home/widgets/status_bar.dart` (`StatusBar`). À factoriser en widget partagé `AstroAppBar` quand on introduira le Hub (v0.2/v0.3).
+Source de vérité actuelle : `app/lib/features/home/widgets/status_bar.dart` (`StatusBar`). À factoriser en widget partagé `AstroAppBar` quand on introduira le Hub (Macro 2 / Macro 3).
 
 Les écrans qui ont besoin d'un titre de page le posent **en dessous** de l'AppBar partagée, pas à sa place.
 

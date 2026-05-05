@@ -8,7 +8,7 @@ Document vivant. Liste les sous-systèmes, leurs états, et les règles d'agrég
 - **Invariant** : `publish()` se fait uniquement sur la main-loop asyncio. Les adapters qui font de l'I/O bloquant via `asyncio.to_thread(...)` reprennent sur la main-loop avant de publier.
 - Format publié : `Subsystem(kind, state, since, message?, details?)`.
 
-## Sous-systèmes v0.1 (livré)
+## Sous-systèmes Macro 0 — Socle (livré)
 
 | Kind | Service | États | Détails clés |
 |---|---|---|---|
@@ -18,14 +18,14 @@ Document vivant. Liste les sous-systèmes, leurs états, et les règles d'agrég
 | `network` | `NetworkInfoService` | `unknown / client / hotspot / offline / error` | `ssid, ip, iface, mode` |
 | `system` | `SystemInfoService` | `unknown / ok / warn / error` | `cpu_temp, load_avg, uptime` |
 
-## Sous-systèmes prévus v0.2 (Setup)
+## Sous-systèmes prévus Macro 2 — Setup
 
 | Kind | Service | États | Détails clés |
 |---|---|---|---|
 | `tilt` | `TiltService` (ADXL345 monture `0x1D`) | `unknown / level / off_level / error` | `pitch_deg, roll_deg, magnitude_deg` |
 | `compass` | `CompassService` (LIS3MDL `0x1E`) | `unknown / ok / needs_calibration / error` | `heading_deg, magnitude_uT` |
 
-## Sous-systèmes prévus v0.3 (alignement + GoTo)
+## Sous-systèmes prévus Macro 3 — Mise en station + GoTo basique
 
 | Kind | Service | États | Détails clés |
 |---|---|---|---|
@@ -37,20 +37,20 @@ Couleurs : `green / blue / orange / red / offline`.
 
 L'agrégateur **dérive ses règles des enums** (FATAL / TRANSIENT / DEGRADED) — un rename d'état dans un service casse l'import au lieu de classer silencieusement mal.
 
-### v0.1
+### Macro 0 — Socle
 
 - `mount=error` ou `system=error` → `red`
 - `gps=acquiring`, `mount=moving`, `tracking=*` (transitionnel) → `blue`
 - `gps=off`, `network=offline` → `orange` (degraded)
 - Tout vert → `green`
 
-### Extensions v0.2 (à confirmer dans la spec Setup)
+### Extensions Macro 2 — Setup (à confirmer dans la spec Setup)
 
 - `compass=needs_calibration` → `orange` (degraded — utilisable mais le wizard refuse de continuer)
 - `tilt=error` ou `compass=error` → `orange` (capteur capricieux, app reste utilisable)
 - `tilt=off_level` → neutre (info pendant wizard, pas une erreur globale)
 
-### Extensions v0.3 (alignement)
+### Extensions Macro 3 — Mise en station + GoTo basique
 
 - `alignment=error` → `blue` (correctable user, pas une panne hardware)
 - `alignment=not_aligned` → neutre

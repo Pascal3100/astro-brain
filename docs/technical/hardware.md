@@ -6,12 +6,12 @@ Référence pratique pour le matériel et les branchements physiques.
 
 | Composant | Rôle | Connexion |
 |---|---|---|
-| **Raspberry Pi 3 B+** | Backend FastAPI, GPS, calculs astro, plate solving (v0.5+) | — |
+| **Raspberry Pi 3 B+** | Backend FastAPI, GPS, calculs astro, plate solving (Macro 5+) | — |
 | **Monture Celestron** | GoTo + suivi sidéral | USB-série via dongle CP2102 (port HC RJ12 → `/dev/ttyUSB0`, driver INDI `indi_celestron_aux`) |
 | **GPS DroTek Ublox M8N + compass XL** | Géolocalisation, heure UTC, cap magnétique | UART0 GPIO (GPS) + I2C1 GPIO (compass LIS3MDL) |
 | **ADXL345 tube** (`0x53`) | Zéro ALT + détection butées d'inclinaison | I2C1 GPIO |
 | **ADXL345 monture** (`0x1D`) | Mise à niveau pré-session (bulle virtuelle) | I2C1 GPIO |
-| **Caméras astrophoto** (v0.5+) | T7C, StarShoot Autoguider, lunette guide SV165 | USB |
+| **Caméras astrophoto** (Macro 5+) | T7C, StarShoot Autoguider, lunette guide SV165 | USB |
 | **Alimentation** | 12 V batterie → buck 5 V/3 A vers Pi | — |
 
 Les 4 ports USB du Pi sont réservés pour la monture + caméras. **Tous les capteurs passent par les GPIO.**
@@ -20,9 +20,9 @@ Les 4 ports USB du Pi sont réservés pour la monture + caméras. **Tous les cap
 
 | Device | Adresse | Usage |
 |---|---|---|
-| LIS3MDL (compass) | `0x1E` | Cap magnétique, alignement assisté (v0.3+) |
-| ADXL345 tube | `0x53` | Zéro ALT, butées (v0.4+) |
-| ADXL345 monture | `0x1D` | Niveau trépied (v0.2+) |
+| LIS3MDL (compass) | `0x1E` | Cap magnétique, alignement assisté (Macro 3+) |
+| ADXL345 tube | `0x53` | Zéro ALT, butées (Macro 2+) |
+| ADXL345 monture | `0x1D` | Niveau trépied (Macro 2+) |
 
 Les 2 ADXL345 cohabitent sur le même bus grâce à la pin SDO (sélection d'adresse). Pas de multiplexeur nécessaire.
 

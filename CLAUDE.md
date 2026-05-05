@@ -20,7 +20,7 @@ Specs et plans : `docs/superpowers/specs/` et `docs/superpowers/plans/`.
 - **Frontend** : App Flutter native sur téléphone (pas une PWA), pattern BLoC
 - **Communication Pi <-> Monture** : stack INDI (`indiserver` + driver `indi_celestron_aux`) côté Pi, client Python `pyindi-client` dans le backend FastAPI. Liaison physique : port HC RJ12 → dongle USB-TTL CP2102 (5V) → `/dev/ttyUSB0` (NexStar 9600 baud, AUX en pass-through `'P'`)
 - **Capteurs** : DroTek Ublox M8N (UART0 GPIO), compass LIS3MDL à `0x1E` (I2C1), 2× ADXL345 à `0x53`/`0x1D` (I2C1). Pas d'USB pour les capteurs (réservés caméras). Détails : [`docs/technical/hardware.md`](docs/technical/hardware.md).
-- **Plate Solving** (v0.5+) : Astrometry.net local
+- **Plate Solving** (Macro 5+) : Astrometry.net local
 
 ## Architecture
 
@@ -63,17 +63,22 @@ Hybride : édition côté workstation, exécution côté Pi.
 
 ## Roadmap
 
-Philosophie : **chaque version = un livrable utilisable en session réelle**. On vise d'abord la parité avec la raquette Celestron (v0.1 → v0.4, sans caméra), puis on greffe la chaîne caméra/plate solve/guidage.
+Pas de versions numérotées. **Train d'étapes atomiques regroupées en macro-étapes** thématiques. Une étape se déplace dans le train ; une macro est "done" quand le télescope reste utilisable end-to-end à la fin (la discipline "livrable utilisable" vit au niveau macro). Voir ADR du 2026-05-05.
 
-- **v0.1** ✓ Joystick + tracking + GPS/heure (livré 2026-04-25)
-- **v0.2** Setup : calibration compass + ADXL345 ×2, courses ALT/AZ, backlash, network/IP, à propos
-- **v0.3** Mise en station 3 étoiles + GoTo + catalogue minimal (Messier + planètes + ~50-100 étoiles brillantes) + Hub central
-- **v0.4** Catalogue complet (NGC/IC) + filtrage par tube (focale, diamètre, obstruction) — **parité raquette Celestron atteinte**
-- **v0.5** Caméras + plate solving (stack INDI, pipeline preview FITS→JPEG, framing)
-- **v0.6** Focus + mise en station complète (focus live HFR/FWHM, wizard avec option plate solve)
-- **v0.7** Astrophoto (PHD2 guidage, séquenceur, dithering, autofocus)
+- **Macro 0 — Socle** ✅ (livré 2026-04-25) : joystick + tracking + GPS/heure auto, app Flutter native, AppBar template, service systemd
+- **Macro 1 — Migration INDI** 🚧 : refonte `MountAdapter` `nexstarpy` → `pyindi-client` (bloqué smoke test par dongle CP2102)
+- **Macro 2 — Setup** : page Setup unifiée + niveau monture, calibration ADXL345 ×2, calibration compass, courses ALT/AZ, backlash, network/IP (livré), à propos
+- **Macro 3 — Mise en station + GoTo basique** : Hub central, wizard alignement 3 étoiles, GoTo réel, catalogue minimal (Messier + planètes + ~50-100 étoiles)
+- **Macro 4 — Catalogue intelligent** : NGC/IC + setup tube + filtrage par caractéristiques tube — **parité raquette Celestron atteinte**
+- **Macro 5 — Caméras + plate solving** : stack INDI caméras, pipeline preview FITS→JPEG, framing, machine d'état backend, Astrometry.net local
+- **Macro 6 — Focus + MES complète** : focus live HFR/FWHM, wizard MES end-to-end, alignement par plate solve, assistant alignement optique
+- **Macro 7 — Astrophoto** : PHD2 guidage, séquenceur, dithering, autofocus
 
-Roadmap détaillée : [`docs/project/roadmap.md`](docs/project/roadmap.md). ADRs : [`docs/project/decisions.md`](docs/project/decisions.md).
+Fils transverses (en continu, pas dans le train) : safety (urgence + logs), mode nuit, indicateur global, ops (deploy, build APK), night planner offline.
+
+Roadmap détaillée et statut par étape : [`docs/project/roadmap.md`](docs/project/roadmap.md). ADRs : [`docs/project/decisions.md`](docs/project/decisions.md).
+
+**À tenir à jour** : `docs/project/roadmap.md` est l'unique source de vérité du train. À chaque livraison d'étape (statut + date), à chaque réorganisation (déplacement / ajout / retrait d'étape entre macros), mettre à jour la roadmap **dans la même session que le commit qui livre le changement**. Les changements structurants (ajout/retrait de macro, déplacement entre macros) déclenchent aussi un ADR daté dans `decisions.md`.
 
 ## Conventions
 

@@ -4,15 +4,16 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 
 ## État du projet
 
-**Version active** : `v0.1 livrée` — parité joystick + tracking avec la raquette Celestron via app Flutter native. Backend **89 tests** verts (64 v0.1 + 25 migration INDI) et app 53 tests. Smoke test téléphone fait sur Moto g54 5G. Validation physique faite sur **GPS + compass I2C + network + system** ; **monture pas encore branchée** (sections 3 et 7 de `backend/deploy/INTEGRATION_CHECKLIST.md` à dérouler — dongle CP2102 en attente).
+**Roadmap restructurée 2026-05-05** : abandon du versioning v0.X, passage à un train de macro-étapes (voir [`roadmap.md`](roadmap.md) + ADR du 2026-05-05). Les sessions antérieures continuent de référencer `v0.X` ; correspondance : v0.1 = Macro 0 Socle, v0.2 = Macro 2 Setup, v0.3 = Macro 3 Mise en station, v0.4 = Macro 4 Catalogue, v0.5 = Macro 5 Caméras, v0.6 = Macro 6 Focus + MES, v0.7 = Macro 7 Astrophoto. La migration INDI devient sa propre Macro 1 (technique).
 
-**Stack INDI installée** sur le Pi (Session 15) : `libindi` 2.2.0 + driver `indi_celestron_aux` 1.5 + `indi-gpsd` 0.6, via repo Astroberry Debian Trixie arm64 (`https://astroberry.io/debian/`). Driver fonctionnel en test isolé (`indiserver -v indi_celestron_aux` démarre, port 7624, plugins SVD + Nearest).
+**Macro 0 — Socle ✅** (livré 2026-04-25) : parité joystick + tracking via app Flutter native. Backend **89 tests** verts (64 socle + 25 migration INDI), app 53 tests. Smoke téléphone Moto g54 5G. Validation physique GPS + compass I2C + network + system ; **monture pas encore branchée** (sections 3 et 7 de `backend/deploy/INTEGRATION_CHECKLIST.md` — dongle CP2102 en attente).
 
-**Migration backend INDI atterrie sur main** (Session 16) : `MountIndiAdapter` + `AstroBrainIndiClient` + helpers + `FakeIndiClient` côté backend, `indiserver.service` systemd, script de build local du driver patché, doc bascule architecture/deployment/INTEGRATION_CHECKLIST. `nexstarpy` retiré du `pyproject.toml`. Patch C++ backlash mount-axis prêt côté `/tmp/indi-research/indi-3rdparty/` (commit `538810c`, branche `astro-brain-backlash`).
+**Macro 1 — Migration INDI 🚧**
+- ✅ Stack INDI installée sur le Pi (Session 15) : `libindi` 2.2.0 + `indi_celestron_aux` 1.5 + `indi-gpsd` 0.6 via repo Astroberry Trixie arm64. Driver fonctionnel en test isolé (port 7624, plugins SVD + Nearest).
+- ✅ Backend INDI atterri sur main (Session 16) : `MountIndiAdapter` + `AstroBrainIndiClient` + helpers + `FakeIndiClient`, `indiserver.service` systemd, script build driver patché, doc bascule. `nexstarpy` retiré du `pyproject.toml`. Patch C++ backlash mount-axis prêt (`/tmp/indi-research/indi-3rdparty/`, commit `538810c`, branche `astro-brain-backlash`).
+- ⛔ **Cap suivant** : smoke test E2E sur le Pi (Task 14 du plan migration) — bloque sur la livraison du **dongle USB-TTL CP2102 5V**. Dès que le dongle arrive : câblage HC RJ12, `bash deploy/install.sh`, fork upstream du patch backlash + build sur le Pi, `INTEGRATION_CHECKLIST.md` sections 0+3+Backlash+Cordwrap. Une fois la checklist verte, ouverture du chantier Macro 2 Setup.
 
-**Cap suivant** : **smoke test E2E sur le Pi** (Task 14 du plan migration) — bloque sur la livraison du **dongle USB-TTL CP2102 5V**. Dès que le dongle arrive : câblage HC RJ12, `bash deploy/install.sh`, fork upstream du patch backlash + build sur le Pi, `INTEGRATION_CHECKLIST.md` sections 0+3+Backlash+Cordwrap. Une fois la checklist verte, ouverture du chantier v0.2 Setup (`superpowers:writing-plans` sur la spec validée Session 13).
-
-**Spec v0.2 validée** : `docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md` (Session 13). En attente smoke INDI hardware.
+**Macro 2 — Setup** : spec validée (Session 13) [`docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md`], plan d'implémentation rédigé (Session 16) [`docs/superpowers/plans/2026-05-04-v02-setup-implementation.md`] (34 tasks, 5 slices). Carte #8 RÉSEAU livrée (Session 14). En attente smoke INDI hardware pour ouvrir les autres slices.
 
 **Doc tree** : nouvelle arborescence `docs/INDEX.md` → 3 vues (`technical/`, `project/`, `product/`). Petits docs ciblés, navigation par liens. Voir Session 12.
 

@@ -1,6 +1,6 @@
 # Référence INDI — Astro-Brain
 
-Onboarding ciblé pour pilotage de la monture Celestron SLT depuis FastAPI via INDI. Pas une encyclopédie : couvre l'essentiel pour les 7 besoins v0.2/v0.3 + l'opérationnel Pi.
+Onboarding ciblé pour pilotage de la monture Celestron SLT depuis FastAPI via INDI. Pas une encyclopédie : couvre l'essentiel pour les 7 besoins Macros 2/3 + l'opérationnel Pi.
 
 ## TL;DR — Couverture des 7 besoins par `indi_celestron_aux`
 
@@ -44,7 +44,7 @@ Une property est un **vecteur typé nommé** attaché à un device. Quatre types
 
 Un vecteur a un **nom** (ex: `EQUATORIAL_EOD_COORD`), des **éléments** nommés, une **permission** (RO/RW/WO), un **état** (IDLE/OK/BUSY/ALERT). Côté code on lit toujours `vecteur[élément]`. On modifie en local puis on appelle `sendNewProperty()` ; le driver répond async par un `updateProperty()`.
 
-Les **BLOB** sont un cinquième type pour binaire (FITS) — pas pertinent v0.2/v0.3, utile v0.5 pour les caméras.
+Les **BLOB** sont un cinquième type pour binaire (FITS) — pas pertinent Macros 2/3, utile Macro 5 pour les caméras.
 
 ## 2. pyindi-client : connexion et I/O
 
@@ -112,7 +112,7 @@ Config minimale AUX (à pousser dans `CONNECTION` + `DEVICE_PORT` + `PORT_TYPE`)
 | `CORDWRAP_POS` (AUX only) | Switch RW (1OFMANY) | `CORDWRAP_N`, `_E`, `_S`, `_W` | **position 24-bit côté monture**, mais l'UI INDI ne propose que les 4 cardinaux (`celestronaux.cpp:330-335`). En backend on peut envoyer un steps 24-bit arbitraire via `setCordWrapPosition(uint32_t)` (`celestronaux.h:241`) → `MC_SET_CORDWRAP_POS/0x3a`. |
 | `CW_BASE` (AUX only) | Switch RW (1OFMANY) | `CW_BASE_ENC`, `CW_BASE_SKY` | référentiel encodeurs (zéro home) vs alignement (zéro sky). |
 | `TELESCOPE_ENCODER_STEPS` (AUX) | Number RW | `AXIS_AZ`, `AXIS_ALT` | 24-bit raw, lecture/écriture directe. |
-| `LIMIT_POS` (AUX only) | Number RW | `SLEW_LIMIT_AXIS{1,2}_{MIN,MAX}` | **courses ALT/AZ** en degrés (`celestronaux.cpp:345-349`). Couvre v0.2 setup courses. |
+| `LIMIT_POS` (AUX only) | Number RW | `SLEW_LIMIT_AXIS{1,2}_{MIN,MAX}` | **courses ALT/AZ** en degrés (`celestronaux.cpp:345-349`). Couvre Macro 2 setup courses. |
 | `AXIS1_LIMIT` / `AXIS2_LIMIT` (AUX only) | Switch RW | `INDI_ENABLED`, `INDI_DISABLED` | active/désactive les limites par axe. |
 | `HOME` (AUX only) | Switch RW | `AXIS1`, `AXIS2`, `ALL` | seek home (`celestronaux.cpp:316-319`) — homing physique sur SLT à confirmer (capacité hardware). |
 | `GUIDE_RATE` | Number RW | `GUIDE_RATE_WE`, `GUIDE_RATE_NS` | 0–1 × sidéral, pour pulse guiding. |
@@ -134,7 +134,7 @@ Config minimale AUX (à pousser dans `CONNECTION` + `DEVICE_PORT` + `PORT_TYPE`)
 
 - **systemd** : `indiserver` doit tourner en service (pas via SSH). Unit type `simple`, `ExecStart=/usr/bin/indiserver -v indi_celestron_aux`, `Restart=on-failure`. Le `-v` log la verbosité utile pour debug. À placer dans `/etc/systemd/system/indiserver.service`.
 - **Port** : 7624 par défaut. Si on veut un client distant (laptop debug), exposer sur le réseau local — sinon `127.0.0.1` only.
-- **Devices à charger** : pour Astro-Brain, `indi_celestron_aux` seul en v0.2/v0.3. v0.5+ : ajouter caméras INDI (ex: `indi_asi_ccd`) et focuser.
+- **Devices à charger** : pour Astro-Brain, `indi_celestron_aux` seul en Macros 2/3. Macro 5+ : ajouter caméras INDI (ex: `indi_asi_ccd`) et focuser.
 - **Empreinte** : indiserver ~10 MB, chaque driver ~30–50 MB. Confortable sur un Pi 3 B+ avec 1 GB RAM.
 - **Hot-reload** : tuer un driver via `indiserver` la-CLI ou redémarrer l'unit. Pas de hot-reload propre client-side.
 - **Driver AUX = BETA** (cf. README upstream) : "not for unattended use, no slew limits". À surveiller en session, garder coupe-circuit accessible.

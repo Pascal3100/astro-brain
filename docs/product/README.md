@@ -5,9 +5,9 @@ Ce que l'utilisateur voit et utilise. Features, parcours, design system.
 ## Sommaire
 
 - [design-system.md](design-system.md) — thème jour/nuit, tokens, AppBar template, conventions UI.
-- [features/](features/) — fiche par feature, par version livrée.
-  - [manual-control.md](features/manual-control.md) — v0.1, contrôle manuel D-Pad + tracking.
-  - À venir : `setup.md` (v0.2), `alignment.md` (v0.3), `goto.md` (v0.3).
+- [features/](features/) — fiche par feature, par macro-étape.
+  - [manual-control.md](features/manual-control.md) — Macro 0 Socle, contrôle manuel D-Pad + tracking.
+  - À venir : `setup.md` (Macro 2), `alignment.md` (Macro 3), `goto.md` (Macro 3).
 - (à venir) `flows/` — parcours utilisateur transverses (boot, soirée type).
 
 ## Convention

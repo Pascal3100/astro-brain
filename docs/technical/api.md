@@ -1,10 +1,10 @@
 # API REST + SSE
 
-Document vivant. Liste les endpoints par version. Les changements suivent un versioning sémantique informel — les ajouts d'endpoints sont mineurs, les ruptures de contrat sont notées explicitement.
+Document vivant. Liste les endpoints par macro-étape. Les ajouts d'endpoints sont mineurs ; les ruptures de contrat sont notées explicitement.
 
 Convention : RA/Dec en **degrés décimaux** dans toutes les requêtes/réponses (jamais en h:m:s).
 
-## v0.1 (livré)
+## Macro 0 — Socle (livré)
 
 ### Commandes monture
 
@@ -21,9 +21,9 @@ GET  /state                           # snapshot complet du SystemState
 GET /events                           # SSE — event: state | snapshot
 ```
 
-## v0.2 (Setup — à spécifier)
+## Macro 2 — Setup (à spécifier)
 
-Détails dans la spec Setup à venir : `docs/superpowers/specs/<date>-astro-brain-v02-setup-design.md`.
+Détails dans la spec Setup : [`docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md`](../superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md).
 
 Endpoints anticipés :
 
@@ -37,7 +37,7 @@ GET  /mount/courses
 GET  /mount/backlash
 ```
 
-## v0.3 (Alignement + GoTo — à spécifier)
+## Macro 3 — Mise en station + GoTo basique (à spécifier)
 
 ```
 POST /alignment/start

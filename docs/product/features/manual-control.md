@@ -1,4 +1,4 @@
-# Contrôle manuel — v0.1
+# Contrôle manuel — Macro 0 Socle (livré v0.1)
 
 ## Pour quoi faire
 
@@ -39,4 +39,4 @@ Vue détaillée des sous-systèmes :
 - Spec design : [`docs/superpowers/specs/2026-04-16-astro-brain-v01-design.md`](../../superpowers/specs/2026-04-16-astro-brain-v01-design.md)
 - Plan d'implémentation : [`docs/superpowers/plans/2026-04-24-astro-brain-v01-app.md`](../../superpowers/plans/2026-04-24-astro-brain-v01-app.md)
 - Modèle d'état : [`docs/technical/state-model.md`](../../technical/state-model.md)
-- API utilisée : [`docs/technical/api.md`](../../technical/api.md) — section v0.1
+- API utilisée : [`docs/technical/api.md`](../../technical/api.md) — section Macro 0 Socle

@@ -1,35 +1,41 @@
 # Backlog — Astro-Brain
 
-Réflexions transverses et idées à creuser pour les versions post-v0.1. Rien ici n'est figé en spec ; l'objectif est de capturer les pistes pour ne pas les perdre et pouvoir les arbitrer plus tard.
+Réflexions transverses et idées à creuser pour les macros à venir. Rien ici n'est figé en spec ; l'objectif est de capturer les pistes pour ne pas les perdre et pouvoir les arbitrer plus tard.
 
-Quand un sujet devient prêt à être conçu, il migre vers un spec dans `docs/superpowers/specs/`.
+Quand un sujet devient prêt à être conçu, il migre vers un spec dans `docs/superpowers/specs/`. La roadmap canonique (train de macros) est dans [roadmap.md](roadmap.md).
 
-## Cartographie des pages Flutter par version
+## Cartographie des pages Flutter par macro-étape
 
-Vue d'ensemble pour éviter la dispersion au fil des specs. La roadmap canonique est dans `CLAUDE.md` ; cette section mappe les pages UI sur chaque version.
+Vue d'ensemble pour éviter la dispersion au fil des specs.
 
-**v0.1** (en cours)
+**Macro 0 — Socle** (livré)
 - *Dashboard / Contrôle* — joystick, tracking on/off, état monture, GPS/heure, stop d'urgence
 - *Settings app* — URL backend, thème jour/nuit
 
-**v0.2 — GoTo + alignement 3 étoiles**
-- *Alignement 3 étoiles* — procédure guidée, exploite GPS + compass + niveau pour pré-pointer chaque étoile de référence
-- Enrichissement du dashboard avec l'état d'alignement
+**Macro 2 — Setup**
+- *Page Setup* (hub des cards) — scaffold déjà en place
+- *Niveau monture*, *Calibration ADXL345 monture*, *Calibration ADXL345 tube*, *Calibration compass*, *Courses ALT/AZ*, *Backlash*, *Network/IP* (livré), *À propos*
 
-**v0.3 — Catalogue intelligent + setup tube** (parité raquette atteinte ici)
+**Macro 3 — Mise en station + GoTo basique**
+- *Hub central* — agrégateur post-Splash
+- *Wizard alignement 3 étoiles* — exploite GPS + compass + niveau pour pré-pointer
+- *Catalogue minimal* — Messier + planètes + étoiles brillantes, recherche/sélection + GoTo
+- Enrichissement de l'AppBar avec l'état d'alignement
+
+**Macro 4 — Catalogue intelligent** (parité raquette atteinte ici)
 - *Setup tube* — focale, diamètre, obstruction (prérequis du filtrage)
-- *Catalogue* — recherche/sélection d'objet + filtrage visuel selon le tube, GoTo
+- *Catalogue complet* — NGC/IC + filtrage visuel selon le tube
 
-**v0.4 — Caméras + Plate solving**
+**Macro 5 — Caméras + plate solving**
 - *Configuration caméras* — 3 cams + lunette guide (pixel size, focale, gain, bin)
 - *Framing / Plate solve* — snap, résultat coordonnées/orientation capteur overlay
 
-**v0.5 — Focus + Mise en station complète**
+**Macro 6 — Focus + mise en station complète**
 - *Focus* — live loop, zoom ROI, HFR/FWHM, histogramme, optionnel Bahtinov
 - *Mise en station* (wizard complet) — niveau, cap nord, alignement assisté par plate solve
-- *Réglages techniques monture* — courses ALT/AZ, backlash
+- *Assistant alignement optique* (chercheur ↔ guide ↔ tube)
 
-**v0.6 — Astrophoto**
+**Macro 7 — Astrophoto**
 - *Guidage* — graphe RA/DEC live, calibration PHD2, agressivité
 - *Séquenceur* — plan de pose, dithering, progression, autofocus périodique
 
@@ -37,42 +43,42 @@ Vue d'ensemble pour éviter la dispersion au fil des specs. La roadmap canonique
 - Overlay mode nuit rouge
 - Indicateur global d'état (connecté Pi + mode actif : idle/focus/guide/image), bloque les actions incompatibles
 
-## Page "Réglages techniques monture" (v0.5)
+## Page "Réglages techniques monture"
 
-Paramétrage persistant côté Pi, exposé par l'app :
+Paramétrage persistant côté Pi, exposé par l'app. La majorité atterrit dans la **Macro 2 — Setup** (courses, backlash). Les caractéristiques tube atterrissent dans **Macro 4** car elles conditionnent le filtrage catalogue.
 
-- **Courses min/max ALT/AZ** — safety pour éviter collision tube/trépied. Côté ALT : alimenté par l'ADXL345 tube (cf. section dédiée). Côté AZ : à traiter (probablement soft via position monture, pas de capteur dédié a priori).
-- **Caractéristiques du tube** (focale, diamètre, obstruction) — prérequis pour filtrage catalogue (v0.4) et calculs FOV astrophoto (v0.5)
-- **Compensation de backlash** — améliore tracking et futur GoTo (v0.3)
-- **TODO : auditer la raquette Celestron** — passer en revue tous les menus/réglages techniques exposés par le hand controller (backlash, anti-backlash, cone error, PEC, filter limits, custom slew rates, etc.) pour identifier ce qu'il faut exposer/récupérer côté app et/ou lire/écrire via NexStar
+- **Courses min/max ALT/AZ** — safety pour éviter collision tube/trépied. Côté ALT : alimenté par l'ADXL345 tube. Côté AZ : soft via position monture, pas de capteur dédié.
+- **Caractéristiques du tube** (focale, diamètre, obstruction) — prérequis pour filtrage catalogue (Macro 4) et calculs FOV astrophoto (Macro 5).
+- **Compensation de backlash** — améliore tracking et GoTo (Macro 2).
+- **TODO : auditer la raquette Celestron** — passer en revue tous les menus/réglages techniques exposés par le hand controller (backlash, anti-backlash, cone error, PEC, filter limits, custom slew rates, etc.) pour identifier ce qu'il faut exposer/récupérer côté app et/ou lire/écrire via NexStar.
 
-## Configuration des caméras (v0.4)
+## Configuration des caméras (Macro 5)
 
 Trois caméras dans le setup final, chacune avec ses paramètres propres :
 
 - **Imageur principal** (T7C) : taille pixel, résolution, gain/offset, binning, temps d'expo par défaut
 - **Caméra de guidage** (Orion StarShoot Autoguider) : taille pixel, résolution, agressivité/min-move du guidage
 - **Plate solving** (même caméra que le guidage en pratique, sur la SV165) : résolution, échelle attendue (arcsec/pixel)
-- **Lunette guide** (SV165) : focale — combinée au pixel size de la caméra guide → échelle d'image, indispensable pour calibrer le plate solver (v0.2) et le guideur (v0.5)
+- **Lunette guide** (SV165) : focale — combinée au pixel size de la caméra guide → échelle d'image, indispensable pour calibrer le plate solver et le guideur
 
-Ces réglages sont un prérequis direct du plate solving v0.4 — à spécifier dans le spec v0.4. Note : les caractéristiques du **tube** (focale, diamètre, obstruction) sortent plus tôt, en v0.3, car elles conditionnent le filtrage du catalogue intelligent.
+Ces réglages sont un prérequis direct du plate solving (Macro 5) — à spécifier dans le spec correspondant. Note : les caractéristiques du **tube** (focale, diamètre, obstruction) sortent plus tôt, en Macro 4, car elles conditionnent le filtrage du catalogue intelligent.
 
-## Stack caméras & guidage : Flutter télécommande + INDI/PHD2 headless (v0.4 / v0.6)
+## Stack caméras & guidage : Flutter télécommande + INDI/PHD2 headless (Macros 5 / 7)
 
-Décision d'archi à valider quand on attaquera le plate solving (v0.4) puis l'astrophoto (v0.6) : **ne pas réimplémenter le guiding/contrôle caméra dans Flutter**, orchestrer des outils matures côté Pi.
+Décision d'archi à valider quand on attaquera le plate solving (Macro 5) puis l'astrophoto (Macro 7) : **ne pas réimplémenter le guiding/contrôle caméra dans Flutter**, orchestrer des outils matures côté Pi.
 
 - **INDI server** sur le Pi : standard de l'écosystème astro Linux, drivers unifiés caméras (T7C, StarShoot) + monture. Tourne en headless.
 - **PHD2 headless** (ou lin_guider) sur le Pi pour la boucle de guidage temps-réel (détection étoile, PID, dithering, calibration). PHD2 expose une API serveur (JSON-RPC sur TCP) → le backend FastAPI peut piloter start/stop/settings et relayer les events vers l'app.
-- **Astrometry.net** local pour le plate solving, déjà prévu en v0.2.
+- **Astrometry.net** local pour le plate solving, prévu en Macro 5.
 - **App Flutter = télécommande** : pages de config (sélection caméra, expo, gain, bin, ROI, agressivité guiding), start/stop, graphe RA/DEC live, preview frames. Pas de logique image temps-réel dans l'app.
 
 Pourquoi : PHD2 = ~15 ans de dev sur un problème difficile (traitement image temps-réel + boucle de correction). Réimplémenter en Dart/Flutter serait des mois de dev pour un résultat inférieur. Le tradeoff est que l'app devient un front pour des services Linux plutôt qu'une app "qui fait tout" — cohérent avec l'archi actuelle (Pi = backend, téléphone = UI).
 
 **Décision prise** : tout passera par FastAPI (point de contrôle unique, pas de double surface d'API côté app). Le backend proxifie les commandes vers INDI et PHD2 et relaie leurs events via le flux SSE existant.
 
-## Previews caméras (MAP, cadrage, framing) (v0.4 / v0.5)
+## Previews caméras (MAP, cadrage, framing) (Macros 5 / 6)
 
-Pipeline preview et framing basique : **v0.4**. Aides à la MAP (HFR/FWHM, zoom ROI, Bahtinov) : **v0.5**. À spécifier dans les specs correspondants.
+Pipeline preview et framing basique : **Macro 5**. Aides à la MAP (HFR/FWHM, zoom ROI, Bahtinov) : **Macro 6**. À spécifier dans les specs correspondants.
 
 - **Source** : INDI diffuse les frames en FITS via subscription BLOB sur le driver caméra. Backend FastAPI les capture à la demande (snap) ou en boucle courte (live loop, 1–3s d'expo).
 - **Transformation côté Pi** : FITS → auto-stretch d'histogramme (type MTF/STF) → debayer si capteur couleur → downsample → JPEG/PNG. Ne jamais envoyer du FITS brut au téléphone (T7C ≈ 12 Mpx, ~24 Mo par frame — inutilisable en Wi-Fi).
@@ -82,23 +88,23 @@ Pipeline preview et framing basique : **v0.4**. Aides à la MAP (HFR/FWHM, zoom 
   - **HFR / FWHM** calculés côté Pi et poussés dans l'event SSE → courbe live (descend = on tourne dans le bon sens)
   - Histogramme
   - Optionnel : analyseur de masque Bahtinov
-- **Framing / cadrage** : snap simple + overlay des coordonnées du centre et de l'orientation du capteur une fois plate-solvé (v0.2).
-- **Point d'archi subtil** : le live focus loop et le guidage PHD2 ne peuvent pas tourner simultanément sur la même caméra (un seul "client" possède le driver INDI à un instant T). Implique une **machine d'état côté backend** : `idle` / `focusing` / `guiding` / `imaging`, avec transitions propres et verrou par caméra. À poser dès v0.4 dans le modèle d'état, même si les modes `focusing`/`guiding` ne sont activés qu'en v0.5/v0.6.
+- **Framing / cadrage** : snap simple + overlay des coordonnées du centre et de l'orientation du capteur une fois plate-solvé.
+- **Point d'archi subtil** : le live focus loop et le guidage PHD2 ne peuvent pas tourner simultanément sur la même caméra (un seul "client" possède le driver INDI à un instant T). Implique une **machine d'état côté backend** : `idle` / `focusing` / `guiding` / `imaging`, avec transitions propres et verrou par caméra. À poser dès Macro 5 dans le modèle d'état, même si les modes `focusing`/`guiding` ne sont activés qu'en Macro 6/7.
 
-## Assistant d'alignement optique (chercheur / lunette guide / tube principal) (v0.4, amorce possible v0.2)
+## Assistant d'alignement optique (chercheur / lunette guide / tube principal)
 
-Procédure casse-pieds à faire manuellement, typiquement en début de session, à refaire dès qu'on touche à la config optique. Un wizard dans l'app éviterait les allers-retours à tâtons.
+Procédure casse-pieds à faire manuellement, typiquement en début de session, à refaire dès qu'on touche à la config optique. Un wizard dans l'app éviterait les allers-retours à tâtons. Version complète en **Macro 6** (après plate solve) ; amorce possible plus tôt en Macro 3.
 
 **Ce qu'il faut aligner**
 - **Chercheur** ↔ tube principal (Maksutov 127/1900)
 - **Lunette guide SV165** (+ caméra de guidage/solver) ↔ tube principal
 - Objectif : quand le tube principal vise un point, chercheur et guide voient le même point (au décalage près assumé)
 
-**Version minimale (amorce possible dès v0.2/v0.3, pas de caméra requise)**
+**Version minimale (amorce possible dès Macro 2/3, pas de caméra requise)**
 - Wizard texte : sélection d'une étoile brillante, slew de la monture vers la cible, instructions pas-à-pas ("centre dans l'oculaire", "regarde le chercheur, ajuste les vis jusqu'au centrage", etc.)
 - Valeur ajoutée modeste mais non nulle : le backend peut au moins piloter le slew, chronométrer, et rappeler la séquence dans le bon ordre.
 
-**Version complète (v0.4, après plate solving)**
+**Version complète (Macro 6, après plate solving)**
 - Snap sur la caméra guide + plate solve → coordonnées exactes du centre de la guide cam
 - Comparaison avec la position annoncée par la monture (centre supposé du tube principal) → **offset chiffré en arcmin** affiché dans l'UI
 - Instructions de correction avec sens de rotation des vis et amplitude attendue
@@ -130,50 +136,50 @@ Procédure casse-pieds à faire manuellement, typiquement en début de session, 
 | ADXL345 monture | `0x1D` |
 
 **Pages UI associées** (à détailler dans les specs correspondants quand on y arrivera)
-- **Page "Niveau monture"** — bulle virtuelle XY, feedback rouge/vert < 0.5°. Intégrée à v0.2 (Setup).
-- **Page "Calibration tube"** — bouton "définir le zéro" quand tube horizontal + affichage live de l'angle + alerte à l'approche des butées. Probablement rattachée à la page "Setup tube" (v0.3) ou aux "Réglages techniques monture" (v0.5).
+- **Page "Niveau monture"** — bulle virtuelle XY, feedback rouge/vert < 0.5°. Intégrée à Macro 2 (Setup).
+- **Page "Calibration tube"** — bouton "définir le zéro" quand tube horizontal + affichage live de l'angle + alerte à l'approche des butées. Probablement rattachée à la page "Setup tube" (Macro 4) ou à la Macro 2.
 
-Cette décision remplace la piste IMU 9DOF évoquée ci-dessous : on n'a pas besoin d'un cap tilt-compensé pour le pointage, le plate solve v0.4 prendra le relais avec bien plus de précision.
+Cette décision remplace la piste IMU 9DOF évoquée ci-dessous : on n'a pas besoin d'un cap tilt-compensé pour le pointage, le plate solve (Macro 5) prendra le relais avec bien plus de précision.
 
-## Position persistante + retour à l'origine (v0.4+)
+## Position persistante + retour à l'origine (Macro 5+)
 
 - "Home position" définie physiquement par capteurs (distincte de l'alignement logique Celestron)
 - Utilité : reprise après coupure, commande "retour à l'origine"
-- À clarifier : peut-on lire directement la position depuis la monture via NexStar (`get_position`) une fois alignée, ou faut-il des encodeurs/capteurs externes indépendants ? Lien avec le plate solving v0.4 qui donnera aussi une position absolue.
-- **Inclinaison** : tranché (cf. section "Capteurs d'inclinaison tube + monture" plus haut) → 2 × ADXL345. La piste IMU 9DOF (MPU6050/ICM-20948/BNO055) pour un cap tilt-compensé est écartée : le plate solve v0.4 fournira le pointage précis, on n'a pas besoin de reconstituer un cap absolu par capteurs.
+- À clarifier : peut-on lire directement la position depuis la monture via NexStar (`get_position`) une fois alignée, ou faut-il des encodeurs/capteurs externes indépendants ? Lien avec le plate solving (Macro 5) qui donnera aussi une position absolue.
+- **Inclinaison** : tranché (cf. section "Capteurs d'inclinaison tube + monture" plus haut) → 2 × ADXL345. La piste IMU 9DOF (MPU6050/ICM-20948/BNO055) pour un cap tilt-compensé est écartée : le plate solve fournira le pointage précis, on n'a pas besoin de reconstituer un cap absolu par capteurs.
 
-## Safety & robustesse (v0.2+, continu)
+## Safety & robustesse (Macro 2+, continu)
 
 - **Arrêt d'urgence** — bouton soft dans l'app (et/ou hardware GPIO) qui force un `stop` sur tous les axes, indépendamment du reste du système. Complément naturel des courses min/max. À concevoir comme un chemin de commande prioritaire, contournant la logique métier.
 - **Logs persistants côté Pi** — journalisation structurée des commandes monture, transitions d'état, erreurs série/GPS, événements orchestrateur. Rotation (journald ou logrotate). Permet le post-mortem d'une session ("pourquoi le tracking a décroché à 22h13 ?"). À prévoir dès qu'on aura des sessions réelles.
 
-## Night planner offline (post-v0.2)
+## Night planner offline (post-Macro 2)
 
-Décision d'archi v0.2 : **catalogue + calculs astro côté backend** (skyfield/astropy sur le Pi). Inconvénient identifié pour le futur night planner : impossible de planifier une soirée sans Pi allumé / accessible (canapé, bureau, déplacement).
+Décision d'archi : **catalogue + calculs astro côté backend** (skyfield/astropy sur le Pi). Inconvénient identifié pour le futur night planner : impossible de planifier une soirée sans Pi allumé / accessible (canapé, bureau, déplacement).
 
 **Piste préférée** : pattern **snapshot/cache**. Quand l'app est connectée au Pi, elle télécharge un *planning bundle* pré-calculé (catalogue + courbes Alt/Az pour la nuit demandée à un site donné). L'app peut ensuite ouvrir le night planner offline sur ce snapshot. Pi reste source de vérité, l'app a juste un cache.
 
 **Alternative écartée** : embarquer une lib éphémérides Dart (Meeus/VSOP côté client) — duplication de logique astro, moins précis que skyfield, pas justifié.
 
-À spécifier quand on attaquera la version qui héberge le night planner.
+À spécifier quand on attaquera la macro qui héberge le night planner.
 
-## Ops & déploiement (à automatiser post-v0.1)
+## Ops & déploiement (à automatiser post-Macro 0)
 
-- **Service systemd** pour le backend — aujourd'hui `uv run uvicorn` est lancé à la main sur le Pi. Passer à une unit systemd (start au boot, restart on-failure, logs vers journald).
+- **Service systemd** pour le backend — livré (`astro-brain.service`).
 - **Déploiement backend** — script `deploy.sh` ou cible Make (SSH → `git pull && systemctl restart astro-brain`). Évite le workflow manuel actuel.
 - **Mise à jour app Flutter** — pipeline build APK (+ TestFlight/iOS si concerné). À traiter séparément, pas via le Pi.
 
-## Mode "Mise en station" (important — v0.2 puis v0.5)
+## Mode "Mise en station" (important — Macro 3 puis Macro 6)
 
-Scindé en deux livraisons selon la nouvelle roadmap :
+Scindé en deux livraisons :
 
-**v0.2 — version minimale (intégrée à l'alignement 3 étoiles)**
+**Macro 3 — version minimale (intégrée à l'alignement 3 étoiles)**
 - **Cap nord** via compass (LIS3MDL DroTek) pour pré-pointer la première étoile
 - **Niveau** : via l'ADXL345 monture (cf. section "Capteurs d'inclinaison tube + monture"). Bulle virtuelle dans l'UI, feedback < 0.5°. La bulle physique sur trépied reste un fallback manuel.
 - **Alignement 3 étoiles** procédure NexStar assistée (le backend pilote le slew vers l'étoile proposée, l'utilisateur centre manuellement, valide, passe à la suivante)
 
-**v0.5 — wizard complet**
-- Même étapes mais réorchestrées comme assistant guidé end-to-end
+**Macro 6 — wizard complet**
+- Mêmes étapes mais réorchestrées comme assistant guidé end-to-end
 - **Alignement par plate solve** (option alternative au 3-star) — centrage automatique après snap + solve
 - UX critique : utilisé dans le noir, avec lampe rouge, parfois à l'aveugle → ergonomie soignée, instructions courtes, pas de couleurs vives en mode nuit
-- Lien fort avec l'IMU (si ajouté), le compass, et le plate solving v0.4
+- Lien fort avec le compass et le plate solving (Macro 5).

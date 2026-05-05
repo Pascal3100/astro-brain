@@ -154,7 +154,7 @@ The reply is `responseBytes` bytes of data + `'#'`. If the destination did not a
 | 0x11 | 17 | ALT/DEC motor controller | |
 | 0xB0 | 176 | GPS / Compass | NexStar GPS only (ours uses our own DroTek GPS, so this is moot). |
 | 0xB2 | 178 | RTC | **CGE only.** |
-| 0xB4 | 180 | Focuser (community) | Celestron motorised focuser. Not relevant pre-v0.6. |
+| 0xB4 | 180 | Focuser (community) | Celestron motorised focuser. Not relevant pre-Macro 6. |
 | 0xB5 | 181 | Wi-Fi controller | Evolution-only. |
 | 0xB6 | 182 | Battery / charge | Evolution-only. |
 | 0xB7 | 183 | Charge port | Evolution-only. |
@@ -454,7 +454,7 @@ Inventory taken directly from `nexstarpy/constants.py` and `nexstarpy/nexstar.py
 ### Absent — must send raw bytes via `pyserial`
 
 - **`J` — Is alignment complete?** Trivial; needed before allowing GoTo from the app.
-- **`S` / `s` — Sync** (HC 4.10+). Needed for the v0.3 3-star wizard fix-up.
+- **`S` / `s` — Sync** (HC 4.10+). Needed for the Macro 3 3-star wizard fix-up.
 - **`b` — GoTo precise AZM-ALT.**
 - **`w` — Get Location.** We mostly drive location *to* the mount (we have a real GPS), but useful for diagnostics ("did the mount remember location after hibernate?").
 - **`h` — Get Time.** Same.
@@ -476,7 +476,7 @@ Recommendation: **option 3** for now (the dependency is single-author, 0.1.0, an
 
 Priority list for implementation, by milestone:
 
-### v0.2 (Setup screen — calibration + courses + backlash)
+### Macro 2 — Setup (calibration + courses + backlash)
 
 - `J` — `is_aligned()`. *One-byte HC command, trivial.*
 - `L` — `is_goto_in_progress()`. *Polling primitive; drives the "is the slew finished" UX.*
@@ -486,18 +486,18 @@ Priority list for implementation, by milestone:
 - AUX `MC_GET_VER` per axis. *Surfaces motor controller firmware version in the "À propos" screen.*
 - `w` / `h` — `get_location()` / `get_time()`. *Diagnostic round-trip after we push GPS data with `W`/`H`.*
 
-### v0.3 (Mise en station + GoTo)
+### Macro 3 — Mise en station + GoTo basique
 
 - `S` / `s` — `sync_radec(ra, dec, precise=)`. *Push 3-star wizard fix back to mount.*
 - AUX `MC_SLEW_DONE` per axis. *Granular slew completion, fallback to `L`.*
 - AUX `MC_GET_AUTOGUIDE_RATE` / `MC_SET_AUTOGUIDE_RATE`. *Settings panel.*
 - AUX `MC_GET_APPROACH` / `MC_SET_APPROACH`. *Optional fine-tuning.*
 
-### v0.5+
+### Macro 5+
 
 - AUX `MC_GOTO_SLOW`. *Useful for fine framing once cameras land.*
 - Hibernate / Wake (`x` / `y`). *Quality-of-life for multi-night sessions; conditional on HC firmware ≥ 5.22/5.24.*
-- Pulse-guide (`MTR_AUX_GUIDE` 0x26 / 0x27). *PHD2 path in v0.7.*
+- Pulse-guide (`MTR_AUX_GUIDE` 0x26 / 0x27). *PHD2 path in Macro 7.*
 - PEC commands. *Not on SLT (Alt-Az), only relevant if we add an EQ mount someday.*
 
 ---

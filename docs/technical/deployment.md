@@ -4,7 +4,7 @@
 
 Pi OS 64-bit Lite (install fraîche). Voir [hardware.md](hardware.md) pour la config matérielle (UART, I2C, désactivation Bluetooth/serial-getty).
 
-## Stack INDI (prérequis pour la monture, à partir de v0.2)
+## Stack INDI (prérequis pour la monture, à partir de Macro 1)
 
 Le backend pilote la monture via `indiserver` local + driver `indi_celestron_aux`. Paquets fournis par le repo Astroberry Trixie arm64 (cf. ADR 2026-05-04).
 
@@ -80,7 +80,7 @@ ssh pascal3100@astro-brain
 
 Aujourd'hui : édition workstation → commit/push → SSH Pi → `git pull && systemctl restart`.
 
-À automatiser post-v0.2 (cf. backlog) : script `deploy.sh` ou cible Make.
+À automatiser post-Macro 2 (cf. backlog) : script `deploy.sh` ou cible Make.
 
 ## Driver INDI patché (backlash mount-axis)
 

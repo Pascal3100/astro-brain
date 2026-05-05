@@ -112,6 +112,16 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 
 ---
 
+## 2026-05-05 — Abandon du versioning v0.X, passage à un train de macro-étapes
+
+**Contexte** : la roadmap était structurée en versions numérotées (v0.1 livrée, v0.2 Setup, …, v0.7 Astrophoto), avec la philosophie "chaque version = un livrable utilisable en session réelle". Au fil des sessions, plusieurs effets non désirés sont apparus : (1) le découpage forçait à laisser des étapes derrière dès qu'un blocage hardware tombait (cas concret : v0.2 Setup bloquée par l'attente du dongle CP2102 → impossible d'avancer le compass/ADXL sans rebattre l'ordre, alors que d'autres cards Setup ne dépendent pas du dongle), (2) la promesse "version = livrable" devenait fictive quand il fallait sortir des morceaux non livrés en bricolant des sous-versions, (3) la moindre réorganisation (déplacer une étape entre versions) demandait une mise à jour cross-fichiers (roadmap, backlog, journal, ADRs, specs).
+
+**Décision** : abandon de la numérotation v0.X. La roadmap devient un **train d'étapes atomiques regroupées en macro-étapes** thématiques (Socle, Migration INDI, Setup, Mise en station + GoTo basique, Catalogue intelligent, Caméras + plate solving, Focus + MES complète, Astrophoto, plus des fils transverses). Une étape se déplace ; une macro est "done" quand le télescope reste utilisable end-to-end à la fin (la discipline "livrable utilisable" est conservée mais au niveau macro, pas étape).
+
+**Rationale** : le train d'étapes est trivial à réordonner quand un blocage hardware tombe — on déplace l'étape concernée à la fin de la macro, on continue. Les macros restent assez grosses pour porter la discipline "ne jamais shipper un état cassé" (Macro 4 garde le jalon explicite "parité raquette Celestron atteinte"). Les commits, journal et ADRs antérieurs continuent de référencer `v0.X` — ces noms sont historiques et ne sont pas réécrits. La roadmap [`roadmap.md`](roadmap.md) est désormais l'unique source de vérité ; CLAUDE.md la résume et impose sa mise à jour à chaque livraison d'étape.
+
+---
+
 ## 2026-05-04 — Stack INDI installée via repo Astroberry Debian Trixie arm64
 
 **Contexte** : exécution de la Task 0 du plan migration INDI (Session 15). Trois sources possibles pour `libindi` 2.x + `indi_celestron_aux` sur Pi 3 B+ Debian Trixie arm64 : (1) compilation source `indi-3rdparty`, (2) PPA officielle `ppa:mutlaqja/ppa`, (3) repo Astroberry. La compilation source à `-j3 / -j4` finit par tourner mais reste laborieuse sur 1 GB RAM même avec swap, et n'apporte rien tant qu'on ne patche pas le driver. La PPA mutlaqja `ppa.launchpadcontent.net:443` rejette activement les TCP depuis ce Pi (reset 47 ms IPv4 et IPv6, le reste du net OK) — pas exploitable aujourd'hui. Le repo Astroberry "old" `astroberry.io/repo/` est mort (404). Le repo "new" `astroberry.io/debian/` est documenté sur `indilib.org/download/raspberry-pi.html`, actif, signé GPG, et fournit `libindi 2.2.0` + `indi-celestronaux 1.5` + `indi-gpsd 0.6` pour Trixie arm64.

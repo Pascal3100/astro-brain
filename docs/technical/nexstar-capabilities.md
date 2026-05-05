@@ -68,7 +68,7 @@ Source de vérité sur ce que la **lib `nexstarpy` 0.1.0** expose. Évite les hy
 
 ## Conséquences pour la roadmap
 
-### v0.2 (Setup) — implémentations révisées
+### Macro 2 — Setup (implémentations révisées)
 
 | Item | Implémentation | Source |
 |---|---|---|
@@ -80,13 +80,13 @@ Source de vérité sur ce que la **lib `nexstarpy` 0.1.0** expose. Évite les hy
 | Network/IP config | Côté Pi (config réseau / hotspot). | Indépendant de NexStar. |
 | À propos | Lecture `get_version`, `get_model`, + `get_location`/`get_time` à ajouter. | HC standard. |
 
-### v0.3 (Mise en station + GoTo)
+### Macro 3 — Mise en station + GoTo basique
 
 L'alignement 3 étoiles peut désormais **utiliser le sync natif de la monture** :
 
 - À chaque étoile centrée, on push `sync_radec(ra, dec)` (commande HC `S` / `s`, présente dans la firmware ≥ 4.10).
 - La monture maintient son propre modèle d'alignement interne ; on lui demande ensuite des `goto_radec` natifs.
-- Plus besoin de matrice de rotation Pi-side (Wahba/SVD) — fallback uniquement si le firmware s'avère < 4.10 (très improbable, à vérifier en début de plan v0.3 via `get_version`).
+- Plus besoin de matrice de rotation Pi-side (Wahba/SVD) — fallback uniquement si le firmware s'avère < 4.10 (très improbable, à vérifier en début de plan Macro 3 via `get_version`).
 - Avant le wizard : `is_aligned()` (`J`) pour vérifier l'état initial.
 - Pendant un GoTo : `is_goto_in_progress()` (`L`) pour le polling fin.
 
@@ -94,7 +94,7 @@ L'alignement 3 étoiles peut désormais **utiliser le sync natif de la monture**
 
 L'agent de recherche recommande de **ne pas dépendre de la lib upstream** pour la suite — c'est un wrapper minimaliste 0.1.0 mono-auteur, et on a besoin de l'AUX pass-through (cordwrap, backlash) qu'elle ne wrappera probablement jamais.
 
-Deux options à arbitrer au plan v0.2 :
+Deux options à arbitrer au plan Macro 2 :
 
 1. **Fork interne** dans `backend/astro_brain/adapters/nexstar/` — réécriture maison ciblée, ne dépend plus du tout de `nexstarpy`. On garde l'interface du `Protocol` actuel pour ne rien casser au reste du backend.
 2. **Patch local** + dépendance Git pinned — plus rapide à mettre en place mais on porte deux dettes : la lib upstream + nos additions.

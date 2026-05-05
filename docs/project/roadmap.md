@@ -1,63 +1,147 @@
 # Roadmap
 
-Philosophie : **chaque version = un livrable utilisable en session réelle**. On vise d'abord la parité avec la raquette Celestron (v0.1 → v0.4, sans caméra), puis on greffe la chaîne caméra/plate solve/guidage.
+Pas de versions numérotées. Train d'**étapes** atomiques, regroupées en **macro-étapes**. Une étape se déplace ; une macro est "done" quand le télescope reste utilisable end-to-end à la fin.
 
-## v0.1 — Manuel + tracking ✓ (livré 2026-04-25)
+**Statuts** : ✅ done · 🚧 en cours · 📦 prête · ⛔ bloquée hardware · 🌫 à préciser
 
-Joystick D-Pad, tracking sidéral, GPS/heure auto au boot, app Flutter native, monorepo backend/app, service systemd.
+> **Maintenance** : ce document est tenu à jour à chaque livraison d'étape (statut + date) et à chaque réorganisation du train. Les changements structurants (ajout/retrait/déplacement entre macros) sont aussi consignés en ADR dans [decisions.md](decisions.md).
 
-Livré :
-- Backend FastAPI 64 tests verts, service actif sur le Pi
-- App Flutter 53 tests verts, smoke test téléphone fait (Moto g54 5G)
-- mDNS `astro-brain.local:8000`, override via `--dart-define`
+---
 
-À fermer : passe physique avec monture branchée (sections 3 et 7 de `backend/deploy/INTEGRATION_CHECKLIST.md` — connecteurs en attente).
+## Macro 0 — Socle ✅
 
-## v0.2 — Setup (réorganisation 2026-04-30)
+App Flutter manuelle + tracking + GPS, livrée 2026-04-25. Établit la chaîne `téléphone → FastAPI → monture` et les conventions UI (AppBar template, thème jour/nuit).
 
-Page Setup unifiée, prérequis pour pouvoir aligner et pointer proprement par la suite. Inclut :
-- **Calibration compass LIS3MDL** (collecte soft-iron offsets, persistance disque)
-- **Calibration ADXL345 monture** (zéro horizontal absolu)
-- **Calibration ADXL345 tube** (zéro ALT, tube horizontal)
-- **Courses ALT min/max** (alimenté par ADXL345 tube, safety anti-collision)
-- **Courses AZ min/max** (software, persistant Pi-side)
-- **Backlash compensation ALT + AZ** (tracking + GoTo plus précis)
-- **Network/IP config** (host/port app, mode hotspot Pi)
-- **À propos** (versions, IP courante, redémarrage service)
+- ✅ Joystick D-Pad + tracking sidéral
+- ✅ GPS/heure auto au boot, sync vers monture
+- ✅ App Flutter native + AppBar template + thème jour/nuit
+- ✅ Service systemd, mDNS `astro-brain.local:8000`, override `--dart-define`
+- ✅ Backend 64 tests verts, app 53 tests verts, smoke test téléphone (Moto g54 5G)
+- 🌫 Passe physique mount-branchée (sections 3 et 7 de `backend/deploy/INTEGRATION_CHECKLIST.md`) — fermable une fois Macro 1 validée sur dongle.
 
-Optionnels à arbitrer : slew rates personnalisés (dépend de ce que NexStar expose), cone error / PEC (probablement pas dans v0.2).
+---
 
-## v0.3 — Mise en station + GoTo + catalogue minimal
+## Macro 1 — Migration INDI 🚧
 
-- **Wizard d'alignement 3 étoiles** assisté par capteurs (compass + tilt + GPS) — 6 étapes, validation auto via résiduel SVD < ~1°
-- **GoTo réel** (`/goto {ra_deg, dec_deg}` sur monture alignée)
-- **Catalogue minimal** côté backend : Messier (110 objets) + planètes (skyfield) + ~50-100 étoiles brillantes (alignement)
-- **Hub central** entre Splash et écrans feature, agrégateur d'entrées (Manuel, GoTo, Status…)
+Refonte technique du `MountAdapter` pour pivoter de `nexstarpy` vers la stack INDI (`indiserver` + `indi_celestron_aux` + `pyindi-client`). Pas de nouvelle feature côté Flutter — l'API REST/SSE reste identique. Pré-requis aux macros suivantes (backlash, cordwrap, sync RA/Dec, `is_aligned`, `goto_in_progress`).
 
-## v0.4 — Catalogue intelligent + setup tube (parité raquette atteinte)
+- ✅ Stack INDI installée sur le Pi (repo Astroberry Trixie arm64) — voir ADR 2026-05-04
+- ✅ Backend refactor `MountAdapter` INDI + bus thread-safe (89/89 tests verts)
+- ⛔ Smoke test E2E sur dongle CP2102 + monture branchée (en attente livraison dongle)
+- 🌫 Fork upstream patch backlash mount-axis (`MC_*_BACKLASH`, ~70 lignes C++) — différable, le driver fonctionne sans
 
-- Catalogue complet (NGC, IC) + filtrage par tube (focale, diamètre, obstruction)
-- Page "Setup tube" (focale, diamètre, obstruction)
+*Done quand* : Macro 0 reste fonctionnelle, monture pilotée via INDI, `nexstarpy` retiré du backend.
 
-## v0.5 — Caméras + Plate solving
+Spec : [`docs/superpowers/specs/2026-05-01-mount-indi-design.md`](../superpowers/specs/2026-05-01-mount-indi-design.md). Onboarding : [`docs/technical/indi-reference.md`](../technical/indi-reference.md).
 
-- Stack INDI (drivers caméras + monture)
-- Pipeline preview FITS → JPEG (auto-stretch, debayer, downsample)
-- Page framing, machine d'état backend `idle / focus / guide / image`
-- Astrometry.net local
+---
 
-## v0.6 — Focus + Mise en station complète
+## Macro 2 — Setup
 
-- Page focus live + HFR/FWHM, zoom ROI
-- Wizard mise en station complet (option alignement par plate solve)
-- Réglages techniques monture étendus (courses, backlash déjà en v0.2)
+Page Setup unifiée + toutes les calibrations et configurations préalables à un alignement sérieux. Pré-requis : Macro 1.
 
-## v0.7 — Astrophoto
+- 📦 Page Setup unifiée (hub des cards, scaffold déjà en place — voir Session 14)
+- 📦 Niveau monture (ADXL345 `0x1D`, bulle virtuelle XY, feedback < 0.5°)
+- 📦 Calibration ADXL345 monture (planéité absolue)
+- 📦 Calibration ADXL345 tube (zéro ALT, tube horizontal)
+- 📦 Calibration compass LIS3MDL (collecte soft-iron offsets, persistance disque, heading tilt-compensé via fusion ADXL co-localisé)
+- 📦 Courses ALT min/max (alimentées par ADXL345 tube, anti-collision)
+- 📦 Courses AZ min/max (software, persistant Pi-side)
+- 📦 Backlash compensation ALT + AZ (mount-side)
+- ✅ Network/IP config — livré Session 14 (carte #8 Setup)
+- 📦 À propos (versions, IP courante, redémarrage service)
 
-- Intégration PHD2 guidage
-- Séquenceur de poses, dithering
-- Autofocus périodique
+*Done quand* : toutes les calibrations/courses/configs sont accessibles depuis l'app, valeurs persistées, et permettent de tenter un alignement avec confiance.
+
+Spec validée : [`docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md`](../superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md). Plan : [`docs/superpowers/plans/2026-05-04-v02-setup-implementation.md`](../superpowers/plans/2026-05-04-v02-setup-implementation.md).
+
+Optionnels à arbitrer plus tard : slew rates personnalisés, cone error, PEC.
+
+---
+
+## Macro 3 — Mise en station + GoTo basique
+
+Première mise en station effective, GoTo réel, catalogue d'objets brillants. Hub central remplace le HomeScreen comme landing post-Splash. Pré-requis : Macro 2.
+
+- 📦 Hub central (landing post-Splash, agrégateur Manuel / Setup / Catalogue / Status)
+- 📦 Wizard alignement 3 étoiles assisté capteurs (compass + tilt + GPS pour pré-pointage, validation auto via résiduel SVD < ~1°, fallback manuel)
+- 📦 GoTo réel (`/goto {ra_deg, dec_deg}` sur monture alignée, statut `goto_in_progress`)
+- 📦 Catalogue minimal backend : Messier (110) + planètes (skyfield) + ~50–100 étoiles brillantes
+- 📦 Page Catalogue minimal (recherche/sélection + GoTo)
+
+*Done quand* : on peut faire une mise en station 3 étoiles puis pointer fiablement Messier/planètes/étoiles brillantes en session réelle.
+
+---
+
+## Macro 4 — Catalogue intelligent (parité raquette Celestron)
+
+Extension du catalogue à NGC/IC + intégration des caractéristiques du tube pour filtrer la visibilité. À la fin de cette macro, l'app couvre tout ce que fait la raquette Celestron. Pré-requis : Macro 3.
+
+- 📦 Setup tube (focale, diamètre, obstruction)
+- 📦 Catalogue NGC/IC complet
+- 📦 Filtrage visibilité par tube (focale → champ, diamètre → magnitude limite, obstruction → contraste)
+
+*Done quand* : la raquette HC peut être laissée dans le tiroir.
+
+---
+
+## Macro 5 — Caméras + plate solving
+
+Stack INDI étendue aux caméras, pipeline preview, plate solving local. Première fois qu'on voit une image dans l'app. Pré-requis : Macro 4 (ou parallélisable une fois Macro 2 livrée si on accepte de différer la parité raquette).
+
+- 📦 Stack INDI drivers caméras (T7C imageur, Orion StarShoot Autoguider sur SV165)
+- 📦 Configuration caméras (3 cams + lunette guide : pixel size, focale, gain, bin)
+- 📦 Pipeline FITS → auto-stretch (MTF/STF) → debayer → downsample → JPEG (Pi-side)
+- 📦 Endpoint preview (`GET /preview/{cam}/latest.jpg`) + MJPEG live
+- 📦 Machine d'état backend `idle / focusing / guiding / imaging` (verrou par caméra)
+- 📦 Astrometry.net local + endpoint `/solve`
+- 📦 Page Framing (snap + overlay coords centre + orientation capteur)
+
+*Done quand* : snap → image lisible dans l'app → plate solve renvoie coordonnées exactes du centre.
+
+---
+
+## Macro 6 — Focus + mise en station complète
+
+Aides à la mise au point fines + wizard de mise en station orchestrant tout le pipeline (niveau, cap, alignement) avec option plate solve. Pré-requis : Macro 5.
+
+- 📦 Page Focus live (loop court 1–3 s, zoom ROI, star picking tactile)
+- 📦 HFR/FWHM côté Pi → courbe live SSE
+- 🌫 Optionnel : analyseur masque Bahtinov
+- 📦 Wizard mise en station complet (orchestre niveau + cap + alignement, ergonomie nuit soignée)
+- 📦 Option alignement par plate solve (alternative au 3-star : centrage automatique après snap + solve)
+- 📦 Assistant alignement optique (chercheur ↔ guide ↔ tube principal, version chiffrée arcmin via plate solve)
+
+*Done quand* : une session est préparée end-to-end depuis l'app, à la mise au point près, sans la raquette ni intervention oculaire.
+
+---
+
+## Macro 7 — Astrophoto
+
+Boucle de guidage temps-réel + séquenceur autonome. Pré-requis : Macro 6.
+
+- 📦 Intégration PHD2 headless + proxy via FastAPI (start/stop/settings, events SSE)
+- 📦 Page Guidage (graphe RA/DEC live, calibration, agressivité)
+- 📦 Séquenceur (plan de pose, progression)
+- 📦 Dithering
+- 📦 Autofocus périodique
+
+*Done quand* : nuit d'astrophoto autonome, depuis l'app, du framing au stack final.
+
+---
+
+## Fils transverses
+
+Pas dans le train ; courent en continu et se densifient avec les macros.
+
+- **Safety** : arrêt d'urgence soft (chemin de commande prioritaire), logs persistants journald structurés. À amorcer dès Macro 2.
+- **Mode nuit rouge** : généralisé sur tous les écrans à mesure de leur livraison.
+- **Indicateur global d'état** : pastille `overall` dans l'AppBar, déjà amorcée — étendue à `idle/focusing/guiding/imaging` dès Macro 5.
+- **Ops** : `deploy.sh` SSH → `git pull && systemctl restart`, build APK Flutter. À enrichir au fil de l'eau.
+- **Night planner offline** (snapshot/cache) : à cliper sur la macro qui héberge le planner — à déterminer.
+
+---
 
 ## Notes
 
-Cette roadmap remplace la version précédente. Le décalage de v0.2 vers Setup (vs alignement initialement) tient au constat qu'on ne peut pas faire d'alignement sérieux sans calibration capteurs ni courses ni backlash. Voir [decisions.md](decisions.md) pour le rationale.
+Cette roadmap remplace celle versionnée v0.1–v0.7 (abandonnée 2026-05-05, voir ADR du même jour). Le contenu est conservé, simplement réorganisé en macro-étapes ordonnables. Les commits, journaux et ADRs antérieurs continuent de référencer les noms `v0.X` historiquement — c'est normal.

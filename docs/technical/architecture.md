@@ -14,14 +14,14 @@ App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[pyin
 - **Backend** : FastAPI (Python 3.13) sur Raspberry Pi 3 B+. Pas d'Arduino dans la chaîne.
 - **Frontend** : app Flutter native (pas une PWA), pattern BLoC.
 - **Communication Pi ↔ Monture** : stack INDI — `indiserver` + driver `indi_celestron_aux` côté Pi, client Python `pyindi-client` dans le backend FastAPI. Liaison physique : port HC RJ12 → dongle USB-TTL CP2102 (5V) → `/dev/ttyUSB0` (NexStar 9600 baud, AUX en pass-through). Détails : [`indi-reference.md`](indi-reference.md). ADR : [2026-05-01 — Pilotage monture via INDI (drop nexstarpy)](../project/decisions.md).
-- **Plate solving (v0.5+)** : Astrometry.net local sur le Pi.
+- **Plate solving (Macro 5+)** : Astrometry.net local sur le Pi.
 
 ## Décisions structurantes
 
 - **REST + SSE, pas de WebSocket** — REST pour les commandes (`/slew`, `/stop`, `/tracking`, `/goto`), SSE pour le flux d'état (`/events`).
 - **Source de vérité côté Pi** — GPS, heure, capteurs, état monture, calculs astro (skyfield/astropy). L'app est un client de présentation.
-- **Catalogue côté backend** (à partir de v0.3) — endpoints REST exposent Messier, planètes, étoiles brillantes. Calculs Alt/Az faits en Python.
-- **App offline-friendly seulement quand sans Pi pas de sens** — le night planner (post-v0.3) utilisera un pattern snapshot/cache, mais le contrôle direct exige le Pi allumé.
+- **Catalogue côté backend** (à partir de Macro 3) — endpoints REST exposent Messier, planètes, étoiles brillantes. Calculs Alt/Az faits en Python.
+- **App offline-friendly seulement quand sans Pi pas de sens** — le night planner (post-Macro 3) utilisera un pattern snapshot/cache, mais le contrôle direct exige le Pi allumé.
 
 ## Stack technique
 
