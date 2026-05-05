@@ -1,0 +1,1 @@
+"""Persistent state repository (aiosqlite)."""
