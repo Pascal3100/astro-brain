@@ -100,8 +100,8 @@ def compute_ellipsoid_offsets(
     residual = float(np.mean(np.abs(norms - 1.0)))
 
     offsets = (float(b_offset[0]), float(b_offset[1]), float(b_offset[2]))
-    scale = tuple(tuple(float(x) for x in row) for row in A.tolist())
-    return offsets, scale, residual  # type: ignore[return-value]
+    scale = tuple(tuple(float(v) for v in row) for row in A.tolist())
+    return offsets, scale, residual
 
 
 def coverage_pct(
