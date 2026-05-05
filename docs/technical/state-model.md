@@ -25,6 +25,8 @@ Document vivant. Liste les sous-systèmes, leurs états, et les règles d'agrég
 | `tilt` | `TiltService` (ADXL345 monture `0x1D`) | `unknown / level / off_level / error` | `pitch_deg, roll_deg, magnitude_deg` |
 | `compass` | `CompassService` (LIS3MDL `0x1E`) | `unknown / ok / needs_calibration / error` | `heading_deg, magnitude_uT` |
 
+> **Calibration et limits hors bus.** Les payloads de calibration capteurs (`calibration_sensor`) et les courses ALT (`mount_limits`) **ne sont pas publiés sur le bus santé** en Macro 2. Ils sont persistés dans `state.db` (aiosqlite) et lus à la demande via REST. Le bus santé reste donc sur ses 5 sous-systèmes initiaux (`mount`, `gps`, `tracking`, `network`, `system`), plus `tilt`/`compass` quand les services seront livrés. Voir [architecture.md](architecture.md#état-persistant--statedb).
+
 ## Sous-systèmes prévus Macro 3 — Mise en station + GoTo basique
 
 | Kind | Service | États | Détails clés |
