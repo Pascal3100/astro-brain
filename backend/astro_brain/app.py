@@ -18,12 +18,16 @@ import contextlib
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
+import aiosqlite
 from fastapi import FastAPI
 
 from astro_brain.bus import StateBus
 from astro_brain.orchestrator import Orchestrator
+from astro_brain.repository.state_db import db_path as _default_db_path
+from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.commands import router as commands_router
 from astro_brain.routes.events import router as events_router
 from astro_brain.routes.state import router as state_router
@@ -63,8 +67,24 @@ def _select_services(bus: StateBus, *, use_hardware: bool) -> dict[str, Any]:
     }
 
 
-def build_app(use_hardware: bool | None = None) -> FastAPI:
-    """Instantiate the FastAPI app with all services and background tasks wired."""
+def build_app(
+    use_hardware: bool | None = None,
+    *,
+    db_path_override: str | Path | None = None,
+) -> FastAPI:
+    """Instantiate the FastAPI app with all services and background tasks wired.
+
+    Parameters
+    ----------
+    use_hardware:
+        When ``True`` the real hardware adapters are wired; ``False`` keeps
+        the fakes. ``None`` falls back to the ``ASTRO_BRAIN_HARDWARE`` env var.
+    db_path_override:
+        Optional override for the on-disk state DB path. Tests typically pass
+        ``":memory:"`` to get a fresh ephemeral database for the duration of
+        the lifespan. ``None`` uses the production path from
+        :func:`astro_brain.repository.state_db.db_path`.
+    """
     if use_hardware is None:
         use_hardware = os.environ.get("ASTRO_BRAIN_HARDWARE", "0") == "1"
 
@@ -76,6 +96,15 @@ def build_app(use_hardware: bool | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        target = (
+            db_path_override
+            if db_path_override is not None
+            else _default_db_path()
+        )
+        db_conn = await aiosqlite.connect(target)
+        await run_migrations(db_conn)
+        _app.state.db = db_conn
+
         await services["mount"].start()
         await services["gps"].start()
         await services["network"].start()
@@ -95,6 +124,7 @@ def build_app(use_hardware: bool | None = None) -> FastAPI:
             await services["gps"].stop()
             await services["network"].stop()
             await services["system"].stop()
+            await db_conn.close()
 
     app = FastAPI(title="Astro-Brain", version="0.1.0", lifespan=lifespan)
     app.state.bus = bus

@@ -19,6 +19,35 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 
 ## Session en cours
 
+### Session 17 — Macro 2 Setup, Slice INFRA livré (2026-05-05)
+
+Suite directe du restructuring roadmap (commit `c9b188b`, abandon v0.X → train de macro-étapes). Macro 1 INDI reste bloquée par le dongle CP2102 ; Slice INFRA Macro 2 (backend pur logic, pas de hardware) est indépendant — on l'attaque pour avancer pendant l'attente.
+
+**Mode d'exécution** : `superpowers:subagent-driven-development` — fresh implementer par task + double review (spec compliance puis code quality), sur branche `feat/v02-setup-backend-infra`.
+
+**8 tasks INFRA livrées** (89 → 118 tests verts) :
+
+| # | Commit | Sujet |
+|---|---|---|
+| INFRA-0 | `e3e770f` | deps `aiosqlite` + `numpy` core, `smbus2` extra hardware |
+| INFRA-1 | `1c3b2bd` | Pydantic models calibration (Adxl345/Lis3mdl/AltLimits/CalibrationProgress/CalibrationStatus) |
+| INFRA-2 | `a70f164` | aiosqlite repository scaffolding + migration `_001_initial` (3 tables) |
+| INFRA-2-fix | `7f35dac` | simplification de la discovery migration (single source = `module.VERSION`) + drop try/rollback redondant |
+| INFRA-3 | `070baac` | `calibration_repo.py` (CRUD typé + validation cross-type sensor↔payload, TypeError) |
+| INFRA-4 | `4e0c05a` | `limits_repo.py` (CRUD ALT, axis hardcoded) |
+| INFRA-5 | `e3de355` | wire DB lifecycle dans `app.py` (`db_path_override` kwarg) + `deps.get_db` |
+| INFRA-6 | `1c38f3d` | systemd `StateDirectory=astro-brain` + `ASTRO_BRAIN_STATE_DIR` + checklist DB persistante |
+| INFRA-7 | `f624d5d` | docs architecture + state-model — sqlite + calibration off-bus |
+
+**Décisions notables prises pendant le slice** :
+- `db_path_override` (et pas `db_path`) en paramètre de `build_app` pour ne pas masquer la fonction importée du même nom.
+- `axis="alt"` hardcodé dans `limits_repo` ; pas de paramètre `axis` (YAGNI — on l'ajoutera si Macro 3 ajoute `azm`).
+- `TypeError` (et non `ValueError`) pour le mismatch sensor_id ↔ payload dans `calibration_repo` — sémantique correcte vs sensor_id inconnu (`ValueError`).
+- Ordre lifespan : DB up first / DB down last (futur-proof si un service vient à dépendre de `app.state.db`).
+- Tests `test_app.py` migrés vers `db_path_override=":memory:"` pour éviter de toucher `/var/lib/astro-brain` en CI/workstation.
+
+**Reste pour Macro 2** : Slice A (capteurs LIS3MDL + ADXL345 ×2, ~13 tasks), Slice B (courses ALT, 2 tasks), Slice C (about, 2 tasks), Slice D (mount tuning — backlash + cordwrap, **bloqué dongle**). Branche `feat/v02-setup-backend-infra` non encore mergée sur `main` ni poussée.
+
 ### Session 16 — migration backend mount nexstarpy → INDI atterrie sur main (2026-05-04)
 
 Suite directe de Session 15 (stack INDI installée sur le Pi). Découverte au tour de projet post-cleanup : la branche locale `feat/mount-indi` contenait déjà 15 commits livrant toute la migration backend, écrits en mode `subagent-driven-development` strict (TDD, fresh implementer + double review par task). Décision : rebase de la branche sur `main` (qui avait avancé avec le scaffold v0.2 Setup + cleanup docs INDI), puis revue complète, plutôt que tout réimplémenter.

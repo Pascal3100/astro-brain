@@ -16,6 +16,9 @@ fi
 echo "Syncing Python dependencies with uv (hardware extra)..."
 uv sync --extra hardware
 
+echo "Ensuring state directory exists (defensive — systemd StateDirectory handles this normally)..."
+sudo mkdir -p /var/lib/astro-brain
+
 echo "Installing INDI server systemd unit..."
 sudo cp deploy/indiserver.service /etc/systemd/system/indiserver.service
 sudo systemctl daemon-reload

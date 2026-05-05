@@ -8,13 +8,14 @@ routes are reachable against an in-process :class:`TestClient`.
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from astro_brain.app import build_app
 
 
 def test_app_starts_with_fakes_and_state_endpoint_responds() -> None:
-    app = build_app(use_hardware=False)
+    app = build_app(use_hardware=False, db_path_override=":memory:")
     with TestClient(app) as client:
         response = client.get("/state")
         assert response.status_code == 200
@@ -24,7 +25,7 @@ def test_app_starts_with_fakes_and_state_endpoint_responds() -> None:
 
 
 def test_app_slew_and_stop_flow_end_to_end() -> None:
-    app = build_app(use_hardware=False)
+    app = build_app(use_hardware=False, db_path_override=":memory:")
     with TestClient(app) as client:
         slew = client.post(
             "/slew", json={"axis": "alt", "direction": "+", "rate": 4}
@@ -39,3 +40,18 @@ def test_app_slew_and_stop_flow_end_to_end() -> None:
 
         end = client.get("/state")
         assert end.json()["subsystems"]["mount"]["state"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_app_initializes_db() -> None:
+    """The lifespan opens an aiosqlite connection and runs migrations."""
+    app = build_app(use_hardware=False, db_path_override=":memory:")
+    async with app.router.lifespan_context(app):
+        assert app.state.db is not None
+        cursor = await app.state.db.execute(
+            "SELECT MAX(version) FROM schema_version"
+        )
+        row = await cursor.fetchone()
+        await cursor.close()
+        assert row is not None
+        assert row[0] == 1

@@ -5,10 +5,15 @@
 ```
 App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[pyindi-client]─▶  indiserver
                                                        │ UART GPIO + I2C1              │ indi_celestron_aux
-                                                       ▼                               ▼
-                                                 GPS DroTek + LIS3MDL + ADXL345    /dev/ttyUSB0 (CP2102)
-                                                                                       │
-                                                                                    HC RJ12 ─▶ Monture Celestron
+                                                       │                               ▼
+                                                       │                         /dev/ttyUSB0 (CP2102)
+                                                       │                               │
+                                                       │                            HC RJ12 ─▶ Monture Celestron
+                                                       ▼
+                                                 GPS DroTek + LIS3MDL + ADXL345
+                                                       │
+                                                       ▼
+                                              aiosqlite ─▶ /var/lib/astro-brain/state.db
 ```
 
 - **Backend** : FastAPI (Python 3.13) sur Raspberry Pi 3 B+. Pas d'Arduino dans la chaîne.
@@ -28,6 +33,7 @@ App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[pyin
 - Python 3.13, gestion des deps avec `uv` (lockfile par projet)
 - FastAPI + Uvicorn, SSE via `sse-starlette`
 - `pyindi-client` (monture, via `indiserver` local), `gpsd-py3` (GPS), `smbus2` (I2C compass + accelerometers)
+- `aiosqlite` + `numpy` (calibration capteurs Macro 2 — DB persistante hors bus santé, calculs bias/ellipsoid)
 - Flutter 3.41+ / Dart 3.11+, `flutter_bloc`, `equatable`, `google_fonts`, `phosphor_flutter`, `shared_preferences`
 - Style UI : Material Design 3, thème bleu (jour) / rouge (nuit)
 
@@ -42,6 +48,16 @@ Trois processus cohabitent sur le Pi :
 | `gpsd` | Démon GPS (UART0) | `gpsd.service` |
 
 Le service FastAPI déclare `Requires=indiserver.service` pour garantir que le broker INDI est actif avant la tentative de connexion `pyindi-client`.
+
+## État persistant — `state.db`
+
+À partir de Macro 2, le backend persiste les calibrations capteurs et les courses ALT dans une base SQLite locale (`aiosqlite`).
+
+- Chemin : `/var/lib/astro-brain/state.db` (override via `ASTRO_BRAIN_STATE_DIR`).
+- Géré par `astro-brain.service` via `StateDirectory=astro-brain` (création + permissions automatiques).
+- Schéma initial : 3 tables (`schema_version`, `calibration_sensor`, `mount_limits`) — voir migration `_001_initial.py`.
+- La connexion vit sur `app.state.db`, ouverte au startup du lifespan FastAPI (migrations appliquées avant le démarrage des services), fermée au shutdown.
+- **Calibration et limits ne sont pas sur le bus santé.** Lecture à la demande via REST (`GET /calibration/status`, `GET /limits/alt`).
 
 ## Workflow de dev
 
