@@ -17,6 +17,6 @@ def compute_bias_and_sigma(
         raise ValueError("samples must not be empty")
 
     arr = np.array(samples)
-    bias: tuple[float, float, float] = tuple(arr.mean(axis=0).tolist())  # type: ignore[assignment]
+    mx, my, mz = arr.mean(axis=0).tolist()
     sigma = float(arr.std(axis=0).max())
-    return bias, sigma
+    return (float(mx), float(my), float(mz)), sigma
