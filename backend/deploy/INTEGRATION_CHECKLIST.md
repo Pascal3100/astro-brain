@@ -106,6 +106,12 @@ Prérequis : section 0 faite, `gpsd` tourne, antenne avec vue dégagée (fenêtr
 - [ ] GPS en `searching` seul : `overall=blue`
 - [ ] CPU stressé seul : `overall=orange`
 
+## 8. DB persistante (Macro 2)
+
+- [ ] Après `bash deploy/install.sh`, `ls -la /var/lib/astro-brain/` montre `state.db` créé par astro-brain.service à son premier startup.
+- [ ] `sqlite3 /var/lib/astro-brain/state.db ".schema"` retourne les 3 tables (`schema_version`, `calibration_sensor`, `mount_limits`).
+- [ ] `sqlite3 /var/lib/astro-brain/state.db "SELECT * FROM schema_version;"` → version=1.
+
 ---
 
 ## Findings
