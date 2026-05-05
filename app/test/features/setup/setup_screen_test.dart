@@ -101,47 +101,54 @@ void main() {
     expect(find.byType(SetupCard), findsNWidgets(9));
   });
 
-  testWidgets('cards #1 (NIVEAU MONTURE) and #8 (RÉSEAU) have onTap', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1080, 4000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
+  testWidgets(
+    'cards #1 (NIVEAU MONTURE), #2 (COMPASS) and #8 (RÉSEAU) have onTap',
+    (tester) async {
+      tester.view.physicalSize = const Size(1080, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(
-      _wrap(const SetupScreen(), bloc, theme, api: mockApi),
-    );
-    // Laisse le FutureBuilder se résoudre sans attendre les animations infinies.
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-
-    final cards = tester.widgetList<SetupCard>(find.byType(SetupCard)).toList();
-    for (var i = 0; i < cards.length; i++) {
-      final isInteractive = (i == 0) || (i == 7); // cards #1 et #8
-      expect(
-        cards[i].onTap == null,
-        !isInteractive,
-        reason: 'card #${i + 1} onTap mismatch',
+      await tester.pumpWidget(
+        _wrap(const SetupScreen(), bloc, theme, api: mockApi),
       );
-    }
-  });
+      // Laisse les FutureBuilder se résoudre sans attendre les animations infinies.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
 
-  testWidgets('card #1 sublabel reads "Non calibré" when never calibrated', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1080, 4000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
+      final cards = tester
+          .widgetList<SetupCard>(find.byType(SetupCard))
+          .toList();
+      for (var i = 0; i < cards.length; i++) {
+        final isInteractive = (i == 0) || (i == 1) || (i == 7);
+        expect(
+          cards[i].onTap == null,
+          !isInteractive,
+          reason: 'card #${i + 1} onTap mismatch',
+        );
+      }
+      // Sanity : le mock a bien été appelé pour les deux capteurs câblés.
+      verify(() => mockApi.getCalibrationStatus('adxl345_mount')).called(1);
+      verify(() => mockApi.getCalibrationStatus('lis3mdl')).called(1);
+    },
+  );
 
-    await tester.pumpWidget(
-      _wrap(const SetupScreen(), bloc, theme, api: mockApi),
-    );
-    // Laisse le FutureBuilder se résoudre sans attendre les animations infinies.
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+  testWidgets(
+    'cards #1 and #2 sublabel read "Non calibré" when never calibrated',
+    (tester) async {
+      tester.view.physicalSize = const Size(1080, 4000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
 
-    expect(find.text('Non calibré'), findsOneWidget);
-  });
+      await tester.pumpWidget(
+        _wrap(const SetupScreen(), bloc, theme, api: mockApi),
+      );
+      // Laisse les FutureBuilder se résoudre sans attendre les animations infinies.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.text('Non calibré'), findsNWidgets(2));
+    },
+  );
 
   test('formatRelativeAge formats durations correctly', () {
     expect(formatRelativeAge(const Duration(seconds: 5)), 'Calibré il y a 5s');

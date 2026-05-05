@@ -10,6 +10,7 @@ import '../../theme/app_typography.dart';
 import '../../theme/design_tokens.dart';
 import '../../widgets/astro_app_bar.dart';
 import 'calibration/adxl_mount_screen.dart';
+import 'calibration/lis3mdl_screen.dart';
 import 'network/network_screen.dart';
 import 'widgets/setup_card.dart';
 
@@ -33,12 +34,24 @@ class _SetupScreenState extends State<SetupScreen> {
   /// pour forcer le `FutureBuilder` à re-fetcher le statut.
   int _adxlMountRefresh = 0;
 
+  /// Idem pour la card #2 (compass LIS3MDL).
+  int _lis3mdlRefresh = 0;
+
   Future<void> _openAdxlMount() async {
     final didCalibrate = await Navigator.of(
       context,
     ).push<bool>(MaterialPageRoute(builder: (_) => const AdxlMountScreen()));
     if (didCalibrate == true && mounted) {
       setState(() => _adxlMountRefresh++);
+    }
+  }
+
+  Future<void> _openLis3mdl() async {
+    final didCalibrate = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const Lis3mdlScreen()));
+    if (didCalibrate == true && mounted) {
+      setState(() => _lis3mdlRefresh++);
     }
   }
 
@@ -66,6 +79,30 @@ class _SetupScreenState extends State<SetupScreen> {
     );
   }
 
+  Widget _buildLis3mdlCard() {
+    return FutureBuilder<CalibrationStatus>(
+      key: ValueKey(_lis3mdlRefresh),
+      future: context.read<ApiService>().getCalibrationStatus('lis3mdl'),
+      builder: (ctx, snap) {
+        final calibratedAt = snap.data?.calibratedAt;
+        final isCalibrated = calibratedAt != null;
+        final sublabel = isCalibrated
+            ? formatRelativeAge(DateTime.now().difference(calibratedAt))
+            : 'Non calibré';
+        final dot = isCalibrated ? OverallStatus.green : OverallStatus.gray;
+
+        return SetupCard(
+          index: 2,
+          icon: PhosphorIconsBold.compass,
+          label: 'COMPASS',
+          sublabel: sublabel,
+          dotStatus: dot,
+          onTap: _openLis3mdl,
+        );
+      },
+    );
+  }
+
   SetupCard _placeholder(int n, IconData icon, String label) => SetupCard(
     index: n,
     icon: icon,
@@ -77,7 +114,7 @@ class _SetupScreenState extends State<SetupScreen> {
   Widget _cardForIndex(BuildContext ctx, int n) {
     return switch (n) {
       1 => _buildAdxlMountCard(),
-      2 => _placeholder(2, PhosphorIconsBold.compass, 'COMPASS'),
+      2 => _buildLis3mdlCard(),
       3 => _placeholder(3, PhosphorIconsBold.arrowsVertical, 'ZÉRO ALT'),
       4 => _placeholder(
         4,
