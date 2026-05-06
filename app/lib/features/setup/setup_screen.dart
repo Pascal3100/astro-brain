@@ -10,6 +10,7 @@ import '../../theme/app_typography.dart';
 import '../../theme/design_tokens.dart';
 import '../../widgets/astro_app_bar.dart';
 import 'calibration/adxl_mount_screen.dart';
+import 'calibration/adxl_tube_screen.dart';
 import 'calibration/lis3mdl_screen.dart';
 import 'network/network_screen.dart';
 import 'widgets/setup_card.dart';
@@ -37,6 +38,9 @@ class _SetupScreenState extends State<SetupScreen> {
   /// Idem pour la card #2 (compass LIS3MDL).
   int _lis3mdlRefresh = 0;
 
+  /// Idem pour la card #3 (ADXL tube — zéro ALT).
+  int _adxlTubeRefresh = 0;
+
   Future<void> _openAdxlMount() async {
     final didCalibrate = await Navigator.of(
       context,
@@ -52,6 +56,15 @@ class _SetupScreenState extends State<SetupScreen> {
     ).push<bool>(MaterialPageRoute(builder: (_) => const Lis3mdlScreen()));
     if (didCalibrate == true && mounted) {
       setState(() => _lis3mdlRefresh++);
+    }
+  }
+
+  Future<void> _openAdxlTube() async {
+    final didCalibrate = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const AdxlTubeScreen()));
+    if (didCalibrate == true && mounted) {
+      setState(() => _adxlTubeRefresh++);
     }
   }
 
@@ -74,6 +87,30 @@ class _SetupScreenState extends State<SetupScreen> {
           sublabel: sublabel,
           dotStatus: dot,
           onTap: _openAdxlMount,
+        );
+      },
+    );
+  }
+
+  Widget _buildAdxlTubeCard() {
+    return FutureBuilder<CalibrationStatus>(
+      key: ValueKey(_adxlTubeRefresh),
+      future: context.read<ApiService>().getCalibrationStatus('adxl345_tube'),
+      builder: (ctx, snap) {
+        final calibratedAt = snap.data?.calibratedAt;
+        final isCalibrated = calibratedAt != null;
+        final sublabel = isCalibrated
+            ? formatRelativeAge(DateTime.now().difference(calibratedAt))
+            : 'Non calibré';
+        final dot = isCalibrated ? OverallStatus.green : OverallStatus.gray;
+
+        return SetupCard(
+          index: 3,
+          icon: PhosphorIconsBold.arrowsVertical,
+          label: 'ZÉRO ALT',
+          sublabel: sublabel,
+          dotStatus: dot,
+          onTap: _openAdxlTube,
         );
       },
     );
@@ -115,7 +152,7 @@ class _SetupScreenState extends State<SetupScreen> {
     return switch (n) {
       1 => _buildAdxlMountCard(),
       2 => _buildLis3mdlCard(),
-      3 => _placeholder(3, PhosphorIconsBold.arrowsVertical, 'ZÉRO ALT'),
+      3 => _buildAdxlTubeCard(),
       4 => _placeholder(
         4,
         PhosphorIconsBold.arrowsOutLineVertical,

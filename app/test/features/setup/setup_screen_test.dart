@@ -102,7 +102,8 @@ void main() {
   });
 
   testWidgets(
-    'cards #1 (NIVEAU MONTURE), #2 (COMPASS) and #8 (RÉSEAU) have onTap',
+    'cards #1 (NIVEAU MONTURE), #2 (COMPASS), #3 (ZÉRO ALT) and #8 (RÉSEAU) '
+    'have onTap',
     (tester) async {
       tester.view.physicalSize = const Size(1080, 4000);
       tester.view.devicePixelRatio = 1.0;
@@ -119,21 +120,22 @@ void main() {
           .widgetList<SetupCard>(find.byType(SetupCard))
           .toList();
       for (var i = 0; i < cards.length; i++) {
-        final isInteractive = (i == 0) || (i == 1) || (i == 7);
+        final isInteractive = (i == 0) || (i == 1) || (i == 2) || (i == 7);
         expect(
           cards[i].onTap == null,
           !isInteractive,
           reason: 'card #${i + 1} onTap mismatch',
         );
       }
-      // Sanity : le mock a bien été appelé pour les deux capteurs câblés.
+      // Sanity : le mock a bien été appelé pour les trois capteurs câblés.
       verify(() => mockApi.getCalibrationStatus('adxl345_mount')).called(1);
       verify(() => mockApi.getCalibrationStatus('lis3mdl')).called(1);
+      verify(() => mockApi.getCalibrationStatus('adxl345_tube')).called(1);
     },
   );
 
   testWidgets(
-    'cards #1 and #2 sublabel read "Non calibré" when never calibrated',
+    'cards #1, #2 and #3 sublabel read "Non calibré" when never calibrated',
     (tester) async {
       tester.view.physicalSize = const Size(1080, 4000);
       tester.view.devicePixelRatio = 1.0;
@@ -146,7 +148,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      expect(find.text('Non calibré'), findsNWidgets(2));
+      expect(find.text('Non calibré'), findsNWidgets(3));
     },
   );
 
