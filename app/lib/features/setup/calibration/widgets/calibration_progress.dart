@@ -83,6 +83,16 @@ class CalibrationProgressWidget extends StatelessWidget {
               label: 'COUVERTURE',
               value: '${p.coveragePct.toStringAsFixed(0)} %',
             ),
+            const SizedBox(height: DesignTokens.spaceXS),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(DesignTokens.radiusSM),
+              child: LinearProgressIndicator(
+                value: (p.coveragePct / 100.0).clamp(0.0, 1.0),
+                minHeight: DesignTokens.strokeRegular * 2,
+                backgroundColor: colors.grid,
+                valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
+              ),
+            ),
           ],
           if (p.hint != null && p.hint!.isNotEmpty) ...[
             const SizedBox(height: DesignTokens.spaceMD),
