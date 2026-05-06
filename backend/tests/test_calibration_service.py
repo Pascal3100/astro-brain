@@ -16,6 +16,9 @@ from astro_brain.repository.state_db import run_migrations
 from astro_brain.services.calibration import CalibrationServiceImpl
 from astro_brain.services.interfaces import ConflictError
 
+from .fakes.sensor_fakes import FakeAdxl345 as FakeAdxl345Adapter
+from .fakes.sensor_fakes import FakeLis3mdl as FakeLis3mdlAdapter
+
 # ---------------------------------------------------------------------------
 # Fixture: in-memory DB with migrations applied
 # ---------------------------------------------------------------------------
@@ -30,53 +33,6 @@ async def db() -> AsyncIterator[aiosqlite.Connection]:
         yield conn
     finally:
         await conn.close()
-
-
-# ---------------------------------------------------------------------------
-# Fake adapters
-# ---------------------------------------------------------------------------
-
-
-class FakeAdxl345Adapter:
-    """Pre-loaded sequence of samples; cycles if exhausted."""
-
-    def __init__(self, samples: list[tuple[float, float, float]]) -> None:
-        self._samples = list(samples)
-        self._index = 0
-        self.started = False
-        self.stopped = False
-
-    async def start(self) -> None:
-        self.started = True
-
-    async def stop(self) -> None:
-        self.stopped = True
-
-    async def read_raw_g(self) -> tuple[float, float, float]:
-        sample = self._samples[self._index % len(self._samples)]
-        self._index += 1
-        return sample
-
-
-class FakeLis3mdlAdapter:
-    """Pre-loaded sequence of magnetometer samples; cycles if exhausted."""
-
-    def __init__(self, samples: list[tuple[float, float, float]]) -> None:
-        self._samples = list(samples)
-        self._index = 0
-        self.started = False
-        self.stopped = False
-
-    async def start(self) -> None:
-        self.started = True
-
-    async def stop(self) -> None:
-        self.stopped = True
-
-    async def read_raw(self) -> tuple[float, float, float]:
-        sample = self._samples[self._index % len(self._samples)]
-        self._index += 1
-        return sample
 
 
 # ---------------------------------------------------------------------------

@@ -23,51 +23,8 @@ from astro_brain.routes.sensors import (
     tilt_stream,
 )
 
-# ---------------------------------------------------------------------------
-# Minimal fake adapters
-# ---------------------------------------------------------------------------
-
-
-class _FakeAdxl345:
-    """Programmable ADXL345 fake that cycles through a sample list."""
-
-    def __init__(self, samples: list[tuple[float, float, float]]) -> None:
-        self._samples = samples
-        self._idx = 0
-        self.start_calls = 0
-        self.stop_calls = 0
-
-    async def start(self) -> None:
-        self.start_calls += 1
-
-    async def stop(self) -> None:
-        self.stop_calls += 1
-
-    async def read_raw_g(self) -> tuple[float, float, float]:
-        s = self._samples[min(self._idx, len(self._samples) - 1)]
-        self._idx += 1
-        return s
-
-
-class _FakeLis3mdl:
-    """Programmable LIS3MDL fake that cycles through a sample list."""
-
-    def __init__(self, samples: list[tuple[float, float, float]]) -> None:
-        self._samples = samples
-        self._idx = 0
-        self.start_calls = 0
-        self.stop_calls = 0
-
-    async def start(self) -> None:
-        self.start_calls += 1
-
-    async def stop(self) -> None:
-        self.stop_calls += 1
-
-    async def read_raw(self) -> tuple[float, float, float]:
-        s = self._samples[min(self._idx, len(self._samples) - 1)]
-        self._idx += 1
-        return s
+from .fakes.sensor_fakes import FakeAdxl345 as _FakeAdxl345
+from .fakes.sensor_fakes import FakeLis3mdl as _FakeLis3mdl
 
 
 # ---------------------------------------------------------------------------
