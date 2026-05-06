@@ -30,6 +30,11 @@ def tilt_compensated_heading(
 
     Derives pitch/roll from the accelerometer and rotates the magnetic vector
     back to the horizontal plane before computing atan2(my', mx').
+
+    Convention (Honeywell AN-203, NED frame): le repère sensor est obtenu
+    par roll autour de +x puis pitch autour du nouveau +y, soit la rotation
+    active ``R = R_y(pitch) @ R_x(roll)``. Le vecteur monde m_w est obtenu
+    par ``R @ m_sensor`` ; on ne garde que les composantes horizontales.
     """
     mx, my, mz = mag_corrected
     ax, ay, az = accel_corrected
@@ -40,7 +45,8 @@ def tilt_compensated_heading(
     cp, sp = math.cos(pitch), math.sin(pitch)
     cr, sr = math.cos(roll), math.sin(roll)
 
-    mx_p = mx * cp + mz * sp
-    my_p = mx * sr * sp + my * cr - mz * sr * cp
+    # m_world = R_y(pitch) @ R_x(roll) @ m_sensor → ligne x et ligne y :
+    mx_h = cp * mx + sp * sr * my + sp * cr * mz
+    my_h = cr * my - sr * mz
 
-    return _to_deg_360(math.atan2(my_p, mx_p))
+    return _to_deg_360(math.atan2(my_h, mx_h))

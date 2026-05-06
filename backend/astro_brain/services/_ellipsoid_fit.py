@@ -81,7 +81,9 @@ def compute_ellipsoid_offsets(
     # --- 4. Normalisation scalar k ---
     # k = b_offset' M b_offset - d  (with d = -1)
     k = float(b_offset @ M @ b_offset - d)
-    if k <= 0:
+    # Garde stricte : k arbitrairement petit signifie que le centre de
+    # l'ellipsoïde est sur la quadric, ce qui produit M_norm explosif.
+    if k < 1e-9:
         raise ValueError("ellipsoid fit failed: degenerate samples")
 
     # --- 5. Soft-iron correction matrix A ---

@@ -16,7 +16,7 @@ def compute_bias_and_sigma(
     if not samples:
         raise ValueError("samples must not be empty")
 
-    arr = np.array(samples)
+    arr = np.array(samples, dtype=float)
     mx, my, mz = arr.mean(axis=0).tolist()
     sigma = float(arr.std(axis=0).max())
     return (float(mx), float(my), float(mz)), sigma

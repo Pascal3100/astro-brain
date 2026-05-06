@@ -386,55 +386,35 @@ async def test_compass_stream_corrects_mag_with_persisted_offsets(
 
 
 # ---------------------------------------------------------------------------
-# Test 6 — hz clamped to [1, 10]
+# Test 6 — hz hors plage [1, 10] → 422
 # ---------------------------------------------------------------------------
 
 
-async def test_hz_clamped_to_1_10(db: aiosqlite.Connection) -> None:
-    """hz=0 → treated as 1 Hz; hz=20 → treated as 10 Hz."""
+async def test_hz_out_of_range_rejected(db: aiosqlite.Connection) -> None:
+    """hz=0 et hz=20 doivent renvoyer 422 (rejet explicite, pas un clamp)."""
+    from fastapi import HTTPException
+
     _RAW = (0.0, 0.0, 1.0)
 
-    async def _measure_rate(hz_param: int, window_s: float = 1.0) -> float:
-        """Return events/second measured over *window_s*."""
-        adxl = _FakeAdxl345([_RAW] * 1_000_000)
+    async def _call(hz_param: int) -> None:
+        adxl = _FakeAdxl345([_RAW] * 1_000)
         app = _make_tilt_app(db, adxl)
         fake_request = AsyncMock()
         fake_request.app = app
         fake_request.is_disconnected = AsyncMock(return_value=False)
 
-        response = await tilt_stream(
+        await tilt_stream(
             request=fake_request,
             hz=hz_param,
             lazy_adxl_tube=app.state.lazy_adxl_tube,
             db=db,
         )
 
-        it = response.body_iterator
-        t0 = asyncio.get_event_loop().time()
-        count = 0
-        try:
-            while asyncio.get_event_loop().time() - t0 < window_s:
-                remaining = window_s - (asyncio.get_event_loop().time() - t0)
-                if remaining <= 0:
-                    break
-                await asyncio.wait_for(it.__anext__(), timeout=remaining + 0.5)
-                count += 1
-        except (TimeoutError, StopAsyncIteration):
-            pass
-        finally:
-            with contextlib.suppress(Exception):
-                await it.aclose()
-
-        elapsed = asyncio.get_event_loop().time() - t0
-        return count / elapsed if elapsed > 0 else 0.0
-
-    # hz=0 → clamped to 1 → expect ~1 event/s (range 0.5..2.0)
-    rate_low = await _measure_rate(0, window_s=1.1)
-    assert 0.5 <= rate_low <= 2.0, f"hz=0 gave rate {rate_low:.2f} Hz, expected ~1"
-
-    # hz=20 → clamped to 10 → expect ~10 events/s (range 7..13)
-    rate_high = await _measure_rate(20, window_s=1.0)
-    assert 7.0 <= rate_high <= 14.0, f"hz=20 gave rate {rate_high:.2f} Hz, expected ~10"
+    for bad_hz in (0, -1, 11, 20):
+        with pytest.raises(HTTPException) as excinfo:
+            await _call(bad_hz)
+        assert excinfo.value.status_code == 422
+        assert "hz" in excinfo.value.detail.lower()
 
 
 # ---------------------------------------------------------------------------

@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from typing import Any
 
 import aiosqlite
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sse_starlette.sse import EventSourceResponse
 
 from astro_brain import deps
@@ -23,13 +24,21 @@ from astro_brain.services._tilt_compensated_heading import (
 
 router = APIRouter(tags=["sensors"])
 
+_log = logging.getLogger(__name__)
+
 _PING_S = 15
 _HZ_MIN = 1
 _HZ_MAX = 10
 
 
-def _clamp_hz(hz: int) -> int:
-    return max(_HZ_MIN, min(_HZ_MAX, hz))
+def _validate_hz(hz: int) -> int:
+    """Reject hz hors plage [1, 10] avec un 422 explicite."""
+    if hz < _HZ_MIN or hz > _HZ_MAX:
+        raise HTTPException(
+            status_code=422,
+            detail=f"hz must be in [{_HZ_MIN}, {_HZ_MAX}], got {hz}",
+        )
+    return hz
 
 
 class _LazySensor:
@@ -62,7 +71,13 @@ class _LazySensor:
         async with self._lock:
             self._refcount -= 1
             if self._refcount == 0:
-                await self._adapter.stop()
+                # Une exception dans stop() ne doit pas faire dériver le refcount.
+                try:
+                    await self._adapter.stop()
+                except Exception as exc:
+                    _log.warning(
+                        "LazySensor adapter.stop() error: %s", exc
+                    )
 
 
 # ---------------------------------------------------------------------------
@@ -79,10 +94,11 @@ async def tilt_stream(
 ) -> EventSourceResponse:
     """SSE stream of tilt readings from the ADXL345 tube sensor.
 
-    Emits one ``tilt`` event per tick at the requested rate (clamped to
-    [1, 10] Hz).  Calibration offsets are read once at stream-open time.
+    Emits one ``tilt`` event per tick at the requested rate. ``hz`` doit être
+    dans [1, 10], sinon 422. Calibration offsets are read once at stream-open
+    time.
     """
-    rate = _clamp_hz(hz)
+    rate = _validate_hz(hz)
 
     # Read calibration once per stream connection — not per tick.
     tube_status = await calibration_repo.get_offsets(db, "adxl345_tube")
@@ -140,11 +156,12 @@ async def compass_stream(
 ) -> EventSourceResponse:
     """SSE stream of compass readings from the LIS3MDL + ADXL345 mount sensors.
 
-    Emits one ``compass`` event per tick at the requested rate (clamped to
-    [1, 10] Hz).  Calibration offsets are read once at stream-open time.
-    When both sensors are calibrated, heading is tilt-compensated.
+    Emits one ``compass`` event per tick at the requested rate. ``hz`` doit
+    être dans [1, 10], sinon 422. Calibration offsets are read once at
+    stream-open time. When both sensors are calibrated, heading is
+    tilt-compensated.
     """
-    rate = _clamp_hz(hz)
+    rate = _validate_hz(hz)
 
     # Read calibration once per stream connection — not per tick.
     mag_status = await calibration_repo.get_offsets(db, "lis3mdl")

@@ -45,7 +45,8 @@ class Lis3mdlAdapter:
             write_byte(self._bus, self._addr, _CTRL_REG3, 0x03)
 
     async def read_raw(self) -> tuple[float, float, float]:
-        assert self._bus is not None, "start() must be called before read_raw()"
+        if self._bus is None:
+            raise RuntimeError("start() must be called before read_raw()")
         raw = read_bytes(self._bus, self._addr, _OUT_X_L | _AUTO_INC, 6)
         x, y, z = struct.unpack("<hhh", raw)
         scale = _GAUSS_TO_UT / _LSB_PER_GAUSS

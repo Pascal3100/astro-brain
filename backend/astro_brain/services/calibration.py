@@ -38,6 +38,10 @@ _SessionState = Literal["idle", "sampling", "computing", "done", "aborted", "err
 
 _ADXL_SENSORS = frozenset({"adxl345_mount", "adxl345_tube"})
 
+# Convention v0.2 : la position « tube horizontal » est définie par l'instant
+# du clic VALIDER côté client, donc le payload sérialise toujours 0°.
+_TUBE_ZERO_ALT_DEG = 0.0
+
 
 class CalibrationServiceImpl:
     """Concrete implementation of the :class:`CalibrationService` protocol.
@@ -123,13 +127,21 @@ class CalibrationServiceImpl:
             else:
                 self._hint = "Tournez le module dans toutes les directions"
 
-        adapter = self._adapters[sensor_id]
-        await adapter.start()
+            adapter = self._adapters[sensor_id]
+            # adapter.start() reste sous le lock : sinon abort()/start() peuvent
+            # se croiser et appeler stop() sur un adapter pas encore démarré.
+            try:
+                await adapter.start()
+            except Exception:
+                self._current_session = None
+                self._state = "idle"
+                raise
 
-        self._sampling_task = asyncio.create_task(
-            self._sample_loop(sensor_id, adapter),
-            name=f"calibration-{session_id[:8]}",
-        )
+            self._sampling_task = asyncio.create_task(
+                self._sample_loop(sensor_id, adapter),
+                name=f"calibration-{session_id[:8]}",
+            )
+
         _log.info("Calibration session %s started for %s", session_id, sensor_id)
         return session_id
 
@@ -152,13 +164,23 @@ class CalibrationServiceImpl:
             self._current_session is not None
             and self._current_session[0] == session_id
         ):
+            # Snapshot atomique : on capture tous les champs dans des
+            # variables locales avant de construire le modèle pour éviter
+            # qu'un _clear_session() concurrent ne change l'état entre la
+            # lecture de samples et celle de state/hint.
+            state = self._state
+            samples_n = len(self._samples)
+            coverage = self._coverage
+            sigma = self._sigma
+            hint = self._hint
+            residual = self._residual
             yield CalibrationProgress(
-                state=self._state,
-                samples_n=len(self._samples),
-                coverage_pct=self._coverage,
-                sigma=self._sigma,
-                hint=self._hint,
-                residual=self._residual,
+                state=state,
+                samples_n=samples_n,
+                coverage_pct=coverage,
+                sigma=sigma,
+                hint=hint,
+                residual=residual,
             )
             await asyncio.sleep(self._progress_period_s)
 
@@ -192,11 +214,9 @@ class CalibrationServiceImpl:
 
             await calibration_repo.upsert_offsets(self._db, sensor_id, payload)
             status = await calibration_repo.get_offsets(self._db, sensor_id)
-        except Exception:
+        finally:
             await self._clear_session(adapter)
-            raise
 
-        await self._clear_session(adapter)
         self._state = "done"
         _log.info("Calibration session %s finalized for %s", session_id, sensor_id)
         return status
@@ -237,32 +257,31 @@ class CalibrationServiceImpl:
         is_adxl = sensor_id in _ADXL_SENSORS
         # Resolve the read callable once to avoid branching in the hot loop.
         read_fn = getattr(adapter, "read_raw_g" if is_adxl else "read_raw")
-        try:
-            while (
-                self._current_session is not None
-                and self._state == "sampling"
-            ):
-                try:
-                    sample: tuple[float, float, float] = await read_fn()
-                except Exception as exc:
-                    _log.exception("Adapter read error during calibration: %s", exc)
-                    self._state = "error"
-                    self._hint = str(exc)
-                    break
+        while (
+            self._current_session is not None
+            and self._state == "sampling"
+        ):
+            try:
+                sample: tuple[float, float, float] = await read_fn()
+            except Exception as exc:
+                _log.exception("Adapter read error during calibration: %s", exc)
+                self._state = "error"
+                self._hint = str(exc)
+                break
 
-                self._samples.append(sample)
-                n = len(self._samples)
+            self._samples.append(sample)
+            n = len(self._samples)
 
-                if is_adxl:
-                    self._update_adxl_hint(n)
-                else:
-                    if n % 25 == 0 and n > 0:
-                        self._coverage = coverage_pct(self._samples)
-                    self._update_lis3mdl_hint()
+            if is_adxl:
+                self._update_adxl_hint(n)
+            else:
+                # coverage_pct rebuild un set sur l'ensemble des samples ;
+                # tickrate 25 garde ça tolérable (≤ ~20 ms à 500 samples).
+                if n % 25 == 0 and n > 0:
+                    self._coverage = coverage_pct(self._samples)
+                self._update_lis3mdl_hint()
 
-                await asyncio.sleep(self._sample_period_s)
-        except asyncio.CancelledError:
-            raise
+            await asyncio.sleep(self._sample_period_s)
 
     def _update_adxl_hint(self, n: int) -> None:
         """Recompute sigma every 10 samples (once >= 5) and update hint."""
@@ -297,7 +316,9 @@ class CalibrationServiceImpl:
         bias, sigma = compute_bias_and_sigma(samples)
         if sigma >= self._adxl_sigma_threshold:
             raise ValueError(f"sigma too high: {sigma:.4f}")
-        zero_alt_deg: float | None = 0.0 if sensor_id == "adxl345_tube" else None
+        zero_alt_deg: float | None = (
+            _TUBE_ZERO_ALT_DEG if sensor_id == "adxl345_tube" else None
+        )
         return Adxl345Offsets(bias=bias, sigma=sigma, zero_alt_deg=zero_alt_deg)
 
     def _compute_lis3mdl(

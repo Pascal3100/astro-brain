@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 
 import aiosqlite
+from pydantic import ValidationError
 
 from astro_brain.models.calibration import (
     Adxl345Offsets,
     CalibrationStatus,
     Lis3mdlOffsets,
 )
+
+_log = logging.getLogger(__name__)
 
 SENSOR_IDS = frozenset({"lis3mdl", "adxl345_mount", "adxl345_tube"})
 
@@ -50,11 +54,23 @@ async def get_offsets(db: aiosqlite.Connection, sensor_id: str) -> CalibrationSt
         return CalibrationStatus(sensor_id=sensor_id, calibrated_at=None, payload=None)
 
     payload_json, calibrated_at_iso = row
-    payload: Adxl345Offsets | Lis3mdlOffsets
-    if sensor_id == "lis3mdl":
-        payload = Lis3mdlOffsets.model_validate_json(payload_json)
-    else:
-        payload = Adxl345Offsets.model_validate_json(payload_json)
+    payload: Adxl345Offsets | Lis3mdlOffsets | None
+    try:
+        if sensor_id == "lis3mdl":
+            payload = Lis3mdlOffsets.model_validate_json(payload_json)
+        else:
+            payload = Adxl345Offsets.model_validate_json(payload_json)
+    except ValidationError as exc:
+        # DB row corrompue (schema legacy, payload tronqué…) : on dégrade
+        # gracefully en « non calibré » plutôt que de propager un 500.
+        _log.warning(
+            "calibration row for %r is invalid (%s); treating as uncalibrated",
+            sensor_id,
+            exc,
+        )
+        return CalibrationStatus(
+            sensor_id=sensor_id, calibrated_at=None, payload=None
+        )
 
     return CalibrationStatus(
         sensor_id=sensor_id,

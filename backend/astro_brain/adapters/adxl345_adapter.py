@@ -42,7 +42,8 @@ class Adxl345Adapter:
             write_byte(self._bus, self._addr, _POWER_CTL, 0x00)  # standby
 
     async def read_raw_g(self) -> tuple[float, float, float]:
-        assert self._bus is not None, "start() must be called before read_raw_g()"
+        if self._bus is None:
+            raise RuntimeError("start() must be called before read_raw_g()")
         raw = read_bytes(self._bus, self._addr, _DATAX0, 6)
         x, y, z = struct.unpack("<hhh", raw)
         return (x * _SCALE_G, y * _SCALE_G, z * _SCALE_G)
