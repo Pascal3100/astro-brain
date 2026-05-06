@@ -78,17 +78,23 @@ class _Lis3mdlViewState extends State<_Lis3mdlView> {
       if (!mounted) return;
       setState(() => _mountCalibrated = status.payload != null);
     } catch (_) {
-      // Best-effort : si le Pi est injoignable, on n'affiche pas le
-      // warning plutôt que de planter l'écran.
+      // Best-effort : si le Pi est injoignable, on laisse `_mountCalibrated`
+      // à `null` — le warning n'apparaît pas (évite de masquer le vrai
+      // souci par un faux signal positif) et l'utilisateur peut quand
+      // même calibrer.
       if (!mounted) return;
-      setState(() => _mountCalibrated = true);
+      setState(() => _mountCalibrated = null);
     }
   }
 
   void _ensureCompassStarted() {
     if (_compass != null) return;
     final host = context.read<PiHost>();
-    _compass = CompassStreamService(host: host, hz: 5)..start();
+    // setState() sinon le _HeadingPreview garde sa référence à `null`
+    // et n'apprend jamais que le service vient de démarrer.
+    setState(() {
+      _compass = CompassStreamService(host: host, hz: 5)..start();
+    });
   }
 
   @override

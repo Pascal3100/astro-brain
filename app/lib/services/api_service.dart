@@ -91,8 +91,9 @@ class ApiService {
   ///
   /// Toujours 200 ; `payload` est `null` si le capteur n'a jamais été calibré.
   Future<CalibrationStatus> getCalibrationStatus(String sensorId) async {
+    final encoded = Uri.encodeComponent(sensorId);
     final resp = await _client
-        .get(host.restUri('/calibration/$sensorId'))
+        .get(host.restUri('/calibration/$encoded'))
         .timeout(_timeout);
     if (resp.statusCode != 200) {
       throw ApiException(
@@ -109,8 +110,9 @@ class ApiService {
   ///
   /// Retourne le `session_id` (hex) fourni par le backend (202 Accepted).
   Future<String> startCalibration(String sensorId) async {
+    final encoded = Uri.encodeComponent(sensorId);
     final resp = await _client
-        .post(host.restUri('/calibration/$sensorId/start'))
+        .post(host.restUri('/calibration/$encoded/start'))
         .timeout(_timeout);
     if (resp.statusCode != 202) {
       throw ApiException(
@@ -125,8 +127,9 @@ class ApiService {
   /// Finalise la session active pour [sensorId] et retourne le statut
   /// persisté mis à jour.
   Future<CalibrationStatus> finalizeCalibration(String sensorId) async {
+    final encoded = Uri.encodeComponent(sensorId);
     final resp = await _client
-        .post(host.restUri('/calibration/$sensorId/finalize'))
+        .post(host.restUri('/calibration/$encoded/finalize'))
         .timeout(_timeout);
     if (resp.statusCode != 200) {
       throw ApiException(
@@ -143,8 +146,9 @@ class ApiService {
   ///
   /// Idempotent (le backend retourne toujours `{"ok": true}`).
   Future<void> abortCalibration(String sensorId) async {
+    final encoded = Uri.encodeComponent(sensorId);
     final resp = await _client
-        .post(host.restUri('/calibration/$sensorId/abort'))
+        .post(host.restUri('/calibration/$encoded/abort'))
         .timeout(_timeout);
     if (resp.statusCode != 200) {
       throw ApiException(

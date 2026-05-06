@@ -49,6 +49,7 @@ class CompassStreamService {
   /// est déjà active ne fait rien. Sans effet si [dispose] a déjà été appelé.
   void start() {
     if (_out.isClosed) return;
+    if (_client != null) return; // déjà connecté ou en cours de connexion.
     _connect();
   }
 

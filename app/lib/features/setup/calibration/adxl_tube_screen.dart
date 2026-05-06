@@ -60,7 +60,11 @@ class _AdxlTubeViewState extends State<_AdxlTubeView> {
   void _ensureTiltStarted() {
     if (_tilt != null) return;
     final host = context.read<PiHost>();
-    _tilt = TiltStreamService(host: host, hz: 5)..start();
+    // setState() sinon le _TiltPreview garde sa référence à `null` et
+    // n'apprend jamais que le service vient de démarrer.
+    setState(() {
+      _tilt = TiltStreamService(host: host, hz: 5)..start();
+    });
   }
 
   @override
