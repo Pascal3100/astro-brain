@@ -52,7 +52,7 @@ async def get_about(
         ISO 8601 UTC timestamp of the backend process startup.
     """
     net = network.current_snapshot()
-    sys = system_info.current_snapshot()
+    sys_snapshot = system_info.current_snapshot()
     started_at = request.app.state.started_at
     return AboutResponse(
         backend_version=__version__,
@@ -60,6 +60,6 @@ async def get_about(
         mount_firmware=None,
         ip=net.get("ip"),
         ssid=net.get("ssid"),
-        uptime_s=sys.get("uptime_s"),
+        uptime_s=sys_snapshot.get("uptime_s"),
         started_at=started_at.isoformat(),
     )
