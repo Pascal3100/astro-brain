@@ -59,6 +59,7 @@ class SystemInfoAdapter:
     def __init__(self, bus: StateBus) -> None:
         self._bus = bus
         self._task: asyncio.Task[None] | None = None
+        self._last_details: dict[str, Any] | None = None
 
     async def start(self) -> None:
         self._publish_current()
@@ -74,6 +75,16 @@ class SystemInfoAdapter:
             pass
         self._task = None
 
+    def current_snapshot(self) -> dict[str, int | None]:
+        """Return the last known ``{"uptime_s": ...}`` without I/O.
+
+        Returns ``{"uptime_s": None}`` when :meth:`start` has not yet been
+        called (no data in cache).
+        """
+        if self._last_details is None:
+            return {"uptime_s": None}
+        return {"uptime_s": self._last_details.get("uptime_s")}
+
     def _publish_current(self) -> None:
         temp = _read_temp_c()
         load = _read_loadavg_1min()
@@ -83,6 +94,7 @@ class SystemInfoAdapter:
             "cpu_load": load,
             "uptime_s": uptime,
         }
+        self._last_details = details
         self._bus.publish(
             "system",
             SubsystemState(

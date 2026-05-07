@@ -18,6 +18,7 @@ import contextlib
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,7 @@ from astro_brain.bus import StateBus
 from astro_brain.orchestrator import Orchestrator
 from astro_brain.repository.state_db import db_path as _default_db_path
 from astro_brain.repository.state_db import run_migrations
+from astro_brain.routes.about import router as about_router
 from astro_brain.routes.calibration import router as calibration_router
 from astro_brain.routes.commands import router as commands_router
 from astro_brain.routes.events import router as events_router
@@ -123,6 +125,7 @@ def build_app(
         db_conn = await aiosqlite.connect(target)
         await run_migrations(db_conn)
         _app.state.db = db_conn
+        _app.state.started_at = datetime.now(UTC)
 
         calibration_service = CalibrationServiceImpl(
             db=db_conn,
@@ -168,6 +171,7 @@ def build_app(
     app.state.gps = services["gps"]
     app.state.network = services["network"]
     app.state.system_info = services["system"]
+    app.include_router(about_router)
     app.include_router(commands_router)
     app.include_router(state_router)
     app.include_router(events_router)

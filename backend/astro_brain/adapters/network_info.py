@@ -122,6 +122,17 @@ class NetworkInfoAdapter:
             ),
         )
 
+    def current_snapshot(self) -> dict[str, str | None]:
+        """Return the last known ``{"ip": ..., "ssid": ...}`` without I/O.
+
+        Returns ``{"ip": None, "ssid": None}`` when :meth:`start` has not yet
+        been called (no data in cache).
+        """
+        if self._last is None:
+            return {"ip": None, "ssid": None}
+        _, details = self._last
+        return {"ip": details.get("ip"), "ssid": details.get("ssid")}
+
     async def _loop(self) -> None:
         while True:
             try:
