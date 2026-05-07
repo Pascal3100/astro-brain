@@ -48,7 +48,12 @@ async def _current_version(db: aiosqlite.Connection) -> int:
 
 
 def _discover_migrations() -> list[tuple[int, object]]:
-    """Return ``(version, module)`` pairs sorted by lexical module name."""
+    """Return ``(version, module)`` pairs sorted by lexical module name.
+
+    L'ordre lexical des noms de module détermine l'ordre d'exécution :
+    pad les numéros sur 3 chiffres (``_001_init``, ``_002_calibration``…)
+    pour que l'ordre lexical = l'ordre numérique au-delà de 10 migrations.
+    """
     from astro_brain.repository import migrations as migrations_pkg
 
     found: list[tuple[str, int, object]] = []

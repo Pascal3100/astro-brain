@@ -12,7 +12,10 @@ without inheriting from it.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Literal, Protocol
+
+from astro_brain.models.calibration import CalibrationProgress, CalibrationStatus
 
 Axis = Literal["alt", "az"]
 Direction = Literal["+", "-"]
@@ -66,3 +69,27 @@ class SystemInfoService(Protocol):
 
     async def start(self) -> None: ...
     async def stop(self) -> None: ...
+
+
+class ConflictError(Exception):
+    """A calibration session is already active for another sensor."""
+
+
+class CalibrationService(Protocol):
+    """Orchestrates per-sensor calibration sessions.
+
+    A single session is active at a time across all sensors. Trying to
+    ``start`` a second session raises :class:`ConflictError` until the
+    current one is ``finalize``'d or ``abort``'ed.
+
+    SSE clients disconnecting mid-stream do **not** terminate the session —
+    explicit ``abort`` is required. The router stops yielding SSE events
+    when the client disconnects, but the sampling loop on the backend
+    continues until ``abort`` or ``finalize`` is called.
+    """
+
+    async def start(self, sensor_id: str) -> str: ...
+    async def progress(self, session_id: str) -> AsyncIterator[CalibrationProgress]: ...
+    async def finalize(self, session_id: str) -> CalibrationStatus: ...
+    async def abort(self, session_id: str) -> None: ...
+    async def current_session(self) -> tuple[str, str] | None: ...

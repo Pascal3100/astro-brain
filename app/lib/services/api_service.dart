@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../models/calibration.dart';
 import '../models/system_state.dart';
 import 'pi_host.dart';
 
@@ -79,6 +80,81 @@ class ApiService {
         .timeout(_timeout);
     if (resp.statusCode != 200) {
       throw ApiException('POST $path failed', statusCode: resp.statusCode);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Calibration endpoints
+  // -------------------------------------------------------------------------
+
+  /// Retourne le statut persisté de calibration pour [sensorId].
+  ///
+  /// Toujours 200 ; `payload` est `null` si le capteur n'a jamais été calibré.
+  Future<CalibrationStatus> getCalibrationStatus(String sensorId) async {
+    final encoded = Uri.encodeComponent(sensorId);
+    final resp = await _client
+        .get(host.restUri('/calibration/$encoded'))
+        .timeout(_timeout);
+    if (resp.statusCode != 200) {
+      throw ApiException(
+        'GET /calibration/$sensorId failed',
+        statusCode: resp.statusCode,
+      );
+    }
+    return CalibrationStatus.fromJson(
+      jsonDecode(resp.body) as Map<String, dynamic>,
+    );
+  }
+
+  /// Démarre une session de calibration pour [sensorId].
+  ///
+  /// Retourne le `session_id` (hex) fourni par le backend (202 Accepted).
+  Future<String> startCalibration(String sensorId) async {
+    final encoded = Uri.encodeComponent(sensorId);
+    final resp = await _client
+        .post(host.restUri('/calibration/$encoded/start'))
+        .timeout(_timeout);
+    if (resp.statusCode != 202) {
+      throw ApiException(
+        'POST /calibration/$sensorId/start failed',
+        statusCode: resp.statusCode,
+      );
+    }
+    final json = jsonDecode(resp.body) as Map<String, dynamic>;
+    return json['session_id'] as String;
+  }
+
+  /// Finalise la session active pour [sensorId] et retourne le statut
+  /// persisté mis à jour.
+  Future<CalibrationStatus> finalizeCalibration(String sensorId) async {
+    final encoded = Uri.encodeComponent(sensorId);
+    final resp = await _client
+        .post(host.restUri('/calibration/$encoded/finalize'))
+        .timeout(_timeout);
+    if (resp.statusCode != 200) {
+      throw ApiException(
+        'POST /calibration/$sensorId/finalize failed',
+        statusCode: resp.statusCode,
+      );
+    }
+    return CalibrationStatus.fromJson(
+      jsonDecode(resp.body) as Map<String, dynamic>,
+    );
+  }
+
+  /// Annule la session active pour [sensorId] sans persister les données.
+  ///
+  /// Idempotent (le backend retourne toujours `{"ok": true}`).
+  Future<void> abortCalibration(String sensorId) async {
+    final encoded = Uri.encodeComponent(sensorId);
+    final resp = await _client
+        .post(host.restUri('/calibration/$encoded/abort'))
+        .timeout(_timeout);
+    if (resp.statusCode != 200) {
+      throw ApiException(
+        'POST /calibration/$sensorId/abort failed',
+        statusCode: resp.statusCode,
+      );
     }
   }
 

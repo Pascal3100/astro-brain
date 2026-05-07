@@ -45,3 +45,7 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI's Depends() in default args is idiomatic — B008 is a known false-positive here.
+"astro_brain/routes/*.py" = ["B008"]
