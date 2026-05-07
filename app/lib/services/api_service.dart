@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../models/about.dart';
 import '../models/calibration.dart';
 import '../models/limits.dart';
 import '../models/system_state.dart';
@@ -199,6 +200,23 @@ class ApiService {
       );
     }
     return AltLimits.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+  }
+
+  // -------------------------------------------------------------------------
+  // About endpoint
+  // -------------------------------------------------------------------------
+
+  /// Retourne les informations système du backend (`GET /about`).
+  ///
+  /// Toujours 200 — pas de 404 possible.
+  Future<AboutInfo> getAbout() async {
+    final resp = await _client
+        .get(host.restUri('/about'))
+        .timeout(_timeout);
+    if (resp.statusCode != 200) {
+      throw ApiException('GET /about failed', statusCode: resp.statusCode);
+    }
+    return AboutInfo.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
   void dispose() => _client.close();
