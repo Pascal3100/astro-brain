@@ -31,6 +31,7 @@ from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.calibration import router as calibration_router
 from astro_brain.routes.commands import router as commands_router
 from astro_brain.routes.events import router as events_router
+from astro_brain.routes.limits import router as limits_router
 from astro_brain.routes.sensors import _LazySensor
 from astro_brain.routes.sensors import router as sensors_router
 from astro_brain.routes.state import router as state_router
@@ -172,6 +173,7 @@ def build_app(
     app.include_router(events_router)
     app.include_router(calibration_router)
     app.include_router(sensors_router)
+    app.include_router(limits_router)
     return app
 
 

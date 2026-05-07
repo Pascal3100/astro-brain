@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../models/calibration.dart';
+import '../../models/limits.dart';
 import '../../models/overall_status.dart';
 import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
@@ -12,6 +13,7 @@ import '../../widgets/astro_app_bar.dart';
 import 'calibration/adxl_mount_screen.dart';
 import 'calibration/adxl_tube_screen.dart';
 import 'calibration/lis3mdl_screen.dart';
+import 'limits/limits_screen.dart';
 import 'network/network_screen.dart';
 import 'widgets/setup_card.dart';
 
@@ -41,6 +43,9 @@ class _SetupScreenState extends State<SetupScreen> {
   /// Idem pour la card #3 (ADXL tube — zéro ALT).
   int _adxlTubeRefresh = 0;
 
+  /// Idem pour la card #4 (courses ALT).
+  int _limitsAltRefresh = 0;
+
   Future<void> _openAdxlMount() async {
     final didCalibrate = await Navigator.of(
       context,
@@ -65,6 +70,15 @@ class _SetupScreenState extends State<SetupScreen> {
     ).push<bool>(MaterialPageRoute(builder: (_) => const AdxlTubeScreen()));
     if (didCalibrate == true && mounted) {
       setState(() => _adxlTubeRefresh++);
+    }
+  }
+
+  Future<void> _openLimitsAlt() async {
+    final didSave = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const LimitsAltScreen()));
+    if (didSave == true && mounted) {
+      setState(() => _limitsAltRefresh++);
     }
   }
 
@@ -140,6 +154,30 @@ class _SetupScreenState extends State<SetupScreen> {
     );
   }
 
+  Widget _buildLimitsAltCard() {
+    return FutureBuilder<AltLimits?>(
+      key: ValueKey(_limitsAltRefresh),
+      future: context.read<ApiService>().getAltLimits(),
+      builder: (ctx, snap) {
+        final limits = snap.data;
+        final isSet = limits != null;
+        final sublabel = isSet
+            ? 'min ${limits.minDeg.round()}° / max ${limits.maxDeg.round()}°'
+            : 'Non défini';
+        final dot = isSet ? OverallStatus.green : OverallStatus.gray;
+
+        return SetupCard(
+          index: 4,
+          icon: PhosphorIconsBold.arrowsOutLineVertical,
+          label: 'COURSES ALT',
+          sublabel: sublabel,
+          dotStatus: dot,
+          onTap: _openLimitsAlt,
+        );
+      },
+    );
+  }
+
   SetupCard _placeholder(int n, IconData icon, String label) => SetupCard(
     index: n,
     icon: icon,
@@ -153,11 +191,7 @@ class _SetupScreenState extends State<SetupScreen> {
       1 => _buildAdxlMountCard(),
       2 => _buildLis3mdlCard(),
       3 => _buildAdxlTubeCard(),
-      4 => _placeholder(
-        4,
-        PhosphorIconsBold.arrowsOutLineVertical,
-        'COURSES ALT',
-      ),
+      4 => _buildLimitsAltCard(),
       5 => _placeholder(5, PhosphorIconsBold.arrowsClockwise, 'BACKLASH ALT'),
       6 => _placeholder(6, PhosphorIconsBold.arrowsClockwise, 'BACKLASH AZ'),
       7 => _placeholder(7, PhosphorIconsBold.arrowClockwise, 'CORDWRAP AZ'),
