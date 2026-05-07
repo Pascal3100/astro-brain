@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../../models/about.dart';
 import '../../models/calibration.dart';
 import '../../models/limits.dart';
 import '../../models/overall_status.dart';
@@ -10,6 +11,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/design_tokens.dart';
 import '../../widgets/astro_app_bar.dart';
+import 'about/about_screen.dart';
 import 'calibration/adxl_mount_screen.dart';
 import 'calibration/adxl_tube_screen.dart';
 import 'calibration/lis3mdl_screen.dart';
@@ -46,6 +48,9 @@ class _SetupScreenState extends State<SetupScreen> {
   /// Idem pour la card #4 (courses ALT).
   int _limitsAltRefresh = 0;
 
+  /// Idem pour la card #9 (à propos).
+  int _aboutRefresh = 0;
+
   Future<void> _openAdxlMount() async {
     final didCalibrate = await Navigator.of(
       context,
@@ -80,6 +85,13 @@ class _SetupScreenState extends State<SetupScreen> {
     if (didSave == true && mounted) {
       setState(() => _limitsAltRefresh++);
     }
+  }
+
+  Future<void> _openAbout() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AboutScreen()));
+    if (mounted) setState(() => _aboutRefresh++);
   }
 
   Widget _buildAdxlMountCard() {
@@ -178,6 +190,27 @@ class _SetupScreenState extends State<SetupScreen> {
     );
   }
 
+  Widget _buildAboutCard() {
+    return FutureBuilder<AboutInfo>(
+      key: ValueKey(_aboutRefresh),
+      future: context.read<ApiService>().getAbout(),
+      builder: (ctx, snap) {
+        final info = snap.data;
+        final sublabel = info != null ? 'v${info.backendVersion}' : '—';
+        final dot = info != null ? OverallStatus.green : OverallStatus.gray;
+
+        return SetupCard(
+          index: 9,
+          icon: PhosphorIconsBold.info,
+          label: 'À PROPOS',
+          sublabel: sublabel,
+          dotStatus: dot,
+          onTap: _openAbout,
+        );
+      },
+    );
+  }
+
   SetupCard _placeholder(int n, IconData icon, String label) => SetupCard(
     index: n,
     icon: icon,
@@ -205,7 +238,7 @@ class _SetupScreenState extends State<SetupScreen> {
           ctx,
         ).push(MaterialPageRoute(builder: (_) => const NetworkScreen())),
       ),
-      9 => _placeholder(9, PhosphorIconsBold.info, 'À PROPOS'),
+      9 => _buildAboutCard(),
       _ => throw RangeError('index $n hors plage 1–9'),
     };
   }

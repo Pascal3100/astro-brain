@@ -209,6 +209,10 @@ class FakeNetwork:
             ),
         )
 
+    def current_snapshot(self) -> dict[str, str | None]:
+        """Return the constructor-injected ``{"ip": ..., "ssid": ...}``."""
+        return {"ip": self._ip, "ssid": self._ssid}
+
     async def stop(self) -> None:
         self._bus.publish(
             "network",
@@ -258,6 +262,10 @@ class FakeSystemInfo:
                 since=_now(),
             ),
         )
+
+    def current_snapshot(self) -> dict[str, int | None]:
+        """Return the constructor-injected ``{"uptime_s": ...}``."""
+        return {"uptime_s": self._uptime_s}
 
     async def stop(self) -> None:
         return None
