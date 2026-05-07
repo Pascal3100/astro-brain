@@ -8,9 +8,7 @@ import '../../../theme/app_colors.dart';
 import '../../../theme/app_typography.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../widgets/astro_app_bar.dart';
-import 'adxl_mount_bloc.dart';
-import 'adxl_mount_event.dart';
-import 'adxl_mount_state.dart';
+import 'calibration_bloc.dart';
 import 'widgets/calibration_progress.dart';
 
 const _sensorId = 'adxl345_mount';
@@ -23,9 +21,11 @@ class AdxlMountScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final api = context.read<ApiService>();
     final host = context.read<PiHost>();
-    return BlocProvider<AdxlMountBloc>(
-      create: (_) => AdxlMountBloc(
+    return BlocProvider<CalibrationBloc>(
+      create: (_) => CalibrationBloc(
         api: api,
+        sensorId: _sensorId,
+        finalizeGate: adxlCanFinalize,
         progressStream: (sessionId) => CalibrationProgressStream(
           host: host,
           sensorId: _sensorId,
@@ -45,14 +45,14 @@ class _AdxlMountView extends StatelessWidget {
     final colors = context.colors;
     final text = context.textStyles;
 
-    return BlocListener<AdxlMountBloc, AdxlMountState>(
+    return BlocListener<CalibrationBloc, CalibrationBlocState>(
       listenWhen: (prev, curr) => prev.status != curr.status,
       listener: (ctx, state) {
-        if (state.status == AdxlMountStatus.done) {
+        if (state.status == CalibrationState.done) {
           Navigator.of(ctx).pop(true);
-        } else if (state.status == AdxlMountStatus.aborted) {
+        } else if (state.status == CalibrationState.aborted) {
           Navigator.of(ctx).pop(false);
-        } else if (state.status == AdxlMountStatus.error) {
+        } else if (state.status == CalibrationState.error) {
           ScaffoldMessenger.of(ctx).showSnackBar(
             SnackBar(content: Text(state.errorMessage ?? 'Erreur inconnue')),
           );
@@ -116,11 +116,11 @@ class _ProgressPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AdxlMountBloc, AdxlMountState>(
+    return BlocBuilder<CalibrationBloc, CalibrationBlocState>(
       buildWhen: (prev, curr) =>
           prev.progress != curr.progress || prev.status != curr.status,
       builder: (ctx, state) {
-        if (state.status == AdxlMountStatus.idle) {
+        if (state.status == CalibrationState.idle) {
           final text = context.textStyles;
           final colors = context.colors;
           return Padding(
@@ -143,13 +143,13 @@ class _ActionButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AdxlMountBloc, AdxlMountState>(
+    return BlocBuilder<CalibrationBloc, CalibrationBlocState>(
       builder: (ctx, state) {
         final isIdle =
-            state.status == AdxlMountStatus.idle ||
-            state.status == AdxlMountStatus.error;
-        final isSampling = state.status == AdxlMountStatus.sampling;
-        final isComputing = state.status == AdxlMountStatus.computing;
+            state.status == CalibrationState.idle ||
+            state.status == CalibrationState.error;
+        final isSampling = state.status == CalibrationState.sampling;
+        final isComputing = state.status == CalibrationState.computing;
 
         return Wrap(
           spacing: DesignTokens.spaceSM,
@@ -158,14 +158,14 @@ class _ActionButtons extends StatelessWidget {
             if (isIdle)
               FilledButton(
                 onPressed: () =>
-                    ctx.read<AdxlMountBloc>().add(const AdxlMountStarted()),
+                    ctx.read<CalibrationBloc>().add(const CalibrationStarted()),
                 child: Text('DÉMARRER', style: context.textStyles.hudBadge),
               ),
             if (isSampling || isComputing)
               FilledButton(
                 onPressed: state.canFinalize && !isComputing
-                    ? () => ctx.read<AdxlMountBloc>().add(
-                        const AdxlMountFinalizeRequested(),
+                    ? () => ctx.read<CalibrationBloc>().add(
+                        const CalibrationFinalizeRequested(),
                       )
                     : null,
                 child: Text('VALIDER', style: context.textStyles.hudBadge),
@@ -174,8 +174,8 @@ class _ActionButtons extends StatelessWidget {
               OutlinedButton(
                 onPressed: isComputing
                     ? null
-                    : () => ctx.read<AdxlMountBloc>().add(
-                        const AdxlMountAbortRequested(),
+                    : () => ctx.read<CalibrationBloc>().add(
+                        const CalibrationAbortRequested(),
                       ),
                 child: Text('ANNULER', style: context.textStyles.hudBadge),
               ),
