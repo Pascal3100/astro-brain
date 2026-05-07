@@ -17,12 +17,48 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 - ✅ Carte #8 RÉSEAU livrée (Session 14).
 - ✅ Slice INFRA livré (Session 17, 8 commits, +29 tests) — sqlite `state.db` + repos calibration/limits.
 - ✅ **Slice A capteurs livré** (Session 18, 2026-05-07) : items #1 niveau monture, #2 compass LIS3MDL, #3 zéro ALT. Fixes review v0.2 (B1, B2, I1-I7, N1-N10) + refactor I8 (`CalibrationBloc` partagé entre les 3 capteurs, -784 LOC). Tests : 178 backend + 115 frontend.
-- 📦 Slices B (courses ALT, 2 tasks) + C (about, 2 tasks) ouvrables sans hardware.
+- ✅ **Slice B Courses ALT livré** (Session 19, 2026-05-07) : item #4. Backend `/limits/alt` GET/PUT + écran Flutter capture ALT_min/max via `TiltStreamService`. Tests : 183 backend + 130 frontend.
+- 📦 Slice C (about, 2 tasks) ouvrable sans hardware.
 - ⛔ Slice D (mount tuning — backlash + cordwrap) bloqué dongle CP2102.
 
 **Doc tree** : nouvelle arborescence `docs/INDEX.md` → 3 vues (`technical/`, `project/`, `product/`). Petits docs ciblés, navigation par liens. Voir Session 12.
 
 ## Session en cours
+
+### Session 19 — Macro 2 Setup, Slice B Courses ALT livré (2026-05-07)
+
+Enchaîne directement après Session 18 (Slice A mergé + Pi mis à jour). Mode `superpowers:subagent-driven-development` (implementer + spec reviewer + code-reviewer par task). Branche `feat/v02-setup-limits` partie de `378dc93`.
+
+**1. Task B-1 — backend `/limits/alt`** (commit `8a301ff`)
+
+`GET /limits/alt` → 200 `AltLimits` ou 404 `"alt limits not set"` ; `PUT /limits/alt` body validé via `AltLimits._check_range` (min<max + écart≥30) → 422 auto sur invalide, sinon 200 + echo du payload sauvé. Route câblée sur `Depends(deps.get_db)` + `repository/limits_repo` (déjà livré INFRA-4) — zéro SQL dans la route. TODO `v0.3: clamp slew("alt", "+") near max_deg` posé dans `mount_indi_adapter.slew()` pour mémoire (pas d'implémentation v0.2). 5 tests via `TestClient` (`:memory:` DB + migrations réelles, pas de mocks). Backend : 178 → 183 verts.
+
+**2. Task B-2 — écran Flutter Courses ALT** (commit `c927b63`)
+
+`AltLimits` Dart placé dans nouveau `app/lib/models/limits.dart` (séparé de `calibration.dart` — limits ≠ calibration). `ApiService` étendu : `getAltLimits()` retourne `null` sur 404 (cas non-calibré, normal), `putAltLimits(limits)` propage `ApiException` sur 422.
+
+`LimitsAltBloc` minimal : 4 events (`Reloaded`, `LowerCaptured(altDeg)`, `UpperCaptured(altDeg)`, `SaveRequested`), state avec sentinels pour distinguer "non capturé" de "set à null", computed `canSave` (les deux non-null + écart≥30 + pas en cours de save) et `hasRangeWarning`. Re-capture override sans reset l'autre borne (arbitrage simplicité).
+
+Écran : `TiltStreamService` ouvert en `initState` (5 Hz), gros affichage ALT live (48 px) au centre. Boutons "POINTER LE PLUS BAS" / "POINTER LE PLUS HAUT" → snapshot `pitchDeg` (le `TiltReading` n'a pas de champ `altDeg`, mais `adxl_tube_screen.dart` faisait déjà la même équivalence pitch=ALT). Après capture, le bouton se transforme en "✓ ALT_min capturé : -3.2°" (background `surfaceContainerHighest`, opacité 0.4). Bouton ENREGISTRER `FilledButton` avec spinner pendant `isSaving`. Sur 200 → snackbar succès + `Navigator.pop(true)` ; sur 422 → message inline "Plage invalide". Warning ⚠ "Plage trop faible" inline si les deux captés et écart < 30°.
+
+Carte parent (`setup_screen.dart` #4) : `_placeholder` remplacé par `FutureBuilder<AltLimits?>` avec compteur `_limitsAltRefresh` ré-incrémenté au `pop(true)`. Sublabel "min Xx° / max Yy°" si set, "Non défini" sinon. Dot vert / gris.
+
+Tests Flutter : 115 → 130 verts (10 bloc + 5 api_service). `flutter analyze` clean.
+
+**3. Code review (synthèse)**
+
+Spec compliance ✅ pour les deux tasks. Code-reviewer ✅ pour les deux ; aucun blocker. Notes laissées pour follow-up (non-bloquantes) :
+- B-1 : 4 minors purement polish (phrasing 404, layering hint dans le TODO, fixture async sync).
+- B-2 : 7 findings dont 2 "Important" explicitement défendables (double subscription au stream broadcast — défensible par perf rebuild ; `fontSize: 48` hardcodé — premier "centerpiece readout" du projet, mériterait un token `hudDisplay` à terme). Pattern `_xRefresh` int counter en train de devenir un smell (4 occurrences sur 9 cartes) — abstraction `RefreshableCard` à envisager quand on aura #5/#6/#7/#9.
+
+**4. Merge Slice B sur `main`**
+
+`git merge --no-ff feat/v02-setup-limits` (commit `2f49ad4`). Branche conservée. Push à venir avec Slice C ou en standalone selon la suite.
+
+**5. Reste pour Macro 2**
+
+- Slice C (about, 2 tasks) — versions/IP/redémarrage, ouvrable sans hardware. **Suivant.**
+- Slice D (mount tuning backlash + cordwrap) — toujours bloqué dongle CP2102.
 
 ### Session 18 — Macro 2 Setup, Slice A capteurs livré + refactor I8 (2026-05-07)
 
