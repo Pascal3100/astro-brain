@@ -12,9 +12,7 @@ import '../../../theme/app_typography.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../widgets/astro_app_bar.dart';
 import '../../../widgets/hud_panel.dart';
-import 'lis3mdl_bloc.dart';
-import 'lis3mdl_event.dart';
-import 'lis3mdl_state.dart';
+import 'calibration_bloc.dart';
 import 'widgets/calibration_progress.dart';
 
 const _sensorId = 'lis3mdl';
@@ -33,9 +31,11 @@ class Lis3mdlScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final api = context.read<ApiService>();
     final host = context.read<PiHost>();
-    return BlocProvider<Lis3mdlBloc>(
-      create: (_) => Lis3mdlBloc(
+    return BlocProvider<CalibrationBloc>(
+      create: (_) => CalibrationBloc(
         api: api,
+        sensorId: _sensorId,
+        finalizeGate: lis3mdlCanFinalize,
         progressStream: (sessionId) => CalibrationProgressStream(
           host: host,
           sensorId: _sensorId,
@@ -109,16 +109,16 @@ class _Lis3mdlViewState extends State<_Lis3mdlView> {
     final colors = context.colors;
     final text = context.textStyles;
 
-    return BlocListener<Lis3mdlBloc, Lis3mdlState>(
+    return BlocListener<CalibrationBloc, CalibrationBlocState>(
       listenWhen: (prev, curr) => prev.status != curr.status,
       listener: (ctx, state) {
-        if (state.status == Lis3mdlStatus.done) {
+        if (state.status == CalibrationState.done) {
           // On n'auto-pop pas : on ouvre le preview heading.
           // Le pop avec `true` se fait via le bouton FERMER.
           _ensureCompassStarted();
-        } else if (state.status == Lis3mdlStatus.aborted) {
+        } else if (state.status == CalibrationState.aborted) {
           Navigator.of(ctx).pop(false);
-        } else if (state.status == Lis3mdlStatus.error) {
+        } else if (state.status == CalibrationState.error) {
           ScaffoldMessenger.of(ctx).showSnackBar(
             SnackBar(content: Text(state.errorMessage ?? 'Erreur inconnue')),
           );
@@ -231,11 +231,11 @@ class _ProgressPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<Lis3mdlBloc, Lis3mdlState>(
+    return BlocBuilder<CalibrationBloc, CalibrationBlocState>(
       buildWhen: (prev, curr) =>
           prev.progress != curr.progress || prev.status != curr.status,
       builder: (ctx, state) {
-        if (state.status == Lis3mdlStatus.idle) {
+        if (state.status == CalibrationState.idle) {
           final text = context.textStyles;
           final colors = context.colors;
           return Padding(
@@ -247,7 +247,7 @@ class _ProgressPanel extends StatelessWidget {
             ),
           );
         }
-        if (state.status == Lis3mdlStatus.done) {
+        if (state.status == CalibrationState.done) {
           return _DoneSummary(status: state.finalizedStatus);
         }
         return CalibrationProgressWidget(progress: state.progress);
@@ -330,14 +330,14 @@ class _ActionButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<Lis3mdlBloc, Lis3mdlState>(
+    return BlocBuilder<CalibrationBloc, CalibrationBlocState>(
       builder: (ctx, state) {
         final isIdle =
-            state.status == Lis3mdlStatus.idle ||
-            state.status == Lis3mdlStatus.error;
-        final isSampling = state.status == Lis3mdlStatus.sampling;
-        final isComputing = state.status == Lis3mdlStatus.computing;
-        final isDone = state.status == Lis3mdlStatus.done;
+            state.status == CalibrationState.idle ||
+            state.status == CalibrationState.error;
+        final isSampling = state.status == CalibrationState.sampling;
+        final isComputing = state.status == CalibrationState.computing;
+        final isDone = state.status == CalibrationState.done;
 
         return Wrap(
           spacing: DesignTokens.spaceSM,
@@ -346,14 +346,14 @@ class _ActionButtons extends StatelessWidget {
             if (isIdle)
               FilledButton(
                 onPressed: () =>
-                    ctx.read<Lis3mdlBloc>().add(const Lis3mdlStarted()),
+                    ctx.read<CalibrationBloc>().add(const CalibrationStarted()),
                 child: Text('DÉMARRER', style: context.textStyles.hudBadge),
               ),
             if (isSampling || isComputing)
               FilledButton(
                 onPressed: state.canFinalize && !isComputing
-                    ? () => ctx.read<Lis3mdlBloc>().add(
-                        const Lis3mdlFinalizeRequested(),
+                    ? () => ctx.read<CalibrationBloc>().add(
+                        const CalibrationFinalizeRequested(),
                       )
                     : null,
                 child: Text('VALIDER', style: context.textStyles.hudBadge),
@@ -362,8 +362,8 @@ class _ActionButtons extends StatelessWidget {
               OutlinedButton(
                 onPressed: isComputing
                     ? null
-                    : () => ctx.read<Lis3mdlBloc>().add(
-                        const Lis3mdlAbortRequested(),
+                    : () => ctx.read<CalibrationBloc>().add(
+                        const CalibrationAbortRequested(),
                       ),
                 child: Text('ANNULER', style: context.textStyles.hudBadge),
               ),
