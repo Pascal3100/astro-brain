@@ -45,11 +45,11 @@ Page Setup unifiée + toutes les calibrations et configurations préalables à u
 - ✅ Calibration ADXL345 monture (item #1 — niveau monture, planéité absolue) — livré 2026-05-07 (Session 18)
 - ✅ Calibration compass LIS3MDL (item #2 — soft-iron offsets, heading tilt-compensé via fusion ADXL co-localisé) — livré 2026-05-07 (Session 18)
 - ✅ Calibration ADXL345 tube (item #3 — zéro ALT, tube horizontal) — livré 2026-05-07 (Session 18)
-- 📦 Courses ALT min/max (alimentées par ADXL345 tube, anti-collision)
+- ✅ Courses ALT min/max (alimentées par ADXL345 tube, anti-collision) — livré 2026-05-07 (Session 19)
 - 📦 Courses AZ min/max (software, persistant Pi-side)
 - 📦 Backlash compensation ALT + AZ (mount-side, **bloqué dongle CP2102**)
 - ✅ Network/IP config — livré Session 14 (carte #8 Setup)
-- 📦 À propos (versions, IP courante, redémarrage service)
+- ✅ À propos (versions, IP, uptime) — livré 2026-05-07 (Session 19)
 
 *Done quand* : toutes les calibrations/courses/configs sont accessibles depuis l'app, valeurs persistées, et permettent de tenter un alignement avec confiance.
 

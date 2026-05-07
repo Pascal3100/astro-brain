@@ -18,14 +18,14 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 - ✅ Slice INFRA livré (Session 17, 8 commits, +29 tests) — sqlite `state.db` + repos calibration/limits.
 - ✅ **Slice A capteurs livré** (Session 18, 2026-05-07) : items #1 niveau monture, #2 compass LIS3MDL, #3 zéro ALT. Fixes review v0.2 (B1, B2, I1-I7, N1-N10) + refactor I8 (`CalibrationBloc` partagé entre les 3 capteurs, -784 LOC). Tests : 178 backend + 115 frontend.
 - ✅ **Slice B Courses ALT livré** (Session 19, 2026-05-07) : item #4. Backend `/limits/alt` GET/PUT + écran Flutter capture ALT_min/max via `TiltStreamService`. Tests : 183 backend + 130 frontend.
-- 📦 Slice C (about, 2 tasks) ouvrable sans hardware.
-- ⛔ Slice D (mount tuning — backlash + cordwrap) bloqué dongle CP2102.
+- ✅ **Slice C About livré** (Session 19, 2026-05-07) : item #9. Backend `GET /about` (versions, IP/SSID, uptime, started_at) + écran Flutter read-only avec bouton RAFRAÎCHIR. Tests : 191 backend + 133 frontend.
+- ⛔ Slice D (mount tuning — backlash + cordwrap) bloqué dongle CP2102. Reste à livrer : courses AZ (software, sans hardware) — repoussé à Macro 2 mineure.
 
 **Doc tree** : nouvelle arborescence `docs/INDEX.md` → 3 vues (`technical/`, `project/`, `product/`). Petits docs ciblés, navigation par liens. Voir Session 12.
 
 ## Session en cours
 
-### Session 19 — Macro 2 Setup, Slice B Courses ALT livré (2026-05-07)
+### Session 19 — Macro 2 Setup, Slices B + C livrés (2026-05-07)
 
 Enchaîne directement après Session 18 (Slice A mergé + Pi mis à jour). Mode `superpowers:subagent-driven-development` (implementer + spec reviewer + code-reviewer par task). Branche `feat/v02-setup-limits` partie de `378dc93`.
 
@@ -55,10 +55,51 @@ Spec compliance ✅ pour les deux tasks. Code-reviewer ✅ pour les deux ; aucun
 
 `git merge --no-ff feat/v02-setup-limits` (commit `2f49ad4`). Branche conservée. Push à venir avec Slice C ou en standalone selon la suite.
 
-**5. Reste pour Macro 2**
+**5. Slice C — About (item #9)** — enchaîné dans la même session
 
-- Slice C (about, 2 tasks) — versions/IP/redémarrage, ouvrable sans hardware. **Suivant.**
-- Slice D (mount tuning backlash + cordwrap) — toujours bloqué dongle CP2102.
+Branche `feat/v02-setup-about` partie de `3991569`. Mêmes outils (subagent-driven-development).
+
+**Task C-1 — backend `GET /about`** (commits `789539a` + `f402aa8`)
+
+`AboutResponse` Pydantic à 7 champs (`backend_version`, `app_version_seen`, `mount_firmware`, `ip`, `ssid`, `uptime_s`, `started_at`). `__version__ = "0.2.0"` ajouté dans `astro_brain/__init__.py`. `app.state.started_at = datetime.now(UTC)` set au lifespan startup.
+
+Pour exposer IP/SSID et uptime sans bloquer la route sur du I/O subprocess, ajout d'une méthode synchrone `current_snapshot()` sur `NetworkInfoAdapter` + `SystemInfoAdapter` (et leurs fakes), promue au protocole dans `services/interfaces.py`. Lecture du dernier `_last` cache, pas d'appel à `ip`/`iwgetid`. Pré-start guard : retourne `{"ip": None, "ssid": None}` ou `{"uptime_s": None}` si `start()` pas encore tourné — défensif inoffensif (lifespan termine avant requête).
+
+`mount_firmware` : laissé à `None` en v0.2 avec TODO "extract from MountIndiAdapter when INDI is stable (post-Macro 1)" — éviter de rouvrir la boîte INDI maintenant. `app_version_seen` : `null` v0.2 (header `X-App-Version` pas encore consommé). 8 tests via `build_app(use_hardware=False, db_path_override=":memory:")` + `TestClient` (lifespan exécuté → `started_at` réel). Backend 183 → 191 verts.
+
+Fix code review : variable locale `sys` shadowait le module stdlib (pas de bug actuel mais réflexe d'hygiène) → renommée `sys_snapshot` dans un commit séparé `f402aa8`.
+
+**Task C-2 — écran Flutter À propos** (commit `b0fc051`)
+
+Modèle `AboutInfo` (Equatable, fromJson) dans `models/about.dart` — tous les champs nullable sauf `backendVersion`. `ApiService.getAbout()` GET → 200 ou throw. Bloc minimal : 2 events (`AboutLoaded`, `AboutRefreshRequested`) qui partagent un même handler `_onFetch` (DRY), state `(info, isLoading, errorMessage)` avec sentinels `copyWith` consistants avec `LimitsAltState`.
+
+Choix `kAppVersion = '1.0.0+1'` constante en dur dans `app/lib/version.dart` plutôt que `package_info_plus` runtime — déviation explicite du plan validée à l'amont (YAGNI : pas envie d'ajouter une dep pour une string, et `pubspec.yaml` est la source de vérité). Doc-comment dans `version.dart` rappelle de re-sync à chaque bump pubspec.
+
+Écran : `AstroAppBar` + 3 `HudPanel` sectionnés (VERSIONS / RÉSEAU / SYSTÈME), chaque tuple via `_InfoRow(label, value)` avec fallback `value ?? '—'`. `_formatUptime` (s → "Xj Yh" / "Xh Ym" / "Xm Ys") et `_formatStartedAt` (parse ISO 8601 → local datetime, try/catch fallback raw string). Bouton RAFRAÎCHIR (`FilledButton` avec spinner pendant `isLoading`) dispatch `AboutRefreshRequested`. Banner d'erreur inline (`buildWhen` sur `errorMessage`).
+
+Carte parent (`setup_screen.dart` #9) : `_placeholder(9, …)` remplacé par `_buildAboutCard()` avec `FutureBuilder<AboutInfo>` keyé sur `_aboutRefresh`. Sublabel `'v${info.backendVersion}'` quand 200, dot vert ; gris/`'—'` sinon. `_openAbout()` toujours `_aboutRefresh++` au retour (intentionnel : la version backend peut changer après un restart).
+
+Tests Flutter : 130 → 133 verts (3 bloc tests : happy 200, error 500, recovery refresh-after-error). `flutter analyze` clean.
+
+**6. Code review Slice C (synthèse)**
+
+Spec compliance ✅ pour les deux tasks. Code-reviewer ✅ pour les deux ; aucun blocker. Notes laissées :
+- C-1 : 7 minors (idiomatic `datetime` vs `str` pour `started_at`, fixture pytest pour mutualiser `build_app`, defaults Pydantic non-load-bearing, etc.) — tout polish.
+- C-2 : 7 findings dont 5 minors, 0 critique, 0 important. `as String` non-gardé sur `backendVersion` (acceptable, le contrat C-1 garantit la string), `_aboutRefresh` toujours incrémenté (intentionnel, doc'd), `SizedBox(width: 140)` magic number (à tokeniser plus tard).
+
+Pattern `_xRefresh` int counter persiste à 5 occurrences (1/2/3/4/9) — abstraction `RefreshableCard` confirmée comme follow-up Macro 3 quand on aura encore plus de cartes.
+
+**7. Merge Slice C sur `main`**
+
+`git merge --no-ff feat/v02-setup-about` (commit `06056d7`).
+
+**8. Bilan Macro 2**
+
+Items #1, #2, #3, #4, #8, #9 livrés. Reste :
+- 📦 Courses AZ (software, déférable — pas hardware-dependent mais marginal en utilité tant qu'on n'a pas de monture branchée).
+- ⛔ Backlash ALT + AZ (#5, #6) + Cordwrap (#7) — Slice D, bloqué dongle CP2102. Sans ces trois cartes, la Macro 2 n'est pas "done" au sens roadmap (alignement sérieux possible) mais le télescope reste utilisable end-to-end via Slices A/B/C en attendant.
+
+Macro 2 effectivement **80% livrée** ; reprise après livraison du dongle.
 
 ### Session 18 — Macro 2 Setup, Slice A capteurs livré + refactor I8 (2026-05-07)
 
