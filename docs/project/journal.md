@@ -78,13 +78,26 @@ Tests Flutter : 124 → 115 (suppression des doublons par-capteur, on garde happ
 
 Merge sur `main` (`ea087c0`) + push.
 
-**4. Reste pour Macro 2**
+**4. Déploiement Pi (premier déploiement post-Session-14)**
+
+Le Pi tournait encore sur `feat/mount-indi @ adf7f5e` (Session 14, 3 mai) — d'où les 404 sur `/calibration/*` quand l'app a tenté les écrans Slice A. Mise à jour menée depuis main :
+
+- `git checkout main && git pull --ff-only` → fast-forward 99 commits (Sessions 15→18 atterrissent sur le Pi en un coup).
+- `uv sync --extra hardware` (3 min 26 s) : `nexstarpy` + `pyserial` retirés ; `pyindi-client 2.2.0`, `numpy 2.4.4`, `smbus2 0.6.1`, `aiosqlite 0.22.1` installés.
+- Premier crash au restart : `PermissionError: '/var/lib/astro-brain'`. L'unit systemd installé sur le Pi datait aussi de Session 14 — il manquait `StateDirectory=astro-brain` (livré INFRA-6). Côté repo, l'unit à jour (Session 17) + `indiserver.service` (Session 16) n'avaient jamais été poussés vers `/etc/systemd/system/`.
+- `sudo cp` des deux units → `daemon-reload` → enable+start `indiserver.service` → restart `astro-brain.service`.
+- Vérifs : `/var/lib/astro-brain/state.db` créé (24 KB, ownership `pascal3100`), tous endpoints calibration en 200, app Flutter à nouveau fonctionnelle pour les 3 écrans Slice A.
+- `mount=error` attendu (indiserver up mais driver `indi_celestron_aux` sans port série tant que le dongle CP2102 n'est pas livré) — sans incidence sur les capteurs I2C.
+
+À retenir pour les prochains déploiements : quand un slice modifie un unit systemd (`backend/deploy/*.service`), le `git pull` ne suffit pas — il faut `sudo cp` + `daemon-reload`. Le `INTEGRATION_CHECKLIST.md` couvre ça mais on l'a sauté en pull "rapide".
+
+**5. Reste pour Macro 2**
 
 - Slice B (courses ALT, 2 tasks) — pur logic backend + écran simple, ouvrable sans hardware.
 - Slice C (à propos, 2 tasks) — versions/IP/redémarrage, ouvrable sans hardware.
 - Slice D (mount tuning backlash + cordwrap) — toujours bloqué dongle CP2102.
 
-**5. Méta**
+**6. Méta**
 
 Journal au plafond (Sessions 11-18 = 7 sessions). Avant la prochaine session : archiver Sessions 11-14 dans `journal/archive/2026-04-mount-indi-migration.md` (milestone migration nexstarpy → INDI). Garder Sessions 15-18 + la suivante en tête de file.
 
