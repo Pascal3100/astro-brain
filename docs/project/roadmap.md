@@ -40,14 +40,14 @@ Spec : [`docs/superpowers/specs/2026-05-01-mount-indi-design.md`](../superpowers
 
 Page Setup unifiée + toutes les calibrations et configurations préalables à un alignement sérieux. Pré-requis : Macro 1.
 
-- 📦 Page Setup unifiée (hub des cards, scaffold déjà en place — voir Session 14)
-- 📦 Niveau monture (ADXL345 `0x1D`, bulle virtuelle XY, feedback < 0.5°)
-- 📦 Calibration ADXL345 monture (planéité absolue)
-- 📦 Calibration ADXL345 tube (zéro ALT, tube horizontal)
-- 📦 Calibration compass LIS3MDL (collecte soft-iron offsets, persistance disque, heading tilt-compensé via fusion ADXL co-localisé)
+- ✅ Page Setup unifiée (hub des cards) — scaffold Session 14
+- ✅ Slice INFRA backend (sqlite `state.db` + repos calibration/limits) — livré 2026-05-05 (Session 17)
+- ✅ Calibration ADXL345 monture (item #1 — niveau monture, planéité absolue) — livré 2026-05-07 (Session 18)
+- ✅ Calibration compass LIS3MDL (item #2 — soft-iron offsets, heading tilt-compensé via fusion ADXL co-localisé) — livré 2026-05-07 (Session 18)
+- ✅ Calibration ADXL345 tube (item #3 — zéro ALT, tube horizontal) — livré 2026-05-07 (Session 18)
 - 📦 Courses ALT min/max (alimentées par ADXL345 tube, anti-collision)
 - 📦 Courses AZ min/max (software, persistant Pi-side)
-- 📦 Backlash compensation ALT + AZ (mount-side)
+- 📦 Backlash compensation ALT + AZ (mount-side, **bloqué dongle CP2102**)
 - ✅ Network/IP config — livré Session 14 (carte #8 Setup)
 - 📦 À propos (versions, IP courante, redémarrage service)
 

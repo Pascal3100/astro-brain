@@ -21,20 +21,47 @@ GET  /state                           # snapshot complet du SystemState
 GET /events                           # SSE — event: state | snapshot
 ```
 
-## Macro 2 — Setup (à spécifier)
+## Macro 2 — Setup (Slice A livré 2026-05-07)
 
 Détails dans la spec Setup : [`docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md`](../superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md).
 
-Endpoints anticipés :
+### Calibration capteurs (livré)
+
+`sensor_id ∈ { adxl345_mount, adxl345_tube, lis3mdl }`. Une seule session active à la fois (verrou backend) ; conflit → `409`.
 
 ```
-POST /compass/calibration/start
-POST /compass/calibration/finish
-POST /tilt/{tube|mount}/calibrate-zero
-POST /mount/courses          { alt_min, alt_max, az_min, az_max }
-POST /mount/backlash         { alt_steps, az_steps }
-GET  /mount/courses
+POST /calibration/{sensor_id}/start          # 202 { session_id }
+GET  /calibration/{sensor_id}/stream         # SSE — event: progress | end
+POST /calibration/{sensor_id}/finalize       # 200 CalibrationStatus (persisté state.db)
+POST /calibration/{sensor_id}/abort          # 200 { ok: true }
+GET  /calibration/{sensor_id}                # 200 CalibrationStatus | 404 (jamais calibré)
+```
+
+Payloads par capteur :
+- `adxl345_*` : `{ bias: [x,y,z], sigma: float }`
+- `lis3mdl` : `{ offsets: [x,y,z], scale_matrix: [[…]×3], coverage_pct: float, residual: float }`
+
+Stream `progress` : `{ state: "sampling"|"computing", samples_n, coverage_pct, sigma, hint? }`. `end` : payload `CalibrationStatus` (succès) ou `{ error }` (échec).
+
+### Streams capteurs live (livré)
+
+```
+GET /sensors/tilt/stream?hz=5                # SSE TiltReading { pitch_deg, roll_deg, magnitude_deg }
+GET /sensors/compass/stream?hz=5             # SSE CompassReading { heading_deg, tilt_compensated, magnitude_uT }
+```
+
+`hz` ∈ [1, 20]. Hors borne → `422`. Streams lazy : aucun I2C lu tant qu'aucun client connecté.
+
+### Endpoints anticipés (Slices B/C/D, non livrés)
+
+```
+POST /setup/limits/alt       { alt_min_deg, alt_max_deg }      # Slice B
+GET  /setup/limits/alt
+POST /mount/backlash         { az_pos, az_neg, alt_pos, alt_neg }  # Slice D — bloqué dongle
 GET  /mount/backlash
+POST /mount/cordwrap         { enabled, position_deg }              # Slice D
+GET  /system/about                                                  # Slice C
+POST /system/restart                                                # Slice C
 ```
 
 ## Macro 3 — Mise en station + GoTo basique (à spécifier)

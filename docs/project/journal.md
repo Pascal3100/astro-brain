@@ -13,11 +13,80 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 - ✅ Backend INDI atterri sur main (Session 16) : `MountIndiAdapter` + `AstroBrainIndiClient` + helpers + `FakeIndiClient`, `indiserver.service` systemd, script build driver patché, doc bascule. `nexstarpy` retiré du `pyproject.toml`. Patch C++ backlash mount-axis prêt (`/tmp/indi-research/indi-3rdparty/`, commit `538810c`, branche `astro-brain-backlash`).
 - ⛔ **Cap suivant** : smoke test E2E sur le Pi (Task 14 du plan migration) — bloque sur la livraison du **dongle USB-TTL CP2102 5V**. Dès que le dongle arrive : câblage HC RJ12, `bash deploy/install.sh`, fork upstream du patch backlash + build sur le Pi, `INTEGRATION_CHECKLIST.md` sections 0+3+Backlash+Cordwrap. Une fois la checklist verte, ouverture du chantier Macro 2 Setup.
 
-**Macro 2 — Setup** : spec validée (Session 13) [`docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md`], plan d'implémentation rédigé (Session 16) [`docs/superpowers/plans/2026-05-04-v02-setup-implementation.md`] (34 tasks, 5 slices). Carte #8 RÉSEAU livrée (Session 14). En attente smoke INDI hardware pour ouvrir les autres slices.
+**Macro 2 — Setup 🚧** :
+- ✅ Carte #8 RÉSEAU livrée (Session 14).
+- ✅ Slice INFRA livré (Session 17, 8 commits, +29 tests) — sqlite `state.db` + repos calibration/limits.
+- ✅ **Slice A capteurs livré** (Session 18, 2026-05-07) : items #1 niveau monture, #2 compass LIS3MDL, #3 zéro ALT. Fixes review v0.2 (B1, B2, I1-I7, N1-N10) + refactor I8 (`CalibrationBloc` partagé entre les 3 capteurs, -784 LOC). Tests : 178 backend + 115 frontend.
+- 📦 Slices B (courses ALT, 2 tasks) + C (about, 2 tasks) ouvrables sans hardware.
+- ⛔ Slice D (mount tuning — backlash + cordwrap) bloqué dongle CP2102.
 
 **Doc tree** : nouvelle arborescence `docs/INDEX.md` → 3 vues (`technical/`, `project/`, `product/`). Petits docs ciblés, navigation par liens. Voir Session 12.
 
 ## Session en cours
+
+### Session 18 — Macro 2 Setup, Slice A capteurs livré + refactor I8 (2026-05-07)
+
+Suite directe de Session 17 (Slice INFRA mergé). On enchaîne le Slice A capteurs (LIS3MDL + ADXL345 ×2) sur la branche `feat/v02-setup-sensors`, mode `superpowers:subagent-driven-development`. Slice livré dans la session précédente, cette session fait le code review, les fixes, le merge, puis sort un refactor dédié pour collapser les 3 blocs Flutter.
+
+**1. Code review `superpowers:code-reviewer` sur `feat/v02-setup-sensors`**
+
+Verdict : ✅ approuvé avec corrections. Aucun blocker ; ~20 findings classés. Tout ce qui est concret a été appliqué :
+
+| Tag | Sujet | Commit |
+|---|---|---|
+| B1 | `setState` manquant à l'init du `TiltStreamService` côté écran tube → preview ALT silencieusement noir | `863a4bb` |
+| B2 | Idempotence du `POST /calibration/.../start` : un double-clic doublait la session backend → check `current_session is not None` | `f4ed8d1` |
+| I1 | Formule heading tilt-compensé alignée sur l'AN-203 (rotation accel d'abord, projection mag ensuite) — l'ancien ordre divergeait à >5° d'inclinaison | `f4ed8d1` |
+| I2 | `logger.exception` partout dans `calibration_service` (état `error` était diagnostiqué uniquement via stack trace fugace) | `f4ed8d1` |
+| I3 | Race start/lock — `asyncio.Lock` autour de `start_session` pour fermer la fenêtre entre `current_session is None` et l'écriture | `f4ed8d1` |
+| I4 | `calibration_repo.list_sensors()` tolère désormais une row corrompue (skip + warn) plutôt que de crasher la liste entière | `f4ed8d1` |
+| I5 | `CalibrationProgress` snapshot deep-copié avant publish SSE (mêmes raisons que `active_slews` Session 16) | `f4ed8d1` |
+| I6 | Fakes ADXL345/LIS3MDL consolidés dans `tests/fakes/` (3 copies divergentes → 1 source) | `c112b97` |
+| I7 | Stream `/sensors/tilt` & `/sensors/compass` : 422 si `hz` hors borne au lieu de clamp silencieux | `f4ed8d1` |
+| N1 | `urlencode` manquant sur `sensorId` dans `api_service.dart` | `863a4bb` |
+| N6 | `mountCalibrated=null` (pas `false`) sur erreur de chargement Setup pour distinguer "absent" de "non chargé" | `863a4bb` |
+| N2-10 | Nits divers (constantes seuils extraites, naming, doc inline) | `f4ed8d1` / `863a4bb` |
+
+Tous les tests verts à chaque étape : 178 backend + 124 frontend.
+
+**2. Merge Slice A sur `main`** (commit `28ba9d8`)
+
+Branche `feat/v02-setup-sensors` mergée fast-forward. Push `origin/main`. La page Setup expose maintenant les cartes #1 #2 #3 en `📦 → ✅` côté roadmap.
+
+**3. Refactor I8 — `CalibrationBloc` partagé** (branche `refactor/calibration-bloc-base`, commits `cdc3b85` puis merge `ea087c0`)
+
+Code review I8 (laissé deferred au merge slice) : les 3 blocs Flutter (`adxl_mount_bloc`, `adxl_tube_bloc`, `lis3mdl_bloc`) étaient quasi-identiques — seul le `sensorId` et la fonction de gating diffèrent. Décision arbitrée avec l'utilisateur : pas de génériques `CalibrationBloc<TPayload>`, simple injection :
+
+```dart
+CalibrationBloc(
+  api: api,
+  sensorId: 'adxl345_mount',                // ou tube / lis3mdl
+  finalizeGate: adxlCanFinalize,            // ou lis3mdlCanFinalize
+  progressStream: (id) => ...               // factory injectée
+)
+```
+
+Gates en top-level dans `calibration_bloc.dart` :
+- `adxlCanFinalize` : `samplesN >= 100 && sigma < 0.05`
+- `lis3mdlCanFinalize` : `samplesN >= 500 && coveragePct >= 80.0`
+
+État du bloc : on réutilise l'enum `CalibrationState` (`idle/sampling/computing/done/aborted/error`) déjà exporté par `models/calibration.dart` — pas de doublon `CalibrationPhase`. Pour éviter le clash de noms avec la classe d'état du bloc, celle-ci s'appelle `CalibrationBlocState`. Le bloc réexporte `CalibrationState`/`CalibrationStatus`/`CalibrationProgress` pour que les écrans n'aient qu'un seul import.
+
+`finalizeGate` est stocké dans l'état mais hors `props` Equatable (callback constant pour un bloc donné, n'a pas d'incidence sur l'égalité). 12 fichiers supprimés (3× bloc + event + state + test), 2 fichiers ajoutés (`calibration_bloc.dart` + `calibration_bloc_test.dart`), 3 écrans migrés. Net : **-784 LOC** (648 ins / 1432 del).
+
+Tests Flutter : 124 → 115 (suppression des doublons par-capteur, on garde happy paths ADXL + LIS3MDL, abort, 409 start, SSE end pendant sampling, gates indépendantes, fromJson sanity).
+
+Merge sur `main` (`ea087c0`) + push.
+
+**4. Reste pour Macro 2**
+
+- Slice B (courses ALT, 2 tasks) — pur logic backend + écran simple, ouvrable sans hardware.
+- Slice C (à propos, 2 tasks) — versions/IP/redémarrage, ouvrable sans hardware.
+- Slice D (mount tuning backlash + cordwrap) — toujours bloqué dongle CP2102.
+
+**5. Méta**
+
+Journal au plafond (Sessions 11-18 = 7 sessions). Avant la prochaine session : archiver Sessions 11-14 dans `journal/archive/2026-04-mount-indi-migration.md` (milestone migration nexstarpy → INDI). Garder Sessions 15-18 + la suivante en tête de file.
 
 ### Session 17 — Macro 2 Setup, Slice INFRA livré (2026-05-05)
 
