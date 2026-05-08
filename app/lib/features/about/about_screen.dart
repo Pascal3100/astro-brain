@@ -12,7 +12,7 @@ import 'about_bloc.dart';
 import 'about_event.dart';
 import 'about_state.dart';
 
-/// Écran « À propos » (item #9 du Setup) — informations système read-only.
+/// Écran « À propos » — informations système read-only.
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
@@ -47,7 +47,7 @@ class _AboutView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const AstroAppBar(current: AstroScreen.setup),
+              const AstroAppBar(current: AstroScreen.about),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(DesignTokens.spaceLG),

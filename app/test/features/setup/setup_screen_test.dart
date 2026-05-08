@@ -1,6 +1,5 @@
 import 'package:astro_brain/features/setup/setup_screen.dart';
 import 'package:astro_brain/features/setup/widgets/setup_card.dart';
-import 'package:astro_brain/models/about.dart';
 import 'package:astro_brain/models/calibration.dart';
 import 'package:astro_brain/models/system_state.dart';
 import 'package:astro_brain/services/api_service.dart';
@@ -75,11 +74,6 @@ void main() {
     );
     // Par défaut, courses ALT jamais définies (FutureBuilder card #4).
     when(() => mockApi.getAltLimits()).thenAnswer((_) async => null);
-    // Par défaut, réponse about minimale (FutureBuilder card #9).
-    when(() => mockApi.getAbout()).thenAnswer(
-      (_) async => const AboutInfo(backendVersion: '0.2.0'),
-    );
-
     bloc = AppBloc(eventStream: mockStream);
 
     SharedPreferences.setMockInitialValues({});
@@ -92,8 +86,8 @@ void main() {
     theme.close();
   });
 
-  testWidgets('renders 9 SetupCards', (tester) async {
-    // Tall viewport so ListView.separated builds all 9 items.
+  testWidgets('renders 8 SetupCards', (tester) async {
+    // Tall viewport so ListView.separated builds all 8 items.
     tester.view.physicalSize = const Size(1080, 4000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -105,11 +99,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.byType(SetupCard), findsNWidgets(9));
+    expect(find.byType(SetupCard), findsNWidgets(8));
   });
 
   testWidgets(
-    'cards #1, #2, #3, #4 (COURSES ALT), #8 (RÉSEAU) and #9 (À PROPOS) have onTap',
+    'cards #1, #2, #3, #4 (COURSES ALT) and #8 (RÉSEAU) have onTap',
     (tester) async {
       tester.view.physicalSize = const Size(1080, 4000);
       tester.view.devicePixelRatio = 1.0;
@@ -127,20 +121,19 @@ void main() {
           .toList();
       for (var i = 0; i < cards.length; i++) {
         final isInteractive =
-            (i == 0) || (i == 1) || (i == 2) || (i == 3) || (i == 7) || (i == 8);
+            (i == 0) || (i == 1) || (i == 2) || (i == 3) || (i == 7);
         expect(
           cards[i].onTap == null,
           !isInteractive,
           reason: 'card #${i + 1} onTap mismatch',
         );
       }
-      // Sanity : le mock a bien été appelé pour les trois capteurs câblés,
-      // les courses ALT et les infos about.
+      // Sanity : le mock a bien été appelé pour les trois capteurs câblés
+      // et les courses ALT.
       verify(() => mockApi.getCalibrationStatus('adxl345_mount')).called(1);
       verify(() => mockApi.getCalibrationStatus('lis3mdl')).called(1);
       verify(() => mockApi.getCalibrationStatus('adxl345_tube')).called(1);
       verify(() => mockApi.getAltLimits()).called(1);
-      verify(() => mockApi.getAbout()).called(1);
     },
   );
 
