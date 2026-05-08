@@ -81,11 +81,10 @@ class HubScreen extends StatelessWidget {
                     const SizedBox(height: DesignTokens.spaceXS),
                     Text(
                       'Que fait-on ce soir ?',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: colors.textPrimary,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w500,
+                          ),
                     ),
                   ],
                 ),
