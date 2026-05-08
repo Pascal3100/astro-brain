@@ -9,7 +9,10 @@ Style visuel et conventions UI de l'app Flutter.
   - **Jour** : accent `#60A0FF`, text `#B4D7FF`, gradient bg `#060A18 → #0A0818`
   - **Nuit** : accent `#FF5A3A`, text `#FFAA9B`, gradient bg `#0C0606 → #0A0606` (aucun bleu ni vert pour préserver la vision nocturne)
 - **Typographie** : Inter (texte courant), JetBrains Mono (libellés HUD : labels, valeurs, badges).
-- **Iconographie** : Phosphor Icons (`phosphor_flutter`).
+- **Iconographie** : double set selon le contexte.
+  - **Phosphor Icons** (`phosphor_flutter`, style Bold) — icônes UI génériques (réglages, flèches, info, refresh, badges d'état). Vocabulaire système.
+  - **HugeIcons** (`hugeicons`, stroke-rounded) — icônes domaine astro (telescope, satellite, radar, orbit, constellation, comet, galaxy, asteroid, solar-system, astronaut). Réservé aux **hero icons** : cartes Hub, splash, headers de feature, illustrations Macro 3+.
+  - **Règle de mélange** : ne pas mixer les deux dans une même rangée d'icônes. Phosphor pour les widgets utilitaires ; HugeIcons en gros (32-48px) comme accent domaine.
 
 ## Tokens
 
