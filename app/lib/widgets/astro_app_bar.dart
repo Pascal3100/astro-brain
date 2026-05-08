@@ -12,7 +12,7 @@ import '../theme/theme_cubit.dart';
 import 'global_dot.dart';
 import 'hud_panel.dart';
 
-enum AstroScreen { hub, manual, home, system, setup }
+enum AstroScreen { hub, manual, system, setup }
 
 /// AppBar HUD partagée : pastille overall, icône setup, reconnect conditionnel, toggle thème.
 class AstroAppBar extends StatelessWidget {

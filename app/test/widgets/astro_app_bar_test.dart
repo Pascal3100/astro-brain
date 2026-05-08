@@ -81,9 +81,9 @@ void main() {
     theme.close();
   });
 
-  testWidgets('renders gear icon and theme toggle on home', (tester) async {
+  testWidgets('renders gear icon and theme toggle on manual', (tester) async {
     await tester.pumpWidget(
-      _wrap(const AstroAppBar(current: AstroScreen.home), bloc, theme, host),
+      _wrap(const AstroAppBar(current: AstroScreen.manual), bloc, theme, host),
     );
     await tester.pump();
 
