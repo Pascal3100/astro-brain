@@ -6,7 +6,7 @@ import '../../../services/api_service.dart';
 import '../../../state/app_bloc/app_bloc.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/design_tokens.dart';
-import '../home_bloc.dart';
+import '../manual_bloc.dart';
 
 class DPadControl extends StatelessWidget {
   const DPadControl({super.key});
@@ -77,7 +77,7 @@ class _BtnState extends State<_Btn> {
   void _release() {
     if (!_pressed) return;
     setState(() => _pressed = false);
-    context.read<HomeBloc>().add(HomeSlewReleased(widget.axis));
+    context.read<ManualBloc>().add(ManualSlewReleased(widget.axis));
   }
 
   @override
@@ -86,8 +86,8 @@ class _BtnState extends State<_Btn> {
     return GestureDetector(
       onTapDown: (_) {
         setState(() => _pressed = true);
-        context.read<HomeBloc>().add(
-              HomeSlewPressed(axis: widget.axis, direction: widget.direction),
+        context.read<ManualBloc>().add(
+              ManualSlewPressed(axis: widget.axis, direction: widget.direction),
             );
       },
       onTapUp: (_) => _release(),

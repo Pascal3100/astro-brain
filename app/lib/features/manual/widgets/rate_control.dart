@@ -5,7 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_typography.dart';
 import '../../../theme/design_tokens.dart';
-import '../home_bloc.dart';
+import '../manual_bloc.dart';
 
 class RateControl extends StatelessWidget {
   const RateControl({super.key});
@@ -14,14 +14,14 @@ class RateControl extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = context.textStyles;
-    return BlocBuilder<HomeBloc, HomeState>(
+    return BlocBuilder<ManualBloc, ManualState>(
       buildWhen: (a, b) => a.rate != b.rate,
       builder: (ctx, state) {
         return Row(
           children: [
             IconButton(
               onPressed: () =>
-                  ctx.read<HomeBloc>().add(HomeRateChanged(state.rate - 1)),
+                  ctx.read<ManualBloc>().add(ManualRateChanged(state.rate - 1)),
               icon: PhosphorIcon(PhosphorIconsBold.minus,
                   color: colors.accent),
             ),
@@ -49,7 +49,7 @@ class RateControl extends StatelessWidget {
             ),
             IconButton(
               onPressed: () =>
-                  ctx.read<HomeBloc>().add(HomeRateChanged(state.rate + 1)),
+                  ctx.read<ManualBloc>().add(ManualRateChanged(state.rate + 1)),
               icon: PhosphorIcon(PhosphorIconsBold.plus,
                   color: colors.accent),
             ),

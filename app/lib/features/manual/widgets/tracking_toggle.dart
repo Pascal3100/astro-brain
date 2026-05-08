@@ -8,7 +8,7 @@ import '../../../theme/app_colors.dart';
 import '../../../theme/app_typography.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../widgets/hud_panel.dart';
-import '../home_bloc.dart';
+import '../manual_bloc.dart';
 
 class TrackingToggle extends StatelessWidget {
   const TrackingToggle({super.key});
@@ -49,7 +49,7 @@ class TrackingToggle extends StatelessWidget {
                   Switch(
                     value: enabled,
                     onChanged: (v) =>
-                        ctx.read<HomeBloc>().add(HomeTrackingToggled(v)),
+                        ctx.read<ManualBloc>().add(ManualTrackingToggled(v)),
                     activeThumbColor: colors.accent,
                   ),
                 ],

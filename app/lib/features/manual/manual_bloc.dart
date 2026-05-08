@@ -1,25 +1,25 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../services/api_service.dart';
-import 'home_event.dart';
-import 'home_state.dart';
+import 'manual_event.dart';
+import 'manual_state.dart';
 
-export 'home_event.dart';
-export 'home_state.dart';
+export 'manual_event.dart';
+export 'manual_state.dart';
 
-class HomeBloc extends Bloc<HomeEvent, HomeState> {
-  HomeBloc({required this.api}) : super(const HomeState()) {
-    on<HomeRateChanged>(
+class ManualBloc extends Bloc<ManualEvent, ManualState> {
+  ManualBloc({required this.api}) : super(const ManualState()) {
+    on<ManualRateChanged>(
       (e, emit) => emit(state.copyWith(rate: e.rate.clamp(1, 9))),
     );
-    on<HomeSlewPressed>(_onSlew);
-    on<HomeSlewReleased>(_onStop);
-    on<HomeTrackingToggled>(_onTracking);
+    on<ManualSlewPressed>(_onSlew);
+    on<ManualSlewReleased>(_onStop);
+    on<ManualTrackingToggled>(_onTracking);
   }
 
   final ApiService api;
 
-  Future<void> _onSlew(HomeSlewPressed e, Emitter<HomeState> emit) async {
+  Future<void> _onSlew(ManualSlewPressed e, Emitter<ManualState> emit) async {
     try {
       await api.slew(axis: e.axis, direction: e.direction, rate: state.rate);
       emit(state.copyWith(clearError: true));
@@ -28,7 +28,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
     }
   }
 
-  Future<void> _onStop(HomeSlewReleased e, Emitter<HomeState> emit) async {
+  Future<void> _onStop(ManualSlewReleased e, Emitter<ManualState> emit) async {
     try {
       await api.stop(axis: e.axis);
       emit(state.copyWith(clearError: true));
@@ -38,8 +38,8 @@ class HomeBloc extends Bloc<HomeEvent, HomeState> {
   }
 
   Future<void> _onTracking(
-    HomeTrackingToggled e,
-    Emitter<HomeState> emit,
+    ManualTrackingToggled e,
+    Emitter<ManualState> emit,
   ) async {
     try {
       await api.setTracking(e.enabled);
