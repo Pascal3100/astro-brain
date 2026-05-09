@@ -16,4 +16,14 @@ enum OverallStatus {
         'red' => OverallStatus.red,
         _ => throw FormatException('OverallStatus inconnu: $v'),
       };
+
+  /// Libellé FR affiché dans l'AppBar (sémantique, pas la couleur).
+  String get displayLabel => switch (this) {
+        OverallStatus.green => 'OK',
+        OverallStatus.blue => 'EN COURS',
+        OverallStatus.orange => 'ALERTE',
+        OverallStatus.red => 'ERREUR',
+        OverallStatus.offline => 'INACTIF',
+        OverallStatus.gray => 'INCONNU',
+      };
 }

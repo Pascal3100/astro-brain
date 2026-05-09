@@ -65,7 +65,7 @@ class AstroAppBar extends StatelessWidget {
                         size: DesignTokens.statusDotSizeLg,
                       ),
                       const SizedBox(width: DesignTokens.spaceMD),
-                      Text(overall.name.toUpperCase(), style: text.hudLabel),
+                      Text(overall.displayLabel, style: text.hudLabel),
                     ],
                   ),
                 ),
