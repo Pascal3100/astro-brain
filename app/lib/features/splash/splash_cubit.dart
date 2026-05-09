@@ -48,6 +48,7 @@ class SplashCubit extends Cubit<SplashState> {
   }
 
   void continueOffline() {
+    appBloc.add(const AppStarted());
     emit(state.copyWith(phase: SplashPhase.success));
   }
 }
