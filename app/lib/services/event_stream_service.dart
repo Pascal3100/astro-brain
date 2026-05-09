@@ -112,9 +112,18 @@ class EventStreamService {
     _sub = null;
     _client = null;
 
+    _out.addError(const _SseConnectionLost());
+
     final delay = _backoff[_retryIndex.clamp(0, _backoff.length - 1)];
     _retryIndex++;
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(delay, _connect);
   }
+}
+
+/// Signal interne propagé chaque fois que la connexion SSE échoue ou tombe.
+/// Permet aux abonnés (AppBloc) de basculer en `offline` sans coupler la
+/// politique de retry du service.
+class _SseConnectionLost implements Exception {
+  const _SseConnectionLost();
 }

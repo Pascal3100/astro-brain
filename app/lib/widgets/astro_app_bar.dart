@@ -37,6 +37,15 @@ class AstroAppBar extends StatelessWidget {
           ),
           child: Row(
             children: [
+              if (Navigator.of(context).canPop())
+                IconButton(
+                  tooltip: 'Retour',
+                  icon: PhosphorIcon(
+                    PhosphorIconsBold.caretLeft,
+                    color: colors.accent,
+                  ),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
               InkWell(
                 onTap: current == AstroScreen.system
                     ? null

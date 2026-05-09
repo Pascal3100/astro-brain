@@ -6,6 +6,7 @@ import '../../models/calibration.dart';
 import '../../models/limits.dart';
 import '../../models/overall_status.dart';
 import '../../services/api_service.dart';
+import '../../state/app_bloc/app_bloc.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/design_tokens.dart';
@@ -195,15 +196,26 @@ class _SetupScreenState extends State<SetupScreen> {
       5 => _placeholder(5, PhosphorIconsBold.arrowsClockwise, 'BACKLASH ALT'),
       6 => _placeholder(6, PhosphorIconsBold.arrowsClockwise, 'BACKLASH AZ'),
       7 => _placeholder(7, PhosphorIconsBold.arrowClockwise, 'CORDWRAP AZ'),
-      8 => SetupCard(
-        index: 8,
-        icon: PhosphorIconsBold.wifiHigh,
-        label: 'RÉSEAU',
-        sublabel: 'Override host/port app',
-        dotStatus: OverallStatus.green,
-        onTap: () => Navigator.of(
-          ctx,
-        ).push(MaterialPageRoute(builder: (_) => const NetworkScreen())),
+      8 => BlocBuilder<AppBloc, AppState>(
+        buildWhen: (a, b) => a.connection != b.connection,
+        builder: (innerCtx, state) => SetupCard(
+          index: 8,
+          icon: PhosphorIconsBold.wifiHigh,
+          label: 'RÉSEAU',
+          sublabel: switch (state.connection) {
+            ConnectionStatus.connected => 'Pi joignable',
+            ConnectionStatus.connecting => 'Connexion en cours…',
+            ConnectionStatus.offline => 'Pi injoignable',
+          },
+          dotStatus: switch (state.connection) {
+            ConnectionStatus.connected => OverallStatus.green,
+            ConnectionStatus.connecting => OverallStatus.blue,
+            ConnectionStatus.offline => OverallStatus.offline,
+          },
+          onTap: () => Navigator.of(
+            ctx,
+          ).push(MaterialPageRoute(builder: (_) => const NetworkScreen())),
+        ),
       ),
       _ => throw RangeError('index $n hors plage 1–8'),
     };
