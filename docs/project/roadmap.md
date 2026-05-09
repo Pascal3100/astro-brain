@@ -46,7 +46,6 @@ Page Setup unifiée + toutes les calibrations et configurations préalables à u
 - ✅ Calibration compass LIS3MDL (item #2 — soft-iron offsets, heading tilt-compensé via fusion ADXL co-localisé) — livré 2026-05-07 (Session 18)
 - ✅ Calibration ADXL345 tube (item #3 — zéro ALT, tube horizontal) — livré 2026-05-07 (Session 18)
 - ✅ Courses ALT min/max (alimentées par ADXL345 tube, anti-collision) — livré 2026-05-07 (Session 19)
-- 📦 Courses AZ min/max (software, persistant Pi-side)
 - 📦 Backlash compensation ALT + AZ (mount-side, **bloqué dongle CP2102**)
 - ✅ Network/IP config — livré Session 14 (carte #8 Setup)
 - ✅ À propos (versions, IP, uptime) — livré 2026-05-07 (Session 19)
@@ -65,7 +64,7 @@ Première mise en station effective, GoTo réel, catalogue d'objets brillants. H
 
 - ✅ Hub central (landing post-Splash, 4 cartes Manuel / Setup / Status / À propos) — livré 2026-05-08 (Session 20)
 - 📦 Wizard alignement 3 étoiles assisté capteurs (compass + tilt + GPS pour pré-pointage, validation auto via résiduel SVD < ~1°, fallback manuel)
-- 📦 GoTo réel (`/goto {ra_deg, dec_deg}` sur monture alignée, statut `goto_in_progress`)
+- 📦 GoTo réel (`/goto {ra_deg, dec_deg}` sur monture alignée, statut `goto_in_progress`) — path planning AZ minimisant la rotation cumulée et respectant la zone cordwrap (pas de tour complet inutile)
 - 📦 Catalogue minimal backend : Messier (110) + planètes (skyfield) + ~50–100 étoiles brillantes
 - 📦 Page Catalogue minimal (recherche/sélection + GoTo)
 

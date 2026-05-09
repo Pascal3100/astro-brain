@@ -132,6 +132,18 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 
 ---
 
+## 2026-05-09 — Retrait des courses AZ logicielles (Macro 2)
+
+**Contexte** : la roadmap Macro 2 prévoyait des "Courses AZ min/max (software, persistant Pi-side)" en miroir des courses ALT livrées Session 19. La capture des bornes AZ posait un problème de spec : aucun capteur tube ne donne la position AZ (le compass LIS3MDL est sur la base, pas sur le tube), et la valeur n'a de sens qu'avec une monture branchée — ce qui ramènerait le travail dans la dépendance dongle CP2102.
+
+**Décision** : retirer "Courses AZ logicielles" du train d'étapes Macro 2. Le cordwrap (Slice D, mount-side) couvre le besoin réel d'empêcher la torsion des câbles en azimut. La compensation côté GoTo (Macro 3) prend la responsabilité d'éviter que la monture fasse plus d'un tour sur elle-même pour atteindre une cible — path planning AZ avec recherche du plus court chemin angulaire respectant la zone cordwrap configurée.
+
+**Rationale** : (1) deux mécanismes redondants pour la même contrainte physique = surface d'erreur inutile, (2) les courses ALT existent à cause d'une butée mécanique tube/monture ; en AZ il n'y a pas de butée mécanique sur la Celestron, juste un risque de torsion câbles que le cordwrap gère nativement, (3) la responsabilité "ne pas faire trop de tours" se gère mieux dans le calcul de trajectoire GoTo (position courante AZ + cible AZ + zone cordwrap connues) que dans une borne min/max statique appliquée à l'envers.
+
+**Conséquence** : la ligne GoTo de Macro 3 dans `roadmap.md` intègre désormais explicitement la contrainte de path planning AZ minimisant la rotation cumulée.
+
+---
+
 ## 2026-04-30 — Arborescence de docs en 3 vues
 
 **Décision** : `docs/INDEX.md` référence trois vues — `technical/`, `project/`, `product/`. Chaque vue a un `README.md` index, et regroupe des docs courts et ciblés (1 sujet = 1 fichier).

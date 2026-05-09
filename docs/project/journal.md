@@ -42,6 +42,8 @@ Suite directe de Session 20 (Hub mergé). Smoke téléphone a remonté 3 frictio
 
 144/144 verts à chaque commit, `flutter analyze` clean. Smoke téléphone confirmé OK utilisateur.
 
+**Roadmap — retrait courses AZ logicielles** : décision prise en fin de session. L'item "Courses AZ min/max (software)" Macro 2 est retiré du train. Sur cette monture il n'y a pas de butée mécanique en azimut, juste un risque de torsion câbles que le cordwrap (Slice D) gère nativement. La contrainte "ne pas faire de tours inutiles" est reportée sur le path planning du GoTo Macro 3 (ligne amendée). ADR daté 2026-05-09 dans `decisions.md`.
+
 **Archive** : Sessions 15+16 (install INDI Pi + backend mount migration) déplacées vers [`journal/archive/2026-05-macro1-indi.md`](journal/archive/2026-05-macro1-indi.md) pour respecter plafond 5-6.
 
 ### Session 20 — Hub central, Macro 3 item #1 livré (2026-05-08)
