@@ -7,8 +7,8 @@ import 'widgets/dpad_control.dart';
 import 'widgets/rate_control.dart';
 import 'widgets/tracking_toggle.dart';
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class ManualScreen extends StatelessWidget {
+  const ManualScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +27,7 @@ class HomeScreen extends StatelessWidget {
             padding: const EdgeInsets.all(DesignTokens.spaceLG),
             child: Column(
               children: [
-                const AstroAppBar(current: AstroScreen.home),
+                const AstroAppBar(current: AstroScreen.manual),
                 const SizedBox(height: DesignTokens.space2XL),
                 const Expanded(
                   child: Center(

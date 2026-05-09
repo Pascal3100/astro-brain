@@ -1,6 +1,6 @@
-import 'package:astro_brain/features/setup/about/about_bloc.dart';
-import 'package:astro_brain/features/setup/about/about_event.dart';
-import 'package:astro_brain/features/setup/about/about_state.dart';
+import 'package:astro_brain/features/about/about_bloc.dart';
+import 'package:astro_brain/features/about/about_event.dart';
+import 'package:astro_brain/features/about/about_state.dart';
 import 'package:astro_brain/services/api_service.dart';
 import 'package:astro_brain/services/pi_host.dart';
 import 'package:bloc_test/bloc_test.dart';

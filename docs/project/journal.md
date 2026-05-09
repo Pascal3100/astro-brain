@@ -25,6 +25,31 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 
 ## Session en cours
 
+### Session 20 — Hub central, Macro 3 item #1 livré (2026-05-08)
+
+Première étape de la Macro 3. Mode `superpowers:subagent-driven-development` (implementer + spec reviewer + code-reviewer par task). Branche `feat/macro3-hub-central` partie de `de454e4`.
+
+**Décision design** : Hub évolutif (pas anticipateur). Le Hub n'affiche que les features vivantes ; pas de cartes "Coming soon". Chaque feature livrée ajoute sa carte au moment d'arriver. Stratégie validée en brainstorm contre une variante "anticipative" qui aurait pré-affiché Wizard / GoTo / Catalogue grisés.
+
+**Refactors préliminaires** (Tasks 1-4 — commits `826b586` → `22b45b9`)
+
+- Enum `AstroScreen` étendu : ajout `hub`, `manual` (transitionnel), puis `about`. Suppression `home`. Ordre final : `hub, manual, system, setup, about`.
+- `features/home/` → `features/manual/` (rename complet : `HomeScreen` → `ManualScreen`, `HomeBloc` → `ManualBloc`, events/states/widgets).
+- `features/setup/about/` → `features/about/` : About sort de Setup, devient feature racine accessible directement depuis le Hub. Setup passe de 9 à 8 cartes.
+- Tests adaptés à chaque renommage. 31 → 143 verts à chaque étape, `flutter analyze` clean.
+
+**Task 5 — `HubCard`** (commit `bfe759b`) — TDD 3 tests (rendu, tap, primary chevron). Hero icon HugeIcons (28 px) + label JetBrains Mono + hint Inter + chevron Phosphor. Variant `primary` : gradient accent + glow. **Bug plan corrigé en cours d'exécution** : `hugeicons 1.1.6` expose ses icônes comme `static const List<List<dynamic>>` rendues via `HugeIcon(icon: …)`, **pas comme `IconData`**. Plan amendé inline (Tasks 5 et 6) ; tests adaptés à `find.byWidgetPredicate` au lieu de `find.byIcon`.
+
+**Task 6 — `HubScreen`** (commit `4c0b142`) — TDD 7 tests (4 cartes en ordre, primary, header, 4 navigations). `StatelessWidget`, `ListView.separated` de 4 `HubCard`, AstroAppBar(current: hub), header `// ASTRO-BRAIN` + question `Que fait-on ce soir ?`. Adaptations test-side : ajout `BlocProvider<ManualBloc>` au wrap (ManualScreen le réclame via context), remplacement `pumpAndSettle()` par `pump() + pump(400ms)` dans les tests de navigation (les destinations Setup/About ont des Futures async qui ne settlent jamais sous test).
+
+**Code review feedback** (commit `dfcdc1b`) : remplacement d'un `TextStyle(fontSize: 18, …)` inline pour le sous-titre par `Theme.of(context).textTheme.titleMedium?.copyWith(...)` — laisse le design system contrôler la taille et la famille.
+
+**Task 7 — wire root** (commit `72be076`) — `app.dart::_RootRouter.build` retourne `const HubScreen()` au lieu de `const ManualScreen()`. Splash → Hub par défaut.
+
+**Dépendance ajoutée en parenthèse** : `hugeicons: ^1.1.6` pour fournir le vocabulaire astro (telescope, satellite, radar, orbit, constellation…). Convention double set documentée dans `design-system.md` : Phosphor reste pour l'UI utilitaire (chevrons, gear, info), HugeIcons exclusivement pour les hero icons domaine (cartes Hub, splash, headers de feature).
+
+**Validation Android USB** : à faire — pas exécutée par les subagents (validation visuelle reportée à l'utilisateur). Tests automatisés OK : 143/143 verts, `flutter analyze` clean.
+
 ### Session 19 — Macro 2 Setup, Slices B + C livrés (2026-05-07)
 
 Enchaîne directement après Session 18 (Slice A mergé + Pi mis à jour). Mode `superpowers:subagent-driven-development` (implementer + spec reviewer + code-reviewer par task). Branche `feat/v02-setup-limits` partie de `378dc93`.

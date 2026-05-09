@@ -334,7 +334,12 @@ void main() {
 
     expect(find.text('SETUP'), findsOneWidget);
     expect(find.text('Calibration · niveau · réseau'), findsOneWidget);
-    expect(find.byIcon(HugeIcons.strokeRoundedTelescope01), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is HugeIcon && identical(w.icon, HugeIcons.strokeRoundedTelescope01),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('HubCard onTap is invoked', (tester) async {
@@ -406,7 +411,7 @@ class HubCard extends StatelessWidget {
     this.primary = false,
   });
 
-  final IconData heroIcon;
+  final List<List<dynamic>> heroIcon;
   final String label;
   final String hint;
   final VoidCallback onTap;
@@ -467,10 +472,12 @@ class HubCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(DesignTokens.radiusLG),
                   boxShadow: iconShadow,
                 ),
-                child: Icon(
-                  heroIcon,
-                  color: colors.accent,
-                  size: 28,
+                child: Center(
+                  child: HugeIcon(
+                    icon: heroIcon,
+                    color: colors.accent,
+                    size: 28,
+                  ),
                 ),
               ),
               const SizedBox(width: DesignTokens.spaceLG),
@@ -884,7 +891,7 @@ class _HubEntry {
     required this.builder,
     this.primary = false,
   });
-  final IconData heroIcon;
+  final List<List<dynamic>> heroIcon;
   final String label;
   final String hint;
   final WidgetBuilder builder;

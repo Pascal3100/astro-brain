@@ -1,4 +1,4 @@
-import 'package:astro_brain/features/home/home_bloc.dart';
+import 'package:astro_brain/features/manual/manual_bloc.dart';
 import 'package:astro_brain/services/api_service.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,31 +25,31 @@ void main() {
     when(() => api.setTracking(any())).thenAnswer((_) async {});
   });
 
-  blocTest<HomeBloc, HomeState>(
-    'HomeRateChanged clampé entre 1 et 9',
-    build: () => HomeBloc(api: api),
+  blocTest<ManualBloc, ManualState>(
+    'ManualRateChanged clampé entre 1 et 9',
+    build: () => ManualBloc(api: api),
     act: (b) => b
-      ..add(const HomeRateChanged(12))
-      ..add(const HomeRateChanged(0)),
+      ..add(const ManualRateChanged(12))
+      ..add(const ManualRateChanged(0)),
     expect: () => [
-      const HomeState(rate: 9),
-      const HomeState(rate: 1),
+      const ManualState(rate: 9),
+      const ManualState(rate: 1),
     ],
   );
 
-  blocTest<HomeBloc, HomeState>(
-    'HomeSlewPressed appelle api.slew avec le rate courant',
-    build: () => HomeBloc(api: api),
+  blocTest<ManualBloc, ManualState>(
+    'ManualSlewPressed appelle api.slew avec le rate courant',
+    build: () => ManualBloc(api: api),
     act: (b) => b
-      ..add(const HomeRateChanged(7))
-      ..add(const HomeSlewPressed(axis: Axis.alt, direction: Direction.plus)),
+      ..add(const ManualRateChanged(7))
+      ..add(const ManualSlewPressed(axis: Axis.alt, direction: Direction.plus)),
     verify: (_) {
       verify(() => api.slew(
           axis: Axis.alt, direction: Direction.plus, rate: 7)).called(1);
     },
   );
 
-  blocTest<HomeBloc, HomeState>(
+  blocTest<ManualBloc, ManualState>(
     'échec api.slew → lastError rempli',
     build: () {
       when(() => api.slew(
@@ -57,12 +57,12 @@ void main() {
               direction: any(named: 'direction'),
               rate: any(named: 'rate')))
           .thenThrow(ApiException('boom'));
-      return HomeBloc(api: api);
+      return ManualBloc(api: api);
     },
     act: (b) => b
-        .add(const HomeSlewPressed(axis: Axis.alt, direction: Direction.plus)),
+        .add(const ManualSlewPressed(axis: Axis.alt, direction: Direction.plus)),
     expect: () => [
-      isA<HomeState>().having((s) => s.lastError, 'lastError', contains('boom')),
+      isA<ManualState>().having((s) => s.lastError, 'lastError', contains('boom')),
     ],
   );
 }

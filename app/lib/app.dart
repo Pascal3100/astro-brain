@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'features/home/home_bloc.dart';
-import 'features/home/home_screen.dart';
+import 'features/hub/hub_screen.dart';
+import 'features/manual/manual_bloc.dart';
 import 'features/splash/splash_cubit.dart';
 import 'features/splash/splash_screen.dart';
 import 'services/api_service.dart';
@@ -43,8 +43,8 @@ class AstroBrainApp extends StatelessWidget {
               eventStream: ctx.read<EventStreamService>(),
             ),
           ),
-          BlocProvider<HomeBloc>(
-            create: (ctx) => HomeBloc(api: ctx.read<ApiService>()),
+          BlocProvider<ManualBloc>(
+            create: (ctx) => ManualBloc(api: ctx.read<ApiService>()),
           ),
         ],
         child: BlocBuilder<ThemeCubit, AstroThemeMode>(
@@ -85,6 +85,6 @@ class _RootRouterState extends State<_RootRouter> {
         child: SplashScreen(onReady: () => setState(() => _ready = true)),
       );
     }
-    return const HomeScreen();
+    return const HubScreen();
   }
 }
