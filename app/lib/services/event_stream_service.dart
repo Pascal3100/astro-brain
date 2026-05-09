@@ -41,6 +41,10 @@ class EventStreamService {
     Duration(seconds: 10),
   ];
 
+  /// Délai max pour établir la connexion initiale (handshake HTTP).
+  /// Au-delà, on considère le Pi injoignable et on déclenche un reconnect.
+  static const Duration _connectTimeout = Duration(seconds: 5);
+
   Stream<SystemState> get stream => _out.stream;
 
   /// Démarre la connexion. Idempotent : un appel pendant qu'une connexion
@@ -74,7 +78,7 @@ class EventStreamService {
       ..headers['accept'] = 'text/event-stream';
     final parser = SseParser(_onEvent);
 
-    client.send(req).then((resp) {
+    client.send(req).timeout(_connectTimeout).then((resp) {
       if (resp.statusCode != 200) {
         _scheduleReconnect();
         return;
