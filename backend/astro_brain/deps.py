@@ -20,6 +20,7 @@ from fastapi import Request
 
 from astro_brain.bus import StateBus
 from astro_brain.services.interfaces import (
+    AlignmentService,
     CalibrationService,
     GpsService,
     MountService,
@@ -83,3 +84,7 @@ def get_lazy_adxl_tube(request: Request) -> Any:
 
 def get_lazy_lis3mdl(request: Request) -> Any:
     return request.app.state.lazy_lis3mdl
+
+
+def get_alignment_service(request: Request) -> AlignmentService:
+    return request.app.state.alignment
