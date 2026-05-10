@@ -33,6 +33,7 @@ from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.about import router as about_router
 from astro_brain.routes.alignment import router as alignment_router
 from astro_brain.routes.calibration import router as calibration_router
+from astro_brain.subsystems import SubsystemState
 from astro_brain.routes.commands import router as commands_router
 from astro_brain.routes.events import router as events_router
 from astro_brain.routes.limits import router as limits_router
@@ -198,6 +199,10 @@ def build_app(
             repo_save=alignment_repo.save,
             db=db_conn,
             now_utc=lambda: datetime.now(UTC),
+        )
+        bus.publish(
+            "alignment",
+            SubsystemState(state="idle", details={}, since=datetime.now(UTC)),
         )
 
         await services["mount"].start()

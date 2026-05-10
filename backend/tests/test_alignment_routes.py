@@ -7,7 +7,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from astro_brain import deps
 from astro_brain.models.alignment import (
     AlignmentModel,
     AlignmentSession,
@@ -30,17 +29,21 @@ def _stub_session() -> AlignmentSession:
     )
 
 
-def _client_with_service(service) -> TestClient:
+def _client_with_service(service) -> tuple[TestClient, "StateBus"]:
+    from astro_brain.bus import StateBus
+
     app = FastAPI()
     app.include_router(router)
     app.state.alignment = service
-    return TestClient(app)
+    bus = StateBus()
+    app.state.bus = bus
+    return TestClient(app), bus
 
 
 def test_get_session_returns_null_when_idle() -> None:
     svc = MagicMock()
     svc.session = MagicMock(return_value=None)
-    client = _client_with_service(svc)
+    client, _ = _client_with_service(svc)
     r = client.get("/align/session")
     assert r.status_code == 200
     assert r.json() == {"session": None}
@@ -49,7 +52,8 @@ def test_get_session_returns_null_when_idle() -> None:
 def test_post_start_returns_candidates() -> None:
     svc = MagicMock()
     svc.start = AsyncMock(return_value=_stub_session())
-    client = _client_with_service(svc)
+    svc.session = MagicMock(return_value=_stub_session())
+    client, _ = _client_with_service(svc)
     r = client.post("/align/start")
     assert r.status_code == 200
     body = r.json()
@@ -60,7 +64,7 @@ def test_post_start_returns_candidates() -> None:
 def test_post_record_idx_mismatch_returns_409() -> None:
     svc = MagicMock()
     svc.record = AsyncMock(side_effect=ConflictError("idx mismatch"))
-    client = _client_with_service(svc)
+    client, _ = _client_with_service(svc)
     r = client.post("/align/record", json={"idx": 5})
     assert r.status_code == 409
 
@@ -68,7 +72,7 @@ def test_post_record_idx_mismatch_returns_409() -> None:
 def test_post_finalize_before_3_returns_409() -> None:
     svc = MagicMock()
     svc.finalize = AsyncMock(side_effect=ConflictError("need 3 stars"))
-    client = _client_with_service(svc)
+    client, _ = _client_with_service(svc)
     r = client.post("/align/finalize")
     assert r.status_code == 409
 
@@ -87,7 +91,8 @@ def test_post_finalize_returns_model() -> None:
     )
     svc = MagicMock()
     svc.finalize = AsyncMock(return_value=model)
-    client = _client_with_service(svc)
+    svc.session = MagicMock(return_value=None)
+    client, _ = _client_with_service(svc)
     r = client.post("/align/finalize")
     assert r.status_code == 200
     assert r.json()["rms_arcmin"] == pytest.approx(4.2)
@@ -96,7 +101,8 @@ def test_post_finalize_returns_model() -> None:
 def test_post_swap_returns_session() -> None:
     svc = MagicMock()
     svc.swap = AsyncMock(return_value=_stub_session())
-    client = _client_with_service(svc)
+    svc.session = MagicMock(return_value=_stub_session())
+    client, _ = _client_with_service(svc)
     star = {
         "id": "y",
         "name": "Y",
@@ -116,7 +122,8 @@ def test_post_swap_returns_session() -> None:
 def test_post_restart_star_returns_session() -> None:
     svc = MagicMock()
     svc.restart_star = AsyncMock(return_value=_stub_session())
-    client = _client_with_service(svc)
+    svc.session = MagicMock(return_value=_stub_session())
+    client, _ = _client_with_service(svc)
     r = client.post("/align/restart_star", json={"idx": 1})
     assert r.status_code == 200
     svc.restart_star.assert_awaited_once_with(1)
@@ -125,7 +132,35 @@ def test_post_restart_star_returns_session() -> None:
 def test_delete_session_returns_204() -> None:
     svc = MagicMock()
     svc.cancel = AsyncMock()
-    client = _client_with_service(svc)
+    svc.session = MagicMock(return_value=None)
+    client, _ = _client_with_service(svc)
     r = client.delete("/align/session")
     assert r.status_code == 204
     svc.cancel.assert_awaited_once()
+
+
+def test_post_start_publishes_active_subsystem_state() -> None:
+    svc = MagicMock()
+    svc.start = AsyncMock(return_value=_stub_session())
+    svc.session = MagicMock(return_value=_stub_session())
+    client, bus = _client_with_service(svc)
+    r = client.post("/align/start")
+    assert r.status_code == 200
+    full = bus.get_full_state()
+    align = full.subsystems["alignment"]
+    assert align.state == "active"
+    assert align.details["session_id"] == "s1"
+    assert align.details["current_idx"] == 0
+    assert align.details["recorded_count"] == 0
+    assert len(align.details["candidates"]) == 3
+
+
+def test_delete_session_publishes_idle_subsystem_state() -> None:
+    svc = MagicMock()
+    svc.cancel = AsyncMock()
+    svc.session = MagicMock(return_value=None)
+    client, bus = _client_with_service(svc)
+    r = client.delete("/align/session")
+    assert r.status_code == 204
+    full = bus.get_full_state()
+    assert full.subsystems["alignment"].state == "idle"
