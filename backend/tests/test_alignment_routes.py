@@ -93,6 +93,35 @@ def test_post_finalize_returns_model() -> None:
     assert r.json()["rms_arcmin"] == pytest.approx(4.2)
 
 
+def test_post_swap_returns_session() -> None:
+    svc = MagicMock()
+    svc.swap = AsyncMock(return_value=_stub_session())
+    client = _client_with_service(svc)
+    star = {
+        "id": "y",
+        "name": "Y",
+        "bayer": "-",
+        "ra_deg": 50.0,
+        "dec_deg": 20.0,
+        "mag": 1.0,
+    }
+    r = client.post("/align/swap/2", json={"star": star})
+    assert r.status_code == 200
+    svc.swap.assert_awaited_once()
+    args = svc.swap.await_args.args
+    assert args[0] == 2
+    assert args[1].id == "y"
+
+
+def test_post_restart_star_returns_session() -> None:
+    svc = MagicMock()
+    svc.restart_star = AsyncMock(return_value=_stub_session())
+    client = _client_with_service(svc)
+    r = client.post("/align/restart_star", json={"idx": 1})
+    assert r.status_code == 200
+    svc.restart_star.assert_awaited_once_with(1)
+
+
 def test_delete_session_returns_204() -> None:
     svc = MagicMock()
     svc.cancel = AsyncMock()
