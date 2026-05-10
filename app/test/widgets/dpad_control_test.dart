@@ -20,7 +20,7 @@ void main() {
         home: Scaffold(
           body: DPadControl(
             onPress: (d) => lastPress = d,
-            onRelease: () => releases++,
+            onRelease: (_) => releases++,
           ),
         ),
       ),
@@ -40,7 +40,7 @@ void main() {
       MaterialApp(
         theme: _testTheme(),
         home: Scaffold(
-          body: DPadControl(onPress: (_) {}, onRelease: () {}),
+          body: DPadControl(onPress: (_) {}, onRelease: (_) {}),
         ),
       ),
     );
@@ -48,5 +48,61 @@ void main() {
     expect(find.byKey(const Key('dpad-down')), findsOneWidget);
     expect(find.byKey(const Key('dpad-left')), findsOneWidget);
     expect(find.byKey(const Key('dpad-right')), findsOneWidget);
+  });
+
+  testWidgets('DPadControl emits release with same direction as press',
+      (tester) async {
+    DPadDirection? lastRelease;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: _testTheme(),
+        home: Scaffold(
+          body: DPadControl(
+            onPress: (_) {},
+            onRelease: (d) => lastRelease = d,
+          ),
+        ),
+      ),
+    );
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const Key('dpad-left'))),
+    );
+    await gesture.up();
+    await tester.pump();
+    expect(lastRelease, DPadDirection.left);
+  });
+
+  testWidgets('DPadControl emits each of the four directions on its arrow',
+      (tester) async {
+    final pressed = <DPadDirection>[];
+    // Constrain to 300×300 so all three grid rows fit within the 800×600
+    // default test surface (dpad-down row would otherwise be clipped at y≈670).
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: _testTheme(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 300,
+            height: 300,
+            child: DPadControl(
+              onPress: pressed.add,
+              onRelease: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    for (final key in ['dpad-up', 'dpad-down', 'dpad-left', 'dpad-right']) {
+      final g =
+          await tester.startGesture(tester.getCenter(find.byKey(Key(key))));
+      await g.up();
+      await tester.pump();
+    }
+    expect(pressed, [
+      DPadDirection.up,
+      DPadDirection.down,
+      DPadDirection.left,
+      DPadDirection.right,
+    ]);
   });
 }

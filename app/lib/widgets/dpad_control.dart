@@ -20,7 +20,6 @@ class DPadControl extends StatelessWidget {
     super.key,
     required this.onPress,
     required this.onRelease,
-    this.cellSize,
     this.iconSize,
     this.spacing = DesignTokens.spaceMD,
   });
@@ -28,11 +27,10 @@ class DPadControl extends StatelessWidget {
   /// Appelé dès le premier contact sur un bouton avec la direction pressée.
   final ValueChanged<DPadDirection> onPress;
 
-  /// Appelé quand le doigt quitte le bouton (up ou cancel).
-  final VoidCallback onRelease;
-
-  /// Taille fixe de chaque cellule de la grille 3×3 (optionnel).
-  final double? cellSize;
+  /// Appelé quand le doigt quitte le bouton (up ou cancel), avec la direction
+  /// relâchée. Permet au caller de mapper chaque release sur le bon axe sans
+  /// état supplémentaire.
+  final ValueChanged<DPadDirection> onRelease;
 
   /// Taille de l'icône dans chaque bouton (optionnel — défaut : iconSizeXL).
   final double? iconSize;
@@ -109,7 +107,7 @@ class _Btn extends StatefulWidget {
   final DPadDirection direction;
   final double iconSize;
   final ValueChanged<DPadDirection> onPress;
-  final VoidCallback onRelease;
+  final ValueChanged<DPadDirection> onRelease;
 
   @override
   State<_Btn> createState() => _BtnState();
@@ -126,13 +124,13 @@ class _BtnState extends State<_Btn> {
   void _handlePointerUp(PointerUpEvent event) {
     if (!_pressed) return;
     setState(() => _pressed = false);
-    widget.onRelease();
+    widget.onRelease(widget.direction);
   }
 
   void _handlePointerCancel(PointerCancelEvent event) {
     if (!_pressed) return;
     setState(() => _pressed = false);
-    widget.onRelease();
+    widget.onRelease(widget.direction);
   }
 
   @override

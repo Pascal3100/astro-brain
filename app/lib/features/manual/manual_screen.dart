@@ -55,25 +55,17 @@ class ManualScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Wrapper stateful : gère la connexion + le mappage DPadDirection → Axis
+// Wrapper stateless : gère la connexion + le mappage DPadDirection → Axis
 // ---------------------------------------------------------------------------
 
 /// Wraps [DPadControl] pour l'écran manuel :
 /// - désactive visuellement le D-Pad quand l'app est hors ligne ;
 /// - mappe [DPadDirection] → [Axis] / [Direction] et dispatche vers [ManualBloc].
-///
-/// L'état interne [_lastAxis] mémorise l'axe pressé afin que [onRelease]
-/// — qui ne transporte aucune direction — puisse émettre [ManualSlewReleased]
-/// sur le bon axe (une seule requête stop, pas deux).
-class _DPadHost extends StatefulWidget {
+class _DPadHost extends StatelessWidget {
   const _DPadHost();
 
-  @override
-  State<_DPadHost> createState() => _DPadHostState();
-}
-
-class _DPadHostState extends State<_DPadHost> {
-  Axis? _lastAxis;
+  static Axis _axisOf(DPadDirection d) =>
+      d == DPadDirection.up || d == DPadDirection.down ? Axis.alt : Axis.az;
 
   static (Axis, Direction) _map(DPadDirection d) => switch (d) {
         DPadDirection.up => (Axis.alt, Direction.plus),
@@ -82,34 +74,23 @@ class _DPadHostState extends State<_DPadHost> {
         DPadDirection.right => (Axis.az, Direction.plus),
       };
 
-  void _onPress(DPadDirection d) {
-    final (axis, direction) = _map(d);
-    _lastAxis = axis;
-    context
-        .read<ManualBloc>()
-        .add(ManualSlewPressed(axis: axis, direction: direction));
-  }
-
-  void _onRelease() {
-    final axis = _lastAxis;
-    _lastAxis = null;
-    if (axis == null) return;
-    context.read<ManualBloc>().add(ManualSlewReleased(axis));
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AppBloc, AppState>(
       buildWhen: (a, b) => a.connection != b.connection,
       builder: (ctx, app) {
+        final bloc = ctx.read<ManualBloc>();
         final disabled = app.connection != ConnectionStatus.connected;
         return Opacity(
           opacity: disabled ? 0.35 : 1,
           child: IgnorePointer(
             ignoring: disabled,
             child: DPadControl(
-              onPress: _onPress,
-              onRelease: _onRelease,
+              onPress: (d) {
+                final (axis, direction) = _map(d);
+                bloc.add(ManualSlewPressed(axis: axis, direction: direction));
+              },
+              onRelease: (d) => bloc.add(ManualSlewReleased(_axisOf(d))),
             ),
           ),
         );
