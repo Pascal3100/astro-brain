@@ -27,9 +27,11 @@ from fastapi import FastAPI
 
 from astro_brain.bus import StateBus
 from astro_brain.orchestrator import Orchestrator
+from astro_brain.repository import alignment_repo
 from astro_brain.repository.state_db import db_path as _default_db_path
 from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.about import router as about_router
+from astro_brain.routes.alignment import router as alignment_router
 from astro_brain.routes.calibration import router as calibration_router
 from astro_brain.routes.commands import router as commands_router
 from astro_brain.routes.events import router as events_router
@@ -37,6 +39,13 @@ from astro_brain.routes.limits import router as limits_router
 from astro_brain.routes.sensors import _LazySensor
 from astro_brain.routes.sensors import router as sensors_router
 from astro_brain.routes.state import router as state_router
+from astro_brain.services._alignment_catalog import (
+    MountLimits,
+    Observer,
+    select_candidates,
+    sky_az_alt_from_ra_dec,
+)
+from astro_brain.services.alignment import AlignmentServiceImpl
 from astro_brain.services.calibration import CalibrationServiceImpl
 from astro_brain.services.fakes import (
     FakeGps,
@@ -46,6 +55,36 @@ from astro_brain.services.fakes import (
     FakeTracking,
     make_fake_calibration_adapters,
 )
+
+
+class _AlignmentSensorsBridge:
+    """Adapts the StateBus + observer position to the duck-typed `sensors`
+    interface AlignmentServiceImpl expects (`gps_fix`, `sky_az_alt_for`).
+    """
+
+    _DEFAULT_LAT = 48.8566
+    _DEFAULT_LON = 2.3522
+
+    def __init__(self, bus: StateBus) -> None:
+        self._bus = bus
+
+    def gps_fix(self) -> tuple[float, float] | None:
+        gps = self._bus.get_full_state().subsystems.get("gps")
+        if gps is None or gps.state != "fix_3d":
+            return None
+        details = gps.details or {}
+        lat = details.get("lat")
+        lon = details.get("lon")
+        if lat is None or lon is None:
+            return None
+        return (float(lat), float(lon))
+
+    def sky_az_alt_for(self, star: Any) -> tuple[float, float]:
+        gps = self.gps_fix() or (self._DEFAULT_LAT, self._DEFAULT_LON)
+        observer = Observer(lat_deg=gps[0], lon_deg=gps[1])
+        return sky_az_alt_from_ra_dec(
+            star.ra_deg, star.dec_deg, observer, datetime.now(UTC)
+        )
 
 
 def _select_services(bus: StateBus, *, use_hardware: bool) -> dict[str, Any]:
@@ -143,6 +182,26 @@ def build_app(
         _app.state.lazy_adxl_tube = _LazySensor(services["adxl_tube"])
         _app.state.lazy_lis3mdl = _LazySensor(services["lis3mdl"])
 
+        sensors_bridge = _AlignmentSensorsBridge(bus)
+
+        def _candidates_provider() -> list[Any]:
+            gps = sensors_bridge.gps_fix() or (
+                _AlignmentSensorsBridge._DEFAULT_LAT,
+                _AlignmentSensorsBridge._DEFAULT_LON,
+            )
+            obs = Observer(lat_deg=gps[0], lon_deg=gps[1])
+            limits = MountLimits(alt_min=10.0, alt_max=85.0, az_min=0.0, az_max=360.0)
+            return select_candidates(obs, datetime.now(UTC), limits, exclude_ids=set())
+
+        _app.state.alignment = AlignmentServiceImpl(
+            select_candidates=_candidates_provider,
+            mount=services["mount"],
+            sensors=sensors_bridge,
+            repo_save=alignment_repo.save,
+            db=db_conn,
+            now_utc=lambda: datetime.now(UTC),
+        )
+
         await services["mount"].start()
         await services["gps"].start()
         await services["network"].start()
@@ -178,6 +237,7 @@ def build_app(
     app.include_router(calibration_router)
     app.include_router(sensors_router)
     app.include_router(limits_router)
+    app.include_router(alignment_router)
     return app
 
 

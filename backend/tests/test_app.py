@@ -55,3 +55,12 @@ async def test_app_initializes_db() -> None:
         await cursor.close()
         assert row is not None
         assert row[0] >= 2
+
+
+@pytest.mark.asyncio
+async def test_app_wires_alignment_service() -> None:
+    """The lifespan installs an AlignmentService idle on app.state."""
+    app = build_app(use_hardware=False, db_path_override=":memory:")
+    async with app.router.lifespan_context(app):
+        assert app.state.alignment is not None
+        assert app.state.alignment.session() is None
