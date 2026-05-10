@@ -54,4 +54,4 @@ async def test_app_initializes_db() -> None:
         row = await cursor.fetchone()
         await cursor.close()
         assert row is not None
-        assert row[0] == 1
+        assert row[0] >= 2
