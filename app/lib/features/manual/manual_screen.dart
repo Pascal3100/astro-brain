@@ -8,7 +8,7 @@ import '../../theme/design_tokens.dart';
 import '../../widgets/astro_app_bar.dart';
 import '../../widgets/dpad_control.dart';
 import 'manual_bloc.dart';
-import 'widgets/rate_control.dart';
+import '../../widgets/rate_control.dart';
 import 'widgets/tracking_toggle.dart';
 
 class ManualScreen extends StatelessWidget {
@@ -42,7 +42,14 @@ class ManualScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: DesignTokens.spaceXL),
-                const RateControl(),
+                BlocBuilder<ManualBloc, ManualState>(
+                  buildWhen: (a, b) => a.rate != b.rate,
+                  builder: (ctx, state) => RateControl(
+                    value: state.rate,
+                    onChanged: (v) =>
+                        ctx.read<ManualBloc>().add(ManualRateChanged(v)),
+                  ),
+                ),
                 const SizedBox(height: DesignTokens.spaceXL),
                 const TrackingToggle(),
               ],
