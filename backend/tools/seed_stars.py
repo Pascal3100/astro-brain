@@ -48,28 +48,55 @@ def _parse_float(token: str) -> float | None:
         return None
 
 
-def parse_csn(text: str) -> list[StarRow]:
-    """Parse the IAU CSN text format into ``StarRow`` records.
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
-    The file is pipe-separated in this codebase's fixtures, with comment lines
-    starting with ``#``. Real CSN data is fixed-width — adjust here if the
-    upstream format ever differs from the fixture used in tests.
+
+def parse_csn(text: str) -> list[StarRow]:
+    """Parse the IAU CSN whitespace-separated fixed-width format into ``StarRow`` records.
+
+    The real IAU CSN file uses whitespace-separated columns (not pipe-separated).
+    Parsing is anchored on the ISO date token (column 15, regex ``YYYY-MM-DD``),
+    then fields are read by counting backwards from that anchor:
+
+    - ``date_idx - 1``  → Dec (deg, float)
+    - ``date_idx - 2``  → RA (deg, float)
+    - ``date_idx - 3``  → HD catalogue number (int or ``_``)
+    - ``date_idx - 4``  → HIP catalogue number (int or ``_``)
+    - ``date_idx - 5``  → photometric band (single letter, e.g. ``V``)
+    - ``date_idx - 6``  → apparent magnitude (float)
+    - ``date_idx - 7``  → WDS_J identifier (or ``_``)
+    - ``date_idx - 8``  → component letter (e.g. ``A``, ``Aa``, or ``_``)
+    - ``date_idx - 9``  → IAU constellation abbreviation (3 letters)
+    - ``date_idx - 10`` → Bayer Greek letter (unicode) or ``_``
+    - ``date_idx - 11`` → Bayer letter code or ``_``
+    - ``tokens[2 .. date_idx - 11]`` → designation (joined with space)
+    - ``tokens[0]`` → star name (ASCII)
+    - ``tokens[1]`` → star name with diacritics (ignored)
+
+    Lines starting with ``#``, ``$``, or consisting only of whitespace are
+    skipped.  Lines whose date token index is ``< 13`` (too few fields) are
+    also skipped silently.
     """
     rows: list[StarRow] = []
     for raw_line in text.splitlines():
         line = raw_line.strip()
-        if not line or line.startswith("#"):
+        if not line or line.startswith("#") or line.startswith("$"):
             continue
-        parts = [p.strip() for p in line.split("|")]
-        if len(parts) < 9:
+        tokens = line.split()
+        date_idx = next(
+            (i for i, t in enumerate(tokens) if _DATE_RE.match(t)), None
+        )
+        if date_idx is None or date_idx < 13:
             continue
-        name = parts[0]
-        designation = parts[1]
-        constellation = parts[4]
-        mag = _parse_float(parts[6])
-        ra = _parse_float(parts[7])
-        dec = _parse_float(parts[8])
-        if mag is None or ra is None or dec is None or not name:
+        name = tokens[0]
+        if not name:
+            continue
+        designation = " ".join(tokens[2 : date_idx - 11]).strip()
+        constellation = tokens[date_idx - 9]
+        mag = _parse_float(tokens[date_idx - 6])
+        ra = _parse_float(tokens[date_idx - 2])
+        dec = _parse_float(tokens[date_idx - 1])
+        if mag is None or ra is None or dec is None:
             continue
         rows.append(
             StarRow(

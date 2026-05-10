@@ -1,8 +1,8 @@
-# IAU Catalog of Star Names (CSN) — fixture pour tests offline
-# Format approximatif: Name | Designation | ID | Bayer | Const | WDS | Vmag | RA(deg) | Dec(deg) | Date | Notes
-#Name      |Designation|ID  |Bayer |Const|WDS_J         |Vmag |RA(J2000)|Dec(J2000)|Date     |Notes
-Sirius     |alf CMa A  |HR2491|alf  |CMa  |J06451-1643AP |-1.46|101.28715|-16.71612 |2016-06-30|approved
-Vega       |alf Lyr    |HR7001|alf  |Lyr  |              | 0.03|279.23473| 38.78369 |2016-06-30|approved
-Polaris    |alf UMi Aa |HR424 |alf  |UMi  |J02319+8915Aa |1.98 | 37.95456| 89.26411 |2016-06-30|approved
-Betelgeuse |alf Ori    |HR2061|alf  |Ori  |              |0.42 | 88.79294|  7.40706 |2016-06-30|approved
-Faintstar  |xxx Xxx    |HR9999|xxx  |Xxx  |              | 4.50|123.4    | 45.6     |2016-06-30|approved
+# IAU CSN excerpt — fixture for offline tests (real fixed-width format).
+#(1)              (2)               (3)          (4)   (5)   (6) (7)  (8)         (9)  (10) (11)   (12) (13)       (14)       (15)       (16)
+#Name/ASCII       Name/Diacritics   Designation  ID    ID    Con #    WDS_J       mag  bnd  HIP     HD  RA(J2000)  Dec(J2000) Date       Notes
+Sirius            Sirius            HR 2491      alf   α     CMa A    06451-1643 -1.45  V  32349  48915 101.287155 -16.716116 2016-06-30
+Vega              Vega              HR 7001      alf   α     Lyr _    18369+3846  0.03  V  91262 172167 279.234735  38.783689 2016-06-30
+Polaris           Polaris           HR 424       alf   α     UMi Aa   02318+8916  2.13  V  11767   8890  37.954561  89.264109 2016-06-30
+Betelgeuse        Betelgeuse        HR 2061      alf   α     Ori Aa   05552+0724  0.45  V  27989  39801  88.792939   7.407064 2016-06-30
+Faintstar         Faintstar         HR 9999      xxx   χ     Xxx _    _           4.50  V      _      _ 123.400000  45.600000 2016-06-30

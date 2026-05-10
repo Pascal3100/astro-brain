@@ -21,9 +21,9 @@ def test_parse_csn_extracts_named_stars() -> None:
     by_name = {r.name: r for r in rows}
     assert "Sirius" in by_name
     assert "Vega" in by_name
-    assert by_name["Sirius"].mag == pytest.approx(-1.46)
-    assert by_name["Sirius"].ra_deg == pytest.approx(101.28715)
-    assert by_name["Sirius"].dec_deg == pytest.approx(-16.71612)
+    assert by_name["Sirius"].mag == pytest.approx(-1.45)
+    assert by_name["Sirius"].ra_deg == pytest.approx(101.287155)
+    assert by_name["Sirius"].dec_deg == pytest.approx(-16.716116)
     assert by_name["Sirius"].constellation == "CMa"
 
 
