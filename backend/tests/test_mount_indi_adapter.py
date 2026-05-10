@@ -203,6 +203,63 @@ async def test_set_location_pushes_geographic_coord() -> None:
     assert geo["LONG"].getValue() == pytest.approx(1.4437)
 
 
+def _seed_sync_properties(client: FakeIndiClient) -> None:
+    dev = client.getDevice(INDI_DEVICE_NAME)
+    assert dev is not None
+    dev.add_switch(
+        "ON_COORD_SET", {"SLEW": "OFF", "TRACK": "ON", "SYNC": "OFF"}
+    )
+    dev.add_number("EQUATORIAL_EOD_COORD", {"RA": 0.0, "DEC": 0.0})
+
+
+@pytest.mark.asyncio
+async def test_sync_radec_arms_sync_then_pushes_eod_coord_in_hours() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_sync_properties(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    # Sirius approx (RA 101.287°, DEC -16.716°).
+    await adapter.sync_radec(101.287, -16.716)
+
+    dev = client.getDevice(INDI_DEVICE_NAME)
+    mode = dev.getSwitch("ON_COORD_SET")
+    assert mode["SYNC"].getState() == "ON"
+    assert mode["SLEW"].getState() == "OFF"
+    assert mode["TRACK"].getState() == "OFF"
+
+    coord = dev.getNumber("EQUATORIAL_EOD_COORD")
+    assert coord["RA"].getValue() == pytest.approx(101.287 / 15.0)
+    assert coord["DEC"].getValue() == pytest.approx(-16.716)
+
+
+@pytest.mark.asyncio
+async def test_sync_radec_publishes_error_when_property_missing() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    # Pas de seed des propriétés sync → ON_COORD_SET introuvable.
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    await adapter.sync_radec(0.0, 0.0)
+
+    assert bus.get_full_state().subsystems["mount"].state == "error"
+
+
+@pytest.mark.asyncio
+async def test_sync_radec_noop_when_device_absent() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()  # pas de device seedé
+    adapter = MountIndiAdapter(bus, client=client)
+    # Pas de start() → _device reste None.
+
+    await adapter.sync_radec(10.0, 20.0)
+    # Aucune erreur publiée : silent no-op exigé par le contrat (cf. set_time).
+
+
 def _seed_tracking_property(client: FakeIndiClient) -> None:
     dev = client.getDevice(INDI_DEVICE_NAME)
     assert dev is not None

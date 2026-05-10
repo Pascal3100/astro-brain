@@ -29,6 +29,7 @@ class FakeMount:
     def __init__(self, bus: StateBus) -> None:
         self._bus = bus
         self._active_slews: list[dict[str, Any]] = []
+        self.sync_calls: list[tuple[float, float]] = []
 
     async def start(self) -> None:
         self._bus.publish(
@@ -93,6 +94,11 @@ class FakeMount:
 
     async def set_location(self, lat: float, lon: float) -> None:
         return None
+
+    # --- sync (alignment model fed via INDI ON_COORD_SET=SYNC) -----------
+
+    async def sync_radec(self, ra_deg: float, dec_deg: float) -> None:
+        self.sync_calls.append((float(ra_deg), float(dec_deg)))
 
     # --- cordwrap (in-memory toggles) ------------------------------------
 

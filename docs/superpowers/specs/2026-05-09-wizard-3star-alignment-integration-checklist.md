@@ -24,6 +24,7 @@ Référence : plan d'implémentation `docs/superpowers/plans/2026-05-09-wizard-3
 8. [ ] **ValidationScreen** apparaît : RMS < 10', 3 barres de résiduels visibles, pas de bloc diagnostic (aucun outlier).
 9. [ ] Tap **ACCEPTER**. Retour `DoneScreen` "MONTURE ALIGNÉE ✓" puis tap RETOUR HUB.
 10. [ ] Le modèle d'alignement est persisté dans `state.db` (vérifier via `sqlite3 /var/lib/astro-brain/state.db "SELECT * FROM alignment_sessions ORDER BY id DESC LIMIT 1"`).
+10b. [ ] **Modèle natif Celestron alimenté** (ADR 2026-05-10) : à chaque record, `EQUATORIAL_EOD_COORD` doit avoir été poussé avec `ON_COORD_SET=SYNC` (visible dans `journalctl -u astro-brain` côté backend, ou côté driver via `indi_getprop "Celestron AUX.EQUATORIAL_EOD_COORD.*"`). Après les 3 records, vérifier que le driver suit en faisant un test GoTo arbitraire (`indi_setprop "Celestron AUX.ON_COORD_SET.TRACK=On"` puis `indi_setprop "Celestron AUX.EQUATORIAL_EOD_COORD.RA;DEC=<ra_h>;<dec_d>"`) — le slew doit pointer correctement (validation visuelle dans le grand-champ).
 
 ## Outlier path (REFAIRE)
 

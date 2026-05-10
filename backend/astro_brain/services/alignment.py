@@ -86,6 +86,10 @@ class AlignmentServiceImpl:
                 mount_alt=mount_alt,
             )
         )
+        # Pousse le sync vers le modèle d'alignement natif INDI/Celestron.
+        # Après 3 syncs, le driver indi_celestron_aux a son modèle 3-étoiles
+        # complet et tracking + GoTo passent par EQUATORIAL_EOD_COORD.
+        await self._mount.sync_radec(star.ra_deg, star.dec_deg)
         sess.current_idx = idx + 1
         return sess
 

@@ -131,7 +131,9 @@ Pour chaque idx ∈ [0, 1, 2] :
 
 **Fine-tune** : SSE diffuse `mount.az_current/alt_current`, les axis-bars animent en temps réel. L'utilisateur centre avec D-Pad et RateControl (jog REST classique réutilisé via le `DPadControl` présentationnel).
 
-**Record** : `POST /align/record { idx }` → backend lit la position courante de la monture, append à `recorded_stars`. SSE diffuse `current_idx` incrémenté.
+**Record** : `POST /align/record { idx }` → backend lit la position courante de la monture, append à `recorded_stars`, **et pousse `MountService.sync_radec(star.ra_deg, star.dec_deg)`** pour alimenter le modèle d'alignement natif INDI/Celestron (`ON_COORD_SET=SYNC` puis `EQUATORIAL_EOD_COORD = (ra/15, dec)`). SSE diffuse `current_idx` incrémenté.
+
+> **Amendé 2026-05-10 (ADR du même jour)** : le sync au record est la nouvelle source de vérité pour le tracking et le futur GoTo. Le solver SVD persiste comme indicateur qualité (RMS + résiduels + outlier) mais ne pilote pas la monture.
 
 ### 4. Finalize
 
@@ -168,7 +170,7 @@ Modèle persisté dans `alignment_model`.
 
 - `test_catalog.py` : filtrage horizon/courses/mag/isolation, distribution 120°, swap atomique
 - `test_solver.py` : input parfait → matrice identité ; offset constant → rotation pure ; outlier injection → identifié ; unités résiduelles en arc-min
-- `test_service.py` : start crée session, record incrémente, swap interdit après record, finalize → solver+repo, restart_star tronque, cancel n'efface pas le modèle persisté
+- `test_service.py` : start crée session, record incrémente **et pousse `mount.sync_radec(ra_deg, dec_deg)`**, swap interdit après record, finalize → solver+repo, restart_star tronque, cancel n'efface pas le modèle persisté
 - `test_repository.py` : roundtrip, load=null si Δt > 12h, load=null si ΔGPS > 20m, load=modèle sinon
 - `test_alignment_router.py` (FastAPI TestClient) : status codes, 409 sur record-before-start, 409 sur finalize-before-3, 409 sur swap-after-record
 

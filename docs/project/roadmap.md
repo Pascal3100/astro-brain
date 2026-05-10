@@ -27,6 +27,7 @@ Refonte technique du `MountAdapter` pour pivoter de `nexstarpy` vers la stack IN
 
 - ✅ Stack INDI installée sur le Pi (repo Astroberry Trixie arm64) — voir ADR 2026-05-04
 - ✅ Backend refactor `MountAdapter` INDI + bus thread-safe (89/89 tests verts)
+- ✅ `MountService.sync_radec(ra_deg, dec_deg)` (`ON_COORD_SET=SYNC` + `EQUATORIAL_EOD_COORD`) — livré 2026-05-10 (alimente le modèle natif Celestron pour Macro 3 #2, cf. ADR 2026-05-10)
 - ⛔ Smoke test E2E sur dongle CP2102 + monture branchée (en attente livraison dongle)
 - 🌫 Fork upstream patch backlash mount-axis (`MC_*_BACKLASH`, ~70 lignes C++) — différable, le driver fonctionne sans
 
@@ -64,7 +65,7 @@ Première mise en station effective, GoTo réel, catalogue d'objets brillants. H
 
 - ✅ Hub central (landing post-Splash, 4 cartes Manuel / Setup / Status / À propos) — livré 2026-05-08 (Session 20)
 - 🚧 Wizard alignement 3 étoiles assisté capteurs (compass + tilt + GPS pour pré-pointage, validation auto via résiduel SVD < ~1°, fallback manuel) — software livré 2026-05-10 (Session 22, backend + Flutter, 180 tests app + tests backend), validation matérielle bloquée dongle CP2102 (Macro 1)
-- 📦 GoTo réel (`/goto {ra_deg, dec_deg}` sur monture alignée, statut `goto_in_progress`) — path planning AZ minimisant la rotation cumulée et respectant la zone cordwrap (pas de tour complet inutile)
+- 📦 GoTo réel (`/goto {ra_deg, dec_deg}` sur monture alignée — set `EQUATORIAL_EOD_COORD` avec `ON_COORD_SET=TRACK`, le driver gère slew + tracking sidéral natif) — statut `goto_in_progress` exposé via SSE
 - 📦 Catalogue minimal backend : Messier (110) + planètes (skyfield) + ~50–100 étoiles brillantes
 - 📦 Page Catalogue minimal (recherche/sélection + GoTo)
 

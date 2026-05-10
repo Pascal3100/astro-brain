@@ -299,6 +299,37 @@ class MountIndiAdapter:
                 SubsystemState(state="error", message=str(exc), since=_now()),
             )
 
+    # --- alignment sync (native Celestron model via INDI) ----------------
+
+    async def sync_radec(self, ra_deg: float, dec_deg: float) -> None:
+        """Push a sync point so the AUX driver builds its native model.
+
+        Pattern: arm ``ON_COORD_SET=SYNC`` (1-of-many switch) then write
+        ``EQUATORIAL_EOD_COORD`` (RA in hours, DEC in degrees, JNow). The
+        driver consumes the sync and updates its internal alignment table.
+        """
+        if self._device is None:
+            return
+        try:
+            mode = self._device.getSwitch("ON_COORD_SET")
+            if mode is None:
+                raise RuntimeError("ON_COORD_SET property not found")
+            set_switch_one_of_many(mode, "SYNC")
+            await asyncio.to_thread(self._client.sendNewProperty, mode)
+
+            coord = self._device.getNumber("EQUATORIAL_EOD_COORD")
+            if coord is None:
+                raise RuntimeError("EQUATORIAL_EOD_COORD property not found")
+            coord["RA"].setValue(float(ra_deg) / 15.0)
+            coord["DEC"].setValue(float(dec_deg))
+            await asyncio.to_thread(self._client.sendNewProperty, coord)
+        except Exception as exc:
+            logger.exception("indi: sync_radec failed")
+            self._bus.publish(
+                "mount",
+                SubsystemState(state="error", message=str(exc), since=_now()),
+            )
+
     # --- tracking (TrackingService surface) -------------------------------
 
     async def set_tracking(self, enabled: bool) -> None:
