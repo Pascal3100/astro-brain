@@ -23,22 +23,22 @@ class StarDto extends Equatable {
   final double mag;
 
   factory StarDto.fromJson(Map<String, dynamic> j) => StarDto(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        bayer: j['bayer'] as String,
-        raDeg: (j['ra_deg'] as num).toDouble(),
-        decDeg: (j['dec_deg'] as num).toDouble(),
-        mag: (j['mag'] as num).toDouble(),
-      );
+    id: j['id'] as String,
+    name: j['name'] as String,
+    bayer: j['bayer'] as String,
+    raDeg: (j['ra_deg'] as num).toDouble(),
+    decDeg: (j['dec_deg'] as num).toDouble(),
+    mag: (j['mag'] as num).toDouble(),
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'bayer': bayer,
-        'ra_deg': raDeg,
-        'dec_deg': decDeg,
-        'mag': mag,
-      };
+    'id': id,
+    'name': name,
+    'bayer': bayer,
+    'ra_deg': raDeg,
+    'dec_deg': decDeg,
+    'mag': mag,
+  };
 
   @override
   List<Object?> get props => [id, name, bayer, raDeg, decDeg, mag];
@@ -60,12 +60,12 @@ class StarRecordDto extends Equatable {
   final double mountAlt;
 
   factory StarRecordDto.fromJson(Map<String, dynamic> j) => StarRecordDto(
-        starId: j['star_id'] as String,
-        skyAz: (j['sky_az'] as num).toDouble(),
-        skyAlt: (j['sky_alt'] as num).toDouble(),
-        mountAz: (j['mount_az'] as num).toDouble(),
-        mountAlt: (j['mount_alt'] as num).toDouble(),
-      );
+    starId: j['star_id'] as String,
+    skyAz: (j['sky_az'] as num).toDouble(),
+    skyAlt: (j['sky_alt'] as num).toDouble(),
+    mountAz: (j['mount_az'] as num).toDouble(),
+    mountAlt: (j['mount_alt'] as num).toDouble(),
+  );
 
   @override
   List<Object?> get props => [starId, skyAz, skyAlt, mountAz, mountAlt];
@@ -97,8 +97,7 @@ class AlignmentSessionDto extends Equatable {
       );
 
   @override
-  List<Object?> get props =>
-      [sessionId, candidates, recordedStars, currentIdx];
+  List<Object?> get props => [sessionId, candidates, recordedStars, currentIdx];
 }
 
 class AlignmentModelDto extends Equatable {
@@ -146,6 +145,11 @@ class AlignmentModelDto extends Equatable {
   }
 
   @override
-  List<Object?> get props =>
-      [recordedStars, rmsArcmin, residuals, validatedAtUtc, quality];
+  List<Object?> get props => [
+    recordedStars,
+    rmsArcmin,
+    residuals,
+    validatedAtUtc,
+    quality,
+  ];
 }

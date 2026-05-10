@@ -37,10 +37,6 @@ AlignmentSessionDto _sessionWithIdx(int idx, {int recCount = 0}) =>
     );
 
 void main() {
-  setUpAll(() {
-    registerFallbackValue(<String, dynamic>{});
-  });
-
   late _MockRepo repo;
   setUp(() => repo = _MockRepo());
 
@@ -54,11 +50,7 @@ void main() {
     act: (b) => b.add(const WizardStarted()),
     expect: () => [
       isA<AlignmentLoadingCandidates>(),
-      isA<AlignmentPrePointing>().having(
-        (s) => s.session.currentIdx,
-        'idx',
-        0,
-      ),
+      isA<AlignmentPrePointing>().having((s) => s.session.currentIdx, 'idx', 0),
     ],
     verify: (_) {
       verify(() => repo.getSession()).called(1);
@@ -69,18 +61,15 @@ void main() {
   blocTest<AlignmentBloc, AlignmentState>(
     'WizardStarted resumes existing session if backend already has one',
     build: () {
-      when(() => repo.getSession())
-          .thenAnswer((_) async => _sessionWithIdx(2, recCount: 2));
+      when(
+        () => repo.getSession(),
+      ).thenAnswer((_) async => _sessionWithIdx(2, recCount: 2));
       return AlignmentBloc(repo: repo);
     },
     act: (b) => b.add(const WizardStarted()),
     expect: () => [
       isA<AlignmentLoadingCandidates>(),
-      isA<AlignmentPrePointing>().having(
-        (s) => s.session.currentIdx,
-        'idx',
-        2,
-      ),
+      isA<AlignmentPrePointing>().having((s) => s.session.currentIdx, 'idx', 2),
     ],
     verify: (_) {
       verify(() => repo.getSession()).called(1);
@@ -91,26 +80,24 @@ void main() {
   blocTest<AlignmentBloc, AlignmentState>(
     'RecordRequested → next star',
     build: () {
-      when(() => repo.record(0))
-          .thenAnswer((_) async => _sessionWithIdx(1, recCount: 1));
+      when(
+        () => repo.record(0),
+      ).thenAnswer((_) async => _sessionWithIdx(1, recCount: 1));
       return AlignmentBloc(repo: repo);
     },
     seed: () => AlignmentFineTuning(session: _sessionWithIdx(0)),
     act: (b) => b.add(const RecordRequested(0)),
     expect: () => [
-      isA<AlignmentPrePointing>().having(
-        (s) => s.session.currentIdx,
-        'idx',
-        1,
-      ),
+      isA<AlignmentPrePointing>().having((s) => s.session.currentIdx, 'idx', 1),
     ],
   );
 
   blocTest<AlignmentBloc, AlignmentState>(
     'RecordRequested last → Validating with model',
     build: () {
-      when(() => repo.record(2))
-          .thenAnswer((_) async => _sessionWithIdx(3, recCount: 3));
+      when(
+        () => repo.record(2),
+      ).thenAnswer((_) async => _sessionWithIdx(3, recCount: 3));
       when(() => repo.finalize()).thenAnswer(
         (_) async => AlignmentModelDto(
           recordedStars: const [],
@@ -122,8 +109,7 @@ void main() {
       );
       return AlignmentBloc(repo: repo);
     },
-    seed: () =>
-        AlignmentFineTuning(session: _sessionWithIdx(2, recCount: 2)),
+    seed: () => AlignmentFineTuning(session: _sessionWithIdx(2, recCount: 2)),
     act: (b) => b.add(const RecordRequested(2)),
     expect: () => [
       isA<AlignmentValidating>().having(
@@ -137,17 +123,14 @@ void main() {
   blocTest<AlignmentBloc, AlignmentState>(
     'RestartStarRequested truncates and goes to PrePointing',
     build: () {
-      when(() => repo.restartStar(1))
-          .thenAnswer((_) async => _sessionWithIdx(1, recCount: 1));
+      when(
+        () => repo.restartStar(1),
+      ).thenAnswer((_) async => _sessionWithIdx(1, recCount: 1));
       return AlignmentBloc(repo: repo);
     },
     act: (b) => b.add(const RestartStarRequested(1)),
     expect: () => [
-      isA<AlignmentPrePointing>().having(
-        (s) => s.session.currentIdx,
-        'idx',
-        1,
-      ),
+      isA<AlignmentPrePointing>().having((s) => s.session.currentIdx, 'idx', 1),
     ],
   );
 
@@ -159,5 +142,48 @@ void main() {
     },
     act: (b) => b.add(const WizardCancelled()),
     expect: () => [isA<AlignmentIdle>()],
+  );
+
+  blocTest<AlignmentBloc, AlignmentState>(
+    'WizardStarted → AlignmentError when repo throws',
+    build: () {
+      when(() => repo.getSession()).thenThrow(Exception('boom'));
+      return AlignmentBloc(repo: repo);
+    },
+    act: (b) => b.add(const WizardStarted()),
+    expect: () => [
+      isA<AlignmentLoadingCandidates>(),
+      isA<AlignmentError>().having((s) => s.message, 'msg', contains('boom')),
+    ],
+  );
+
+  blocTest<AlignmentBloc, AlignmentState>(
+    'PrePointingDone → FineTuning (same session)',
+    build: () => AlignmentBloc(repo: repo),
+    seed: () => AlignmentPrePointing(session: _sessionWithIdx(0)),
+    act: (b) => b.add(const PrePointingDone()),
+    expect: () => [
+      isA<AlignmentFineTuning>().having((s) => s.session.currentIdx, 'idx', 0),
+    ],
+  );
+
+  blocTest<AlignmentBloc, AlignmentState>(
+    'MountDisconnected → AlignmentError',
+    build: () => AlignmentBloc(repo: repo),
+    act: (b) => b.add(const MountDisconnected()),
+    expect: () => [
+      isA<AlignmentError>().having(
+        (s) => s.message,
+        'msg',
+        'Monture déconnectée',
+      ),
+    ],
+  );
+
+  blocTest<AlignmentBloc, AlignmentState>(
+    'ValidationAccepted → AlignmentDone',
+    build: () => AlignmentBloc(repo: repo),
+    act: (b) => b.add(const ValidationAccepted()),
+    expect: () => [isA<AlignmentDone>()],
   );
 }

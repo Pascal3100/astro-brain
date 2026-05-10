@@ -7,20 +7,20 @@ import 'package:mocktail/mocktail.dart';
 class _MockApi extends Mock implements ApiService {}
 
 Map<String, dynamic> _starJson(String id, String name) => {
-      'id': id,
-      'name': name,
-      'bayer': '-',
-      'ra_deg': 10.0,
-      'dec_deg': 20.0,
-      'mag': 1.5,
-    };
+  'id': id,
+  'name': name,
+  'bayer': '-',
+  'ra_deg': 10.0,
+  'dec_deg': 20.0,
+  'mag': 1.5,
+};
 
 Map<String, dynamic> _sessionJson({int currentIdx = 0}) => {
-      'session_id': 'sess-1',
-      'candidates': [_starJson('s1', 'Vega'), _starJson('s2', 'Deneb')],
-      'recorded_stars': [],
-      'current_idx': currentIdx,
-    };
+  'session_id': 'sess-1',
+  'candidates': [_starJson('s1', 'Vega'), _starJson('s2', 'Deneb')],
+  'recorded_stars': [],
+  'current_idx': currentIdx,
+};
 
 void main() {
   setUpAll(() {
@@ -37,15 +37,17 @@ void main() {
 
   group('AlignmentRepository.getSession', () {
     test('returns null when backend says null', () async {
-      when(() => api.getJson('/align/session'))
-          .thenAnswer((_) async => {'session': null});
+      when(
+        () => api.getJson('/align/session'),
+      ).thenAnswer((_) async => {'session': null});
       final session = await repo.getSession();
       expect(session, isNull);
     });
 
     test('parses session when backend returns one', () async {
-      when(() => api.getJson('/align/session'))
-          .thenAnswer((_) async => {'session': _sessionJson(currentIdx: 1)});
+      when(
+        () => api.getJson('/align/session'),
+      ).thenAnswer((_) async => {'session': _sessionJson(currentIdx: 1)});
       final session = await repo.getSession();
       expect(session, isNotNull);
       expect(session!.sessionId, 'sess-1');
@@ -57,21 +59,25 @@ void main() {
 
   group('AlignmentRepository.start', () {
     test('returns parsed session and posts empty body', () async {
-      when(() => api.postJson('/align/start', any()))
-          .thenAnswer((_) async => _sessionJson());
+      when(
+        () => api.postJson('/align/start', any()),
+      ).thenAnswer((_) async => _sessionJson());
       final session = await repo.start();
       expect(session.sessionId, 'sess-1');
-      final captured = verify(() => api.postJson('/align/start', captureAny()))
-          .captured
-          .single as Map<String, dynamic>;
+      final captured =
+          verify(
+                () => api.postJson('/align/start', captureAny()),
+              ).captured.single
+              as Map<String, dynamic>;
       expect(captured, isEmpty);
     });
   });
 
   group('AlignmentRepository.swap', () {
     test('sends idx in path and star body', () async {
-      when(() => api.postJson('/align/swap/2', any()))
-          .thenAnswer((_) async => _sessionJson(currentIdx: 2));
+      when(
+        () => api.postJson('/align/swap/2', any()),
+      ).thenAnswer((_) async => _sessionJson(currentIdx: 2));
       const star = StarDto(
         id: 'sNew',
         name: 'Altair',
@@ -82,9 +88,11 @@ void main() {
       );
       final session = await repo.swap(2, star);
       expect(session.currentIdx, 2);
-      final captured = verify(
-        () => api.postJson('/align/swap/2', captureAny()),
-      ).captured.single as Map<String, dynamic>;
+      final captured =
+          verify(
+                () => api.postJson('/align/swap/2', captureAny()),
+              ).captured.single
+              as Map<String, dynamic>;
       expect(captured['star'], isA<Map<String, dynamic>>());
       final starBody = captured['star'] as Map<String, dynamic>;
       expect(starBody['id'], 'sNew');
@@ -98,26 +106,32 @@ void main() {
 
   group('AlignmentRepository.record', () {
     test('sends idx body', () async {
-      when(() => api.postJson('/align/record', any()))
-          .thenAnswer((_) async => _sessionJson(currentIdx: 1));
+      when(
+        () => api.postJson('/align/record', any()),
+      ).thenAnswer((_) async => _sessionJson(currentIdx: 1));
       final session = await repo.record(0);
       expect(session.currentIdx, 1);
-      final captured = verify(
-        () => api.postJson('/align/record', captureAny()),
-      ).captured.single as Map<String, dynamic>;
+      final captured =
+          verify(
+                () => api.postJson('/align/record', captureAny()),
+              ).captured.single
+              as Map<String, dynamic>;
       expect(captured['idx'], 0);
     });
   });
 
   group('AlignmentRepository.restartStar', () {
     test('sends idx body', () async {
-      when(() => api.postJson('/align/restart_star', any()))
-          .thenAnswer((_) async => _sessionJson(currentIdx: 1));
+      when(
+        () => api.postJson('/align/restart_star', any()),
+      ).thenAnswer((_) async => _sessionJson(currentIdx: 1));
       final session = await repo.restartStar(1);
       expect(session.currentIdx, 1);
-      final captured = verify(
-        () => api.postJson('/align/restart_star', captureAny()),
-      ).captured.single as Map<String, dynamic>;
+      final captured =
+          verify(
+                () => api.postJson('/align/restart_star', captureAny()),
+              ).captured.single
+              as Map<String, dynamic>;
       expect(captured['idx'], 1);
     });
   });
@@ -171,8 +185,7 @@ void main() {
       expect(model.outlierId, isNull);
     });
 
-    test('returns the worst-key when one residual is dramatically larger',
-        () {
+    test('returns the worst-key when one residual is dramatically larger', () {
       const model = AlignmentModelDto(
         recordedStars: [],
         rmsArcmin: 5.0,

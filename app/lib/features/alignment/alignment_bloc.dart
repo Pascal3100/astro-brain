@@ -26,20 +26,21 @@ class AlignmentBloc extends Bloc<AlignmentEvent, AlignmentState> {
 
   final AlignmentRepository repo;
 
-  Future<void> _onStarted(
-      WizardStarted e, Emitter<AlignmentState> emit) async {
+  Future<void> _onStarted(WizardStarted e, Emitter<AlignmentState> emit) async {
     emit(const AlignmentLoadingCandidates());
     try {
       final existing = await repo.getSession();
       final session = existing ?? await repo.start();
       emit(AlignmentPrePointing(session: session));
-    } catch (err) {
-      emit(AlignmentError(err.toString()));
+    } on Exception catch (err) {
+      emit(AlignmentError('Erreur : $err'));
     }
   }
 
   Future<void> _onRecord(
-      RecordRequested e, Emitter<AlignmentState> emit) async {
+    RecordRequested e,
+    Emitter<AlignmentState> emit,
+  ) async {
     try {
       final updated = await repo.record(e.idx);
       if (updated.recordedStars.length >= 3) {
@@ -48,23 +49,27 @@ class AlignmentBloc extends Bloc<AlignmentEvent, AlignmentState> {
       } else {
         emit(AlignmentPrePointing(session: updated));
       }
-    } catch (err) {
-      emit(AlignmentError(err.toString()));
+    } on Exception catch (err) {
+      emit(AlignmentError('Erreur : $err'));
     }
   }
 
   Future<void> _onRestart(
-      RestartStarRequested e, Emitter<AlignmentState> emit) async {
+    RestartStarRequested e,
+    Emitter<AlignmentState> emit,
+  ) async {
     try {
       final s = await repo.restartStar(e.idx);
       emit(AlignmentPrePointing(session: s));
-    } catch (err) {
-      emit(AlignmentError(err.toString()));
+    } on Exception catch (err) {
+      emit(AlignmentError('Erreur : $err'));
     }
   }
 
   Future<void> _onCancel(
-      WizardCancelled e, Emitter<AlignmentState> emit) async {
+    WizardCancelled e,
+    Emitter<AlignmentState> emit,
+  ) async {
     try {
       await repo.cancel();
     } catch (_) {
@@ -74,9 +79,12 @@ class AlignmentBloc extends Bloc<AlignmentEvent, AlignmentState> {
   }
 
   Future<void> _onSwap(
-      StarSwapRequested e, Emitter<AlignmentState> emit) async {
-    // L'écran Intro pop un dialog avec un sélecteur ; quand un star est choisi,
-    // ce dialog appelle directement repo.swap() puis re-dispatche.
-    // Ici on est juste passe-plat pour l'idx demandé.
+    StarSwapRequested e,
+    Emitter<AlignmentState> emit,
+  ) async {
+    // Le swap est géré par l'écran : il appelle directement repo.swap()
+    // puis re-dispatch un refresh. Ce handler ne doit jamais être atteint
+    // par dispatch direct ; on le signale plutôt que de l'ignorer.
+    addError(StateError('StarSwapRequested dispatched directly: idx=${e.idx}'));
   }
 }
