@@ -6,13 +6,14 @@ import '../../theme/app_typography.dart';
 import '../../theme/design_tokens.dart';
 import '../../widgets/astro_app_bar.dart';
 import '../about/about_screen.dart';
+import '../alignment/alignment_wizard_screen.dart';
 import '../manual/manual_screen.dart';
 import '../setup/setup_screen.dart';
 import '../system/system_screen.dart';
 import 'widgets/hub_card.dart';
 
-/// Hub central : landing post-Splash avec 4 cartes (MANUEL · SETUP · STATUS ·
-/// À PROPOS). Première carte en `primary` variant. Macro 3 — item #1.
+/// Hub central : landing post-Splash avec 5 cartes (MANUEL · ALIGNER · SETUP ·
+/// STATUS · À PROPOS). Première carte en `primary` variant. Macro 3 — item #1.
 class HubScreen extends StatelessWidget {
   const HubScreen({super.key});
 
@@ -28,6 +29,12 @@ class HubScreen extends StatelessWidget {
         hint: 'Joystick · piloter la monture',
         primary: true,
         builder: (_) => const ManualScreen(),
+      ),
+      _HubEntry(
+        heroIcon: HugeIcons.strokeRoundedTarget02,
+        label: 'ALIGNER',
+        hint: '3 étoiles · mise en station',
+        builder: (_) => const AlignmentWizardScreen(),
       ),
       _HubEntry(
         heroIcon: HugeIcons.strokeRoundedSettings02,

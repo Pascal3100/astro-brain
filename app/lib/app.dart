@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'features/alignment/alignment_bloc.dart';
+import 'features/alignment/alignment_repository.dart';
 import 'features/hub/hub_screen.dart';
 import 'features/manual/manual_bloc.dart';
 import 'features/splash/splash_cubit.dart';
@@ -45,6 +47,11 @@ class AstroBrainApp extends StatelessWidget {
           ),
           BlocProvider<ManualBloc>(
             create: (ctx) => ManualBloc(api: ctx.read<ApiService>()),
+          ),
+          BlocProvider<AlignmentBloc>(
+            create: (ctx) => AlignmentBloc(
+              repo: AlignmentRepository(api: ctx.read<ApiService>()),
+            ),
           ),
         ],
         child: BlocBuilder<ThemeCubit, AstroThemeMode>(

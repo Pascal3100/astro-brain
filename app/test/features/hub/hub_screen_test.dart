@@ -1,4 +1,6 @@
 import 'package:astro_brain/features/about/about_screen.dart';
+import 'package:astro_brain/features/alignment/alignment_bloc.dart';
+import 'package:astro_brain/features/alignment/alignment_repository.dart';
 import 'package:astro_brain/features/hub/hub_screen.dart';
 import 'package:astro_brain/features/hub/widgets/hub_card.dart';
 import 'package:astro_brain/features/manual/manual_bloc.dart';
@@ -48,6 +50,10 @@ Widget _wrap(Widget child, AppBloc bloc, ThemeCubit theme, PiHost host,
         BlocProvider<AppBloc>.value(value: bloc),
         BlocProvider<ThemeCubit>.value(value: theme),
         BlocProvider<ManualBloc>(create: (_) => ManualBloc(api: apiService)),
+        BlocProvider<AlignmentBloc>(
+          create: (_) =>
+              AlignmentBloc(repo: AlignmentRepository(api: apiService)),
+        ),
       ],
       child: MaterialApp(
         theme: _testTheme(),
@@ -83,16 +89,17 @@ void main() {
     theme.close();
   });
 
-  testWidgets('HubScreen renders 4 cards in order', (tester) async {
+  testWidgets('HubScreen renders 5 cards in order', (tester) async {
     await tester.pumpWidget(_wrap(const HubScreen(), bloc, theme, host));
     await tester.pump();
 
     final cards = tester.widgetList<HubCard>(find.byType(HubCard)).toList();
-    expect(cards, hasLength(4));
+    expect(cards, hasLength(5));
     expect(cards[0].label, 'MANUEL');
-    expect(cards[1].label, 'SETUP');
-    expect(cards[2].label, 'STATUS');
-    expect(cards[3].label, 'À PROPOS');
+    expect(cards[1].label, 'ALIGNER');
+    expect(cards[2].label, 'SETUP');
+    expect(cards[3].label, 'STATUS');
+    expect(cards[4].label, 'À PROPOS');
   });
 
   testWidgets('HubScreen first card is primary', (tester) async {
@@ -104,6 +111,14 @@ void main() {
     expect(cards[1].primary, isFalse);
     expect(cards[2].primary, isFalse);
     expect(cards[3].primary, isFalse);
+    expect(cards[4].primary, isFalse);
+  });
+
+  testWidgets('HubScreen tile ALIGNER is present', (tester) async {
+    await tester.pumpWidget(_wrap(const HubScreen(), bloc, theme, host));
+    await tester.pump();
+
+    expect(find.text('ALIGNER'), findsOneWidget);
   });
 
   testWidgets('HubScreen header shows title and overline', (tester) async {
