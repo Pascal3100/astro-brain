@@ -86,6 +86,45 @@ class ApiService {
   }
 
   // -------------------------------------------------------------------------
+  // Helpers JSON génériques (utilisés par les repositories)
+  // -------------------------------------------------------------------------
+
+  /// GET [path] et retourne le JSON décodé.
+  Future<Map<String, dynamic>> getJson(String path) async {
+    final resp = await _client.get(host.restUri(path)).timeout(_timeout);
+    if (resp.statusCode != 200) {
+      throw ApiException('GET $path failed', statusCode: resp.statusCode);
+    }
+    return jsonDecode(resp.body) as Map<String, dynamic>;
+  }
+
+  /// POST [path] avec [body] JSON et retourne le JSON décodé.
+  Future<Map<String, dynamic>> postJson(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final resp = await _client
+        .post(
+          host.restUri(path),
+          headers: const {'content-type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(_timeout);
+    if (resp.statusCode != 200) {
+      throw ApiException('POST $path failed', statusCode: resp.statusCode);
+    }
+    return jsonDecode(resp.body) as Map<String, dynamic>;
+  }
+
+  /// DELETE [path]. Le backend renvoie 204 No Content sur succès.
+  Future<void> delete(String path) async {
+    final resp = await _client.delete(host.restUri(path)).timeout(_timeout);
+    if (resp.statusCode != 204 && resp.statusCode != 200) {
+      throw ApiException('DELETE $path failed', statusCode: resp.statusCode);
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Calibration endpoints
   // -------------------------------------------------------------------------
 
