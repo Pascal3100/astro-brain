@@ -21,9 +21,30 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 - ✅ **Slice C About livré** (Session 19, 2026-05-07) : item #9. Backend `GET /about` (versions, IP/SSID, uptime, started_at) + écran Flutter read-only avec bouton RAFRAÎCHIR. Tests : 191 backend + 133 frontend.
 - ⛔ Slice D (mount tuning — backlash + cordwrap) bloqué dongle CP2102. Reste à livrer : courses AZ (software, sans hardware) — repoussé à Macro 2 mineure.
 
+**Macro 3 — Mise en station + GoTo basique 🚧** :
+- ✅ Item #1 Hub central (Session 20).
+- 🚧 Item #2 Wizard alignement 3 étoiles : implémentation software complète (backend + Flutter, 22 tasks plan, Session 22). Validation matérielle bloquée dongle CP2102.
+- 📦 Items #3 GoTo réel, #4 Catalogue, #5 Page catalogue.
+
 **Doc tree** : nouvelle arborescence `docs/INDEX.md` → 3 vues (`technical/`, `project/`, `product/`). Petits docs ciblés, navigation par liens. Voir Session 12.
 
 ## Session en cours
+
+### Session 22 — Macro 3 #2 wizard 3 étoiles, implémentation software (2026-05-10)
+
+Plan `docs/superpowers/plans/2026-05-09-wizard-3star-alignment.md` (22 tasks) exécuté en mode `superpowers:subagent-driven-development` (implementer + spec reviewer + code-reviewer par task) directement sur `main`. Le wizard va du Hub jusqu'à la validation finale ; restore mid-wizard si une session backend existe.
+
+**Backend** (Tasks T1→T10) : Pydantic models `Star`/`StarRecord`/`AlignmentSession`/`AlignmentModel` (résiduel SVD, `quality` good/marginal/bad), mini-catalogue 30 étoiles brillantes en JSON, `CatalogSelector` (filtrage altitude/séparation), `SvdAlignSolver` (résolution Procrustes orthogonal), repository sqlite `alignment_sessions` (migration `_002_alignment`), `AlignmentService` (machine d'état idle / candidates / pre_pointing / fine_tuning / validating / done), router REST `/align/*` (start, swap, record, restart_star, finalize, cancel) avec 409/422 mappings, wiring dans `build_app`, événement SSE `alignment.session` publié à chaque mutation. Approche défensive : `_publish_session` idempotent, deepcopy du snapshot avant publish.
+
+**Frontend** (Tasks T11→T19) : refactor `DPadControl` API (`onPress: ValueChanged<DPadDirection>` / `onRelease`) et `RateControl` (4 paliers via `ValueChanged<int>`) — préparatoires partagés Manuel/Wizard. DTOs Flutter miroirs des Pydantic, `AlignmentRepository` (REST), `AlignmentBloc` (9 events, 7 states sealed, `existing ?? await repo.start()` pour cold-start restore). Écrans : `IntroScreen` (DÉMARRER), `PerStarScreen` (D-Pad + RateControl + axis bars AZ/ALT + bouton CENTRÉ ✓), `ValidationScreen` (RMS + 3 résiduels barres, bloc diagnostic conditionnel sur outlier `>3× moyenne autres`, REFAIRE/ACCEPTER), `DoneScreen` (RETOUR HUB via `popUntil((r) => r.isFirst)`). Wizard host BlocBuilder route les 7 states. `AstroScreen.alignment` ajouté au enum AppBar. Wire app.dart : `BlocProvider<AlignmentBloc>` (4ème provider) + tuile "ALIGNER" insérée entre MANUEL et SETUP dans le Hub (icône `strokeRoundedTarget02`, hint "3 étoiles · mise en station").
+
+**Adaptations récurrentes au plan** (notées en cours d'exécution) : nom de package `astro_brain` (le plan référençait `astro_brain_app`), `colors.textPrimary` (pas `colors.text`), `text.hudCaption.copyWith()` plutôt que `fontFamily: 'JetBrainsMono'` inline, `bloc_test seed:` (jamais `..emit()`, `@protected`), helper `_wrap` providant AppBloc + ThemeCubit + AlignmentBloc pour les widget tests qui montent l'AppBar. Spec self-contradiction sur les markers d'axis-bars (prose vs Dart de référence) → différée dans `backlog.md`.
+
+**Couverture restante** : T20 cold-start restore — déjà couvert par `existing ?? await repo.start()` + bloc test "WizardStarted resumes existing session" (le plan défère explicitement le dialog visuel "réutiliser modèle finalisé" à Macro 3 #4). T21 ce point. T22 manual integration checklist (validation matérielle reportée derrière dongle CP2102).
+
+**Tests** : app 144 → 180 verts (+36 entre Hub et fin du wizard), backend 191 → 243 verts (+52 sur les 10 tasks backend). `flutter analyze` clean à chaque commit. Validation matérielle reportée Macro 1 INDI.
+
+Plafond journal atteint (6 sessions visibles : 17→22) — la prochaine session déclenchera une archive `2026-05-macro2-setup.md` (Sessions 17-19 candidates).
 
 ### Session 21 — UX fixes post-Hub : propagation offline + libellés FR + nav back (2026-05-09)
 

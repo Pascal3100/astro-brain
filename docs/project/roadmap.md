@@ -63,7 +63,7 @@ Optionnels à arbitrer plus tard : slew rates personnalisés, cone error, PEC.
 Première mise en station effective, GoTo réel, catalogue d'objets brillants. Hub central remplace le HomeScreen comme landing post-Splash. Pré-requis : Macro 2.
 
 - ✅ Hub central (landing post-Splash, 4 cartes Manuel / Setup / Status / À propos) — livré 2026-05-08 (Session 20)
-- 📦 Wizard alignement 3 étoiles assisté capteurs (compass + tilt + GPS pour pré-pointage, validation auto via résiduel SVD < ~1°, fallback manuel)
+- 🚧 Wizard alignement 3 étoiles assisté capteurs (compass + tilt + GPS pour pré-pointage, validation auto via résiduel SVD < ~1°, fallback manuel) — software livré 2026-05-10 (Session 22, backend + Flutter, 180 tests app + tests backend), validation matérielle bloquée dongle CP2102 (Macro 1)
 - 📦 GoTo réel (`/goto {ra_deg, dec_deg}` sur monture alignée, statut `goto_in_progress`) — path planning AZ minimisant la rotation cumulée et respectant la zone cordwrap (pas de tour complet inutile)
 - 📦 Catalogue minimal backend : Messier (110) + planètes (skyfield) + ~50–100 étoiles brillantes
 - 📦 Page Catalogue minimal (recherche/sélection + GoTo)
