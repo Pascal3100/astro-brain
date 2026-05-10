@@ -3,7 +3,9 @@
 /// Miroir des modèles Pydantic backend (`backend/astro_brain/models/alignment.py`).
 library;
 
-class StarDto {
+import 'package:equatable/equatable.dart';
+
+class StarDto extends Equatable {
   const StarDto({
     required this.id,
     required this.name,
@@ -37,9 +39,12 @@ class StarDto {
         'dec_deg': decDeg,
         'mag': mag,
       };
+
+  @override
+  List<Object?> get props => [id, name, bayer, raDeg, decDeg, mag];
 }
 
-class StarRecordDto {
+class StarRecordDto extends Equatable {
   const StarRecordDto({
     required this.starId,
     required this.skyAz,
@@ -61,9 +66,12 @@ class StarRecordDto {
         mountAz: (j['mount_az'] as num).toDouble(),
         mountAlt: (j['mount_alt'] as num).toDouble(),
       );
+
+  @override
+  List<Object?> get props => [starId, skyAz, skyAlt, mountAz, mountAlt];
 }
 
-class AlignmentSessionDto {
+class AlignmentSessionDto extends Equatable {
   const AlignmentSessionDto({
     required this.sessionId,
     required this.candidates,
@@ -87,9 +95,13 @@ class AlignmentSessionDto {
             .toList(),
         currentIdx: j['current_idx'] as int,
       );
+
+  @override
+  List<Object?> get props =>
+      [sessionId, candidates, recordedStars, currentIdx];
 }
 
-class AlignmentModelDto {
+class AlignmentModelDto extends Equatable {
   const AlignmentModelDto({
     required this.recordedStars,
     required this.rmsArcmin,
@@ -117,8 +129,10 @@ class AlignmentModelDto {
         quality: j['quality'] as String,
       );
 
-  /// ID de l'étoile dont le résidu dépasse 3× la moyenne des autres,
-  /// ou `null` si aucune ne se distingue assez.
+  /// ID de l'étoile dont le résiduel domine — heuristique : résidu > 3× la
+  /// moyenne des autres. Utilisé par ValidationScreen pour précâbler
+  /// "REFAIRE <ÉTOILE>". `null` si la dispersion n'est pas concluante
+  /// (< 2 résidus, ou pic non distinct).
   String? get outlierId {
     if (residuals.isEmpty) return null;
     final entries = residuals.entries.toList()
@@ -130,4 +144,8 @@ class AlignmentModelDto {
         others.map((e) => e.value).reduce((a, b) => a + b) / others.length;
     return worst.value > 3 * mean ? worst.key : null;
   }
+
+  @override
+  List<Object?> get props =>
+      [recordedStars, rmsArcmin, residuals, validatedAtUtc, quality];
 }
