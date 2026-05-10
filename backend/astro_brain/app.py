@@ -19,6 +19,7 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +34,7 @@ from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.about import router as about_router
 from astro_brain.routes.alignment import router as alignment_router
 from astro_brain.routes.calibration import router as calibration_router
-from astro_brain.subsystems import SubsystemState
+from astro_brain.routes.catalog import router as catalog_router
 from astro_brain.routes.commands import router as commands_router
 from astro_brain.routes.events import router as events_router
 from astro_brain.routes.limits import router as limits_router
@@ -48,6 +49,9 @@ from astro_brain.services._alignment_catalog import (
 )
 from astro_brain.services.alignment import AlignmentServiceImpl
 from astro_brain.services.calibration import CalibrationServiceImpl
+from astro_brain.services.catalog.providers import SqliteCatalogProvider
+from astro_brain.services.catalog.registry import CatalogRegistry
+from astro_brain.services.catalog.seed_runner import apply_seeds
 from astro_brain.services.fakes import (
     FakeGps,
     FakeMount,
@@ -56,6 +60,7 @@ from astro_brain.services.fakes import (
     FakeTracking,
     make_fake_calibration_adapters,
 )
+from astro_brain.subsystems import SubsystemState
 
 
 class _AlignmentSensorsBridge:
@@ -167,6 +172,14 @@ def build_app(
         db_conn = await aiosqlite.connect(target)
         await run_migrations(db_conn)
         _app.state.db = db_conn
+
+        with as_file(files("astro_brain.data")) as data_dir:
+            await apply_seeds(db_conn, data_dir)
+
+        _app.state.catalog_registry = CatalogRegistry({
+            "star": SqliteCatalogProvider(db_conn, kind="star"),
+        })
+
         _app.state.started_at = datetime.now(UTC)
 
         calibration_service = CalibrationServiceImpl(
@@ -241,6 +254,7 @@ def build_app(
     app.include_router(sensors_router)
     app.include_router(limits_router)
     app.include_router(alignment_router)
+    app.include_router(catalog_router)
     return app
 
 

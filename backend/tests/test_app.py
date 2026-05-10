@@ -64,3 +64,24 @@ async def test_app_wires_alignment_service() -> None:
     async with app.router.lifespan_context(app):
         assert app.state.alignment is not None
         assert app.state.alignment.session() is None
+
+
+def test_build_app_exposes_catalog_registry(tmp_path) -> None:
+    from astro_brain.app import build_app
+
+    app = build_app(use_hardware=False, db_path_override=tmp_path / "state.db")
+    with TestClient(app):
+        assert hasattr(app.state, "catalog_registry")
+        assert "star" in app.state.catalog_registry._providers
+
+
+def test_catalog_objects_route_is_registered(tmp_path) -> None:
+    from astro_brain.app import build_app
+
+    app = build_app(use_hardware=False, db_path_override=tmp_path / "state.db")
+    with TestClient(app) as client:
+        r = client.get("/catalog/objects")
+        assert r.status_code == 200
+        body = r.json()
+        assert "objects" in body
+        assert "count" in body
