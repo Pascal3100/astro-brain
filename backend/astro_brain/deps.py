@@ -88,3 +88,7 @@ def get_lazy_lis3mdl(request: Request) -> Any:
 
 def get_alignment_service(request: Request) -> AlignmentService:
     return request.app.state.alignment
+
+
+def get_catalog_registry(request: Request) -> Any:
+    return request.app.state.catalog_registry
