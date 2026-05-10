@@ -4,10 +4,12 @@ Usage:
     cd backend
     uv run python tools/seed_stars.py --output astro_brain/data/seed_stars.sql
 
-By default pulls https://www.iau.org/static/public/themes/naming_stars/IAU-CSN.txt
-and filters to stars with V mag <= 3.0. Pass --input <path> to use a local
-fixture instead of the network. Output `.sql` is committed to the repo;
-re-running with the same source produces a byte-identical file.
+By default pulls https://www.pas.rochester.edu/~emamajek/WGSN/IAU-CSN.txt
+(Rochester mirror maintained by the WGSN secretary — the iau.org canonical
+URL was retired in 2026 when the IAU restructured their site) and filters
+to stars with V mag <= 3.0. Pass --input <path> to use a local fixture
+instead of the network. Output `.sql` is committed to the repo; re-running
+with the same source produces a byte-identical file.
 """
 from __future__ import annotations
 
@@ -18,7 +20,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-CSN_URL = "https://www.iau.org/static/public/themes/naming_stars/IAU-CSN.txt"
+CSN_URL = "https://www.pas.rochester.edu/~emamajek/WGSN/IAU-CSN.txt"
 DEFAULT_MAX_MAG = 3.0
 
 
@@ -74,8 +76,9 @@ def parse_csn(text: str) -> list[StarRow]:
     - ``tokens[1]`` → star name with diacritics (ignored)
 
     Lines starting with ``#``, ``$``, or consisting only of whitespace are
-    skipped.  Lines whose date token index is ``< 13`` (too few fields) are
-    also skipped silently.
+    skipped.  Lines whose date token index is ``< 14`` (too few fields — a
+    well-formed row has the date at column index 14 or 15 depending on
+    whether the trailing Notes flag is present) are also skipped silently.
     """
     rows: list[StarRow] = []
     for raw_line in text.splitlines():
@@ -86,7 +89,7 @@ def parse_csn(text: str) -> list[StarRow]:
         date_idx = next(
             (i for i, t in enumerate(tokens) if _DATE_RE.match(t)), None
         )
-        if date_idx is None or date_idx < 13:
+        if date_idx is None or date_idx < 14:
             continue
         name = tokens[0]
         if not name:
