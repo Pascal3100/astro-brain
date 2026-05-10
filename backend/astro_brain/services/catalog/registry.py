@@ -19,6 +19,10 @@ class CatalogRegistry:
             return await provider.list_objects(filter)
 
         # Sans filtre kind : interroger tous les providers, fusionner, paginer.
+        # Widening: chaque provider renvoie (offset + limit) éléments depuis 0.
+        # Le k-ième élément du tri global (k = offset + limit) ne peut pas être
+        # plus profond que la position k dans aucune source triée individuellement,
+        # donc cette fenêtre élargie suffit pour paginer correctement après merge.
         merged: list[CatalogObject] = []
         widened = filter.model_copy(
             update={"limit": filter.limit + filter.offset, "offset": 0}
