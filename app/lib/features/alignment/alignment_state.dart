@@ -32,10 +32,11 @@ class AlignmentFineTuning extends AlignmentState {
 }
 
 class AlignmentValidating extends AlignmentState {
-  const AlignmentValidating({required this.model});
+  const AlignmentValidating({required this.model, required this.candidates});
   final AlignmentModelDto model;
+  final List<StarDto> candidates;
   @override
-  List<Object?> get props => [model];
+  List<Object?> get props => [model, candidates];
 }
 
 class AlignmentDone extends AlignmentState {

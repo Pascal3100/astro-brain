@@ -45,7 +45,9 @@ class AlignmentBloc extends Bloc<AlignmentEvent, AlignmentState> {
       final updated = await repo.record(e.idx);
       if (updated.recordedStars.length >= 3) {
         final model = await repo.finalize();
-        emit(AlignmentValidating(model: model));
+        emit(
+          AlignmentValidating(model: model, candidates: updated.candidates),
+        );
       } else {
         emit(AlignmentPrePointing(session: updated));
       }

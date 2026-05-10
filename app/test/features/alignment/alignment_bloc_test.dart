@@ -112,11 +112,9 @@ void main() {
     seed: () => AlignmentFineTuning(session: _sessionWithIdx(2, recCount: 2)),
     act: (b) => b.add(const RecordRequested(2)),
     expect: () => [
-      isA<AlignmentValidating>().having(
-        (s) => s.model.outlierId,
-        'outlier',
-        'x1',
-      ),
+      isA<AlignmentValidating>()
+          .having((s) => s.model.outlierId, 'outlier', 'x1')
+          .having((s) => s.candidates.length, 'candidates', 3),
     ],
   );
 

@@ -47,7 +47,7 @@ class AlignmentWizardScreen extends StatelessWidget {
         if (state is AlignmentValidating) {
           return ValidationScreen(
             model: state.model,
-            candidates: const [],
+            candidates: state.candidates,
             onAccept: () => bloc.add(const ValidationAccepted()),
             onRestartStar: (idx) => bloc.add(RestartStarRequested(idx)),
           );

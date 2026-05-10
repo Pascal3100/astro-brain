@@ -54,6 +54,7 @@ Référence : plan d'implémentation `docs/superpowers/plans/2026-05-09-wizard-3
 
 - [ ] `targetAz`/`targetAlt` dans `alignment_wizard_screen.dart` sont actuellement à `0.0` avec `// TODO(macro-3-runtime)`. À brancher quand la response `/align/start` exposera les coords cibles calculées (ajout `target_az`/`target_alt` au DTO `StarDto` ou wrapper). Sans ça, les axis-bars ne montrent pas l'écart à la cible — bloque la validation manuelle des étapes 4, 6, 7 ci-dessus.
 - [ ] Consommation SSE `alignment.session` côté Flutter (actuellement le bloc fait du polling REST implicite via les events). À brancher si la latence wizard ressentie est trop grande lors du smoke test.
+- [ ] **Swap UX non câblé côté Flutter** : le bloc expose `StarSwapRequested` mais aucun écran ne le dispatche actuellement (IntroScreen Approach A retenue, swap UI différé). `AlignmentBloc._onSwap` est un tombstone défensif (`addError(StateError(...))`). Avant le smoke test : ajouter un point d'entrée swap dans IntroScreen ou PerStarScreen (modal de remplacement de candidate) qui appelle `repo.swap()` directement puis re-dispatche un refresh — ou explicitement déclarer le swap hors-scope du MVP smoke. Sans cela, l'edge case 22 ("slew unreachable → swap suggéré") ne peut pas être testé.
 
 ## Reporting
 
