@@ -79,11 +79,13 @@ class _AlignmentSensorsBridge:
             return None
         return (float(lat), float(lon))
 
+    def observer(self) -> Observer:
+        lat, lon = self.gps_fix() or (self._DEFAULT_LAT, self._DEFAULT_LON)
+        return Observer(lat_deg=lat, lon_deg=lon)
+
     def sky_az_alt_for(self, star: Any) -> tuple[float, float]:
-        gps = self.gps_fix() or (self._DEFAULT_LAT, self._DEFAULT_LON)
-        observer = Observer(lat_deg=gps[0], lon_deg=gps[1])
         return sky_az_alt_from_ra_dec(
-            star.ra_deg, star.dec_deg, observer, datetime.now(UTC)
+            star.ra_deg, star.dec_deg, self.observer(), datetime.now(UTC)
         )
 
 
@@ -185,11 +187,7 @@ def build_app(
         sensors_bridge = _AlignmentSensorsBridge(bus)
 
         def _candidates_provider() -> list[Any]:
-            gps = sensors_bridge.gps_fix() or (
-                _AlignmentSensorsBridge._DEFAULT_LAT,
-                _AlignmentSensorsBridge._DEFAULT_LON,
-            )
-            obs = Observer(lat_deg=gps[0], lon_deg=gps[1])
+            obs = sensors_bridge.observer()
             limits = MountLimits(alt_min=10.0, alt_max=85.0, az_min=0.0, az_max=360.0)
             return select_candidates(obs, datetime.now(UTC), limits, exclude_ids=set())
 
