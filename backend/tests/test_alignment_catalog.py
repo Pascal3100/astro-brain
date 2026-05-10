@@ -72,3 +72,16 @@ def test_select_candidates_excludes_ids() -> None:
     excluded = {first[0].id}
     second = select_candidates(obs, when, limits, exclude_ids=excluded)
     assert all(s.id not in excluded for s in second)
+
+
+def test_gmst_known_epoch() -> None:
+    """GMST à J2000.0 (2000-01-01 12:00 UTC) ≈ 280.4606° (textbook IAU 1982).
+
+    Pin pour empêcher régression du bug de 0.5° (T₀ doit être évalué à 0h UT,
+    pas à l'instant complet).
+    """
+    from astro_brain.services._alignment_catalog import _gmst_deg
+
+    when = datetime(2000, 1, 1, 12, 0, tzinfo=UTC)
+    gmst = _gmst_deg(when)
+    assert abs(gmst - 280.4606) < 0.01

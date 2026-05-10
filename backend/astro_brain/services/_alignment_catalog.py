@@ -54,14 +54,21 @@ def _julian_date(t_utc: datetime) -> float:
 
 
 def _gmst_deg(t_utc: datetime) -> float:
-    """Greenwich Mean Sidereal Time en degrés (formule IAU 1982 approximée)."""
+    """Greenwich Mean Sidereal Time en degrés (IAU 1982).
+
+    `T₀` est évalué à 0h UT du jour, et l'heure UT du jour est ajoutée
+    séparément via le terme `1.00273790935·H`. Mélanger les deux introduit
+    un biais systématique d'environ 0.5° en GMST.
+    """
     jd = _julian_date(t_utc)
-    t = (jd - 2451545.0) / 36525.0
+    jd0 = math.floor(jd - 0.5) + 0.5  # JD à 0h UT du même jour
+    h_ut = (jd - jd0) * 24.0           # heures UT depuis 0h
+    t0 = (jd0 - 2451545.0) / 36525.0
     gmst_h = (
         6.697374558
-        + 2400.051336 * t
-        + 0.000025862 * t * t
-        + 1.0027379093 * (jd % 1 - 0.5) * 24.0
+        + 2400.051336 * t0
+        + 0.000025862 * t0 * t0
+        + 1.00273790935 * h_ut
     )
     return (gmst_h * 15.0) % 360.0
 
