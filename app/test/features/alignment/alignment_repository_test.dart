@@ -1,3 +1,4 @@
+import 'package:astro_brain/features/alignment/alignment_models.dart';
 import 'package:astro_brain/features/alignment/alignment_repository.dart';
 import 'package:astro_brain/services/api_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,17 +9,16 @@ class _MockApi extends Mock implements ApiService {}
 Map<String, dynamic> _starJson(String id, String name) => {
       'id': id,
       'name': name,
-      'ra': 10.0,
-      'dec': 20.0,
+      'bayer': '-',
+      'ra_deg': 10.0,
+      'dec_deg': 20.0,
       'mag': 1.5,
     };
 
 Map<String, dynamic> _sessionJson({int currentIdx = 0}) => {
       'session_id': 'sess-1',
-      'started_at_utc': '2026-05-10T20:00:00Z',
       'candidates': [_starJson('s1', 'Vega'), _starJson('s2', 'Deneb')],
-      'selected': [_starJson('s1', 'Vega'), _starJson('s2', 'Deneb')],
-      'records': [null, null, null],
+      'recorded_stars': [],
       'current_idx': currentIdx,
     };
 
@@ -51,22 +51,20 @@ void main() {
       expect(session!.sessionId, 'sess-1');
       expect(session.currentIdx, 1);
       expect(session.candidates, hasLength(2));
-      expect(session.selected, hasLength(2));
-      expect(session.records, hasLength(3));
-      expect(session.records[0], isNull);
+      expect(session.recordedStars, isEmpty);
     });
   });
 
   group('AlignmentRepository.start', () {
-    test('returns parsed session', () async {
+    test('returns parsed session and posts empty body', () async {
       when(() => api.postJson('/align/start', any()))
           .thenAnswer((_) async => _sessionJson());
-      final session = await repo.start(['s1', 's2', 's3']);
+      final session = await repo.start();
       expect(session.sessionId, 'sess-1');
       final captured = verify(() => api.postJson('/align/start', captureAny()))
           .captured
           .single as Map<String, dynamic>;
-      expect(captured['star_ids'], ['s1', 's2', 's3']);
+      expect(captured, isEmpty);
     });
   });
 
@@ -74,12 +72,27 @@ void main() {
     test('sends idx in path and star body', () async {
       when(() => api.postJson('/align/swap/2', any()))
           .thenAnswer((_) async => _sessionJson(currentIdx: 2));
-      final session = await repo.swap(2, 'sNew');
+      const star = StarDto(
+        id: 'sNew',
+        name: 'Altair',
+        bayer: 'α Aql',
+        raDeg: 297.7,
+        decDeg: 8.9,
+        mag: 0.77,
+      );
+      final session = await repo.swap(2, star);
       expect(session.currentIdx, 2);
       final captured = verify(
         () => api.postJson('/align/swap/2', captureAny()),
       ).captured.single as Map<String, dynamic>;
-      expect(captured['star_id'], 'sNew');
+      expect(captured['star'], isA<Map<String, dynamic>>());
+      final starBody = captured['star'] as Map<String, dynamic>;
+      expect(starBody['id'], 'sNew');
+      expect(starBody['name'], 'Altair');
+      expect(starBody['bayer'], 'α Aql');
+      expect(starBody['ra_deg'], 297.7);
+      expect(starBody['dec_deg'], 8.9);
+      expect(starBody['mag'], 0.77);
     });
   });
 
@@ -113,19 +126,28 @@ void main() {
     test('parses AlignmentModelDto', () async {
       when(() => api.postJson('/align/finalize', any())).thenAnswer(
         (_) async => {
+          'recorded_stars': [
+            {
+              'star_id': 's1',
+              'sky_az': 1.0,
+              'sky_alt': 2.0,
+              'mount_az': 1.1,
+              'mount_alt': 2.1,
+            },
+          ],
           'rms_arcmin': 4.2,
-          'residuals_arcmin': [3.0, 4.0, 5.5],
+          'residuals': {'a': 1.2, 'b': 0.4, 'c': 0.5},
           'validated_at_utc': '2026-05-10T20:30:00Z',
           'quality': 'good',
-          'star_ids': ['s1', 's2', 's3'],
         },
       );
       final model = await repo.finalize();
       expect(model.rmsArcmin, 4.2);
-      expect(model.residualsArcmin, [3.0, 4.0, 5.5]);
+      expect(model.residuals, {'a': 1.2, 'b': 0.4, 'c': 0.5});
       expect(model.validatedAtUtc, '2026-05-10T20:30:00Z');
       expect(model.quality, 'good');
-      expect(model.starIds, ['s1', 's2', 's3']);
+      expect(model.recordedStars, hasLength(1));
+      expect(model.recordedStars.first.starId, 's1');
     });
   });
 
@@ -134,6 +156,31 @@ void main() {
       when(() => api.delete('/align/session')).thenAnswer((_) async {});
       await repo.cancel();
       verify(() => api.delete('/align/session')).called(1);
+    });
+  });
+
+  group('AlignmentModelDto.outlierId', () {
+    test('returns null when residuals are roughly equal', () {
+      const model = AlignmentModelDto(
+        recordedStars: [],
+        rmsArcmin: 1.0,
+        residuals: {'s1': 1.0, 's2': 1.1, 's3': 0.9},
+        validatedAtUtc: '2026-05-10T20:30:00Z',
+        quality: 'good',
+      );
+      expect(model.outlierId, isNull);
+    });
+
+    test('returns the worst-key when one residual is dramatically larger',
+        () {
+      const model = AlignmentModelDto(
+        recordedStars: [],
+        rmsArcmin: 5.0,
+        residuals: {'s1': 0.5, 's2': 0.6, 's3': 10.0},
+        validatedAtUtc: '2026-05-10T20:30:00Z',
+        quality: 'poor',
+      );
+      expect(model.outlierId, 's3');
     });
   });
 }
