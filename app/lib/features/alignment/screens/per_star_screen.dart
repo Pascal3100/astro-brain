@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../theme/app_colors.dart';
+import '../../../theme/app_typography.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../widgets/astro_app_bar.dart';
 import '../../../widgets/dpad_control.dart';
@@ -48,6 +49,7 @@ class PerStarScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final text = context.textStyles;
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -67,18 +69,15 @@ class PerStarScreen extends StatelessWidget {
                 const SizedBox(height: DesignTokens.spaceLG),
                 Text(
                   '// ÉTOILE $stepIndex / $totalSteps',
-                  style: TextStyle(
-                    fontFamily: 'JetBrainsMono',
+                  style: text.hudCaption.copyWith(
                     fontSize: 10,
-                    letterSpacing: 1.5,
                     color: colors.textMuted,
                   ),
                 ),
                 const SizedBox(height: DesignTokens.spaceXS),
                 Text(
                   target.name.toUpperCase(),
-                  style: TextStyle(
-                    fontFamily: 'JetBrainsMono',
+                  style: text.hudValue.copyWith(
                     fontSize: 26,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1.3,
@@ -133,17 +132,16 @@ class _AxisRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final text = context.textStyles;
     return Row(
       children: [
         SizedBox(
           width: 36,
           child: Text(
             label,
-            style: TextStyle(
-              fontFamily: 'JetBrainsMono',
+            style: text.hudCaption.copyWith(
               fontSize: 9,
               color: colors.textMuted,
-              letterSpacing: 1.5,
             ),
           ),
         ),
@@ -162,8 +160,7 @@ class _AxisRow extends StatelessWidget {
           child: Text(
             '${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(1)}°',
             textAlign: TextAlign.right,
-            style: TextStyle(
-              fontFamily: 'JetBrainsMono',
+            style: text.hudValue.copyWith(
               fontSize: 14,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
@@ -183,6 +180,7 @@ class _CenteredButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final text = context.textStyles;
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -194,11 +192,9 @@ class _CenteredButton extends StatelessWidget {
         child: Text(
           'CENTRÉ ✓',
           textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily: 'JetBrainsMono',
+          style: text.hudCaption.copyWith(
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            letterSpacing: 1.5,
             color: colors.bgGradientTop,
           ),
         ),

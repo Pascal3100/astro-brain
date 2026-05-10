@@ -179,6 +179,12 @@ Décision d'archi : **catalogue + calculs astro côté backend** (skyfield/astro
 
 **Quand** : à arbitrer après Macro 3 quand on saura si d'autres voies mutent la session (cold-start restore notamment).
 
+## [Macro 3] Axis-bar markers on PerStarScreen
+
+Le mockup D2 et la prose du spec T16 demandent un marker `current` (textMuted, 2px) et un marker `target` (accent, 2px + glow) superposés sur la barre 6px. Le code Dart de référence du plan ne les a pas implémentés ; PerStarScreen affiche actuellement la track sans markers. Le delta numérique reste la source de vérité.
+
+**Décision pour plus tard** : soit ajouter les markers (Stack + Positioned avec mapping current↔target sur la fraction de la barre), soit simplifier la barre en pure décoration (et le clarifier dans le doc).
+
 ## Mode "Mise en station" (important — Macro 3 puis Macro 6)
 
 Scindé en deux livraisons :
