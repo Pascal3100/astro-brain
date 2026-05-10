@@ -144,6 +144,39 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 
 ---
 
+## 2026-05-10 — Wizard 3 étoiles : sync natif INDI, modèle SVD comme indicateur qualité
+
+**Contexte** : la spec wizard 3 étoiles (`docs/superpowers/specs/2026-05-09-wizard-3star-alignment-design.md`, exécutée plan `2026-05-09-wizard-3star-alignment.md`, T1→T22 livrés Session 22) construit un modèle de transformation `(sky_az, sky_alt) ↔ (mount_az, mount_alt)` via SVD côté backend, persisté dans `state.db`. Ce modèle a été conçu comme **source de vérité** pour le futur GoTo (Macro 3 #3) : `goto_service` aurait appliqué la transformée localement puis envoyé du raw `mount.goto(mount_az, mount_alt)`. Aucun appel à un sync mount-side n'était prévu.
+
+Cette approche entre en contradiction directe avec le rationale de la migration INDI (ADR 2026-05-01 + spec `2026-05-01-mount-indi-design.md`) qui motive INDI précisément par l'accès à l'**interface native Celestron** — alignement, sync, tracking, cordwrap, backlash — en plus du futur écosystème caméras. La spec INDI cite explicitement `sync_radec(ra, dec)` via `ON_COORD_SET=SYNC` + `EQUATORIAL_EOD_COORD` comme livrable v0.3 (ligne 97). En construisant un modèle parallèle, on dédoublait la fonction d'alignement et on se privait du tracking sidéral natif (essentiel sur monture alt-az : les vitesses AZ/ALT à appliquer dépendent de la position visée en RA/Dec, calculées par le driver).
+
+**Décision** : repositionner le wizard pour s'appuyer sur le sync natif Celestron via INDI, et requalifier le modèle SVD en indicateur de qualité.
+
+1. À chaque `AlignmentService.record(idx)`, en plus de stocker la paire `(sky, mount)`, pousser `EQUATORIAL_EOD_COORD = (sky_ra, sky_dec)` avec `ON_COORD_SET=SYNC` côté `MountIndiAdapter`. Après les 3 syncs, le driver `indi_celestron_aux` construit son modèle interne (équivalent NexStar 3-stars).
+2. Le futur GoTo (Macro 3 #3) utilise INDI standard : set `EQUATORIAL_EOD_COORD = (target_ra, target_dec)` avec `ON_COORD_SET=TRACK`. Le driver gère le slew + tracking. Plus de tracking maison à écrire.
+3. Le tracking sidéral livré Macro 0 (qui fonctionnait via une zero-pose implicite du driver) bénéficie automatiquement du modèle après les 3 syncs.
+4. Le modèle SVD reste calculé et persisté dans `state.db`, mais **change de rôle** : sanity check / RMS / résiduels / détection outlier / diagnostic UX (`ValidationScreen`). Il n'est plus consommé par `goto_service`. La transformée `(sky_az, sky_alt) ↔ (mount_az, mount_alt)` reste utile au moment du wizard pour valider que les 3 captures sont cohérentes avant de finaliser, et fournit un RMS chiffré que le driver Celestron n'expose pas.
+
+**Rationale** :
+
+1. **Cohérence avec la migration INDI** : on adopte INDI précisément pour profiter des capacités natives ; bypasser l'alignement natif annule la moitié du bénéfice et oblige à réécrire en software ce que le driver fait déjà (tracking alt-az, GoTo, gestion cordwrap couplée à la position).
+2. **Tracking sidéral correct** : sur alt-az, le tracking sans alignement n'a aucune chance d'être juste à plus de quelques minutes. En délégant au driver, on hérite directement de son modèle 3-stars et de ses corrections de cone error si on les active plus tard.
+3. **Compatibilité écosystème** : tout l'outillage tiers (KStars/Ekos pour debug, plate solving INDI standard en Macro 5, PHD2 Macro 7) attend une monture alignée au sens INDI. Si la monture reste "non-alignée" du point de vue du driver, ces outils ne trouveront pas la cible attendue.
+4. **Le modèle SVD garde de la valeur** : le driver Celestron n'expose pas le RMS de son modèle, n'a pas de notion d'outlier, n'a pas de diagnostic UI. Notre modèle SVD calculé en parallèle devient un indicateur de qualité qu'aucune lib externe ne fournit, et reste affiché à l'utilisateur sur `ValidationScreen` (tout le wizard UX livré est conservé tel quel).
+5. **Coût de bascule faible** : ~1 méthode à ajouter dans `MountIndiAdapter` (`sync_radec`), 1 appel à câbler dans `AlignmentService.record()`, mise à jour de la spec wizard et du checklist d'intégration. Aucun changement Flutter. Tests à étendre côté backend pour vérifier le push INDI.
+
+**Conséquences** :
+
+- Spec `docs/superpowers/specs/2026-05-09-wizard-3star-alignment-design.md` à amender pour acter le double rôle (sync natif + indicateur SVD). Section "Architecture du modèle" à réécrire.
+- `MountService` interface à étendre avec `sync_radec(ra, dec)` (déjà listé v0.3 dans la spec INDI, on le tire en avant).
+- Roadmap Macro 3 #3 (GoTo réel) à reformuler : "set `EQUATORIAL_EOD_COORD` avec `ON_COORD_SET=TRACK`" remplace "appliquer la transformée SVD puis raw goto".
+- Smoke test post-dongle (checklist d'intégration) à enrichir d'un check explicite "après wizard, la monture est `is_aligned=true` côté INDI" et "tracking sidéral garde la cible centrée 5 min sans correction".
+- Macro 1 INDI : la livraison de `sync_radec` devient un livrable de Macro 1 (pas de Macro 3). Le smoke test E2E migration INDI doit valider le sync.
+
+**Travail T1→T22 livré** : conservé en l'état. Le wizard fonctionne tel quel. Le repositionnement se fera lors de la reprise de la Macro 3 #2 (un slice court : ajout du `sync_radec` dans l'adapter, branchement dans `AlignmentService.record`, mise à jour spec + checklist + tests). Tracé dans le journal Session 22 + suivi via une étape dédiée à insérer dans la roadmap.
+
+---
+
 ## 2026-04-30 — Arborescence de docs en 3 vues
 
 **Décision** : `docs/INDEX.md` référence trois vues — `technical/`, `project/`, `product/`. Chaque vue a un `README.md` index, et regroupe des docs courts et ciblés (1 sujet = 1 fichier).
