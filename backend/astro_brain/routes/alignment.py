@@ -40,7 +40,7 @@ def _publish_session(bus: StateBus, service: AlignmentService) -> None:
                 "session_id": sess.session_id,
                 "current_idx": sess.current_idx,
                 "recorded_count": len(sess.recorded_stars),
-                "candidates": [c.model_dump() for c in sess.candidates],
+                "candidate_ids": [c.id for c in sess.candidates],
             },
             since=datetime.now(UTC),
         ),

@@ -152,7 +152,7 @@ def test_post_start_publishes_active_subsystem_state() -> None:
     assert align.details["session_id"] == "s1"
     assert align.details["current_idx"] == 0
     assert align.details["recorded_count"] == 0
-    assert len(align.details["candidates"]) == 3
+    assert align.details["candidate_ids"] == ["x0", "x1", "x2"]
 
 
 def test_delete_session_publishes_idle_subsystem_state() -> None:

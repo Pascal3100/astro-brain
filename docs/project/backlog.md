@@ -169,6 +169,16 @@ Décision d'archi : **catalogue + calculs astro côté backend** (skyfield/astro
 - **Déploiement backend** — script `deploy.sh` ou cible Make (SSH → `git pull && systemctl restart astro-brain`). Évite le workflow manuel actuel.
 - **Mise à jour app Flutter** — pipeline build APK (+ TestFlight/iOS si concerné). À traiter séparément, pas via le Pi.
 
+## [Macro 3] AlignmentService publish hook (symétrie architecturale)
+
+**Constat** : `routes/alignment.py` publie l'état `alignment` sur la bus depuis la couche route (au lieu du service comme tous les autres subsystems — `FakeMount`, `FakeGps`, etc.). Ce choix a été fait pour préserver la pureté de `AlignmentServiceImpl` (T7) — sans dépendance au `StateBus`.
+
+**Risque** : si une autre voie mute la session (orchestrateur, timer de timeout, restore au cold start), la bus dérivera silencieusement.
+
+**Piste** : injecter un hook optionnel `on_state_change: Callable[[], None] | None` dans `AlignmentServiceImpl`. Le service appelle le hook après chaque mutation. `app.py` câble le hook vers une closure qui fait le publish. Le service reste découplé du `StateBus`, et toute mutation passe par le bon edge.
+
+**Quand** : à arbitrer après Macro 3 quand on saura si d'autres voies mutent la session (cold-start restore notamment).
+
 ## Mode "Mise en station" (important — Macro 3 puis Macro 6)
 
 Scindé en deux livraisons :
