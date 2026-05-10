@@ -66,7 +66,7 @@ Première mise en station effective, GoTo réel, catalogue d'objets brillants. H
 - ✅ Hub central (landing post-Splash, 4 cartes Manuel / Setup / Status / À propos) — livré 2026-05-08 (Session 20)
 - 🚧 Wizard alignement 3 étoiles assisté capteurs (compass + tilt + GPS pour pré-pointage, validation auto via résiduel SVD < ~1°, fallback manuel) — software livré 2026-05-10 (Session 22, backend + Flutter, 180 tests app + tests backend), validation matérielle bloquée dongle CP2102 (Macro 1)
 - 📦 GoTo réel (`/goto {ra_deg, dec_deg}` sur monture alignée — set `EQUATORIAL_EOD_COORD` avec `ON_COORD_SET=TRACK`, le driver gère slew + tracking sidéral natif) — statut `goto_in_progress` exposé via SSE
-- 📦 Catalogue minimal backend : Messier (110) + planètes (skyfield) + ~50–100 étoiles brillantes
+- 🚧 Catalogue minimal backend : tranche A (stars étendues IAU CSN cap mag 3, 140 entrées) livrée 2026-05-10 — tranches Messier + planètes (skyfield) à suivre
 - 📦 Page Catalogue minimal (recherche/sélection + GoTo)
 
 *Done quand* : on peut faire une mise en station 3 étoiles puis pointer fiablement Messier/planètes/étoiles brillantes en session réelle.
