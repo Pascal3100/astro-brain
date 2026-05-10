@@ -1,0 +1,8 @@
+# IAU Catalog of Star Names (CSN) — fixture pour tests offline
+# Format approximatif: Name | Designation | ID | Bayer | Const | WDS | Vmag | RA(deg) | Dec(deg) | Date | Notes
+#Name      |Designation|ID  |Bayer |Const|WDS_J         |Vmag |RA(J2000)|Dec(J2000)|Date     |Notes
+Sirius     |alf CMa A  |HR2491|alf  |CMa  |J06451-1643AP |-1.46|101.28715|-16.71612 |2016-06-30|approved
+Vega       |alf Lyr    |HR7001|alf  |Lyr  |              | 0.03|279.23473| 38.78369 |2016-06-30|approved
+Polaris    |alf UMi Aa |HR424 |alf  |UMi  |J02319+8915Aa |1.98 | 37.95456| 89.26411 |2016-06-30|approved
+Betelgeuse |alf Ori    |HR2061|alf  |Ori  |              |0.42 | 88.79294|  7.40706 |2016-06-30|approved
+Faintstar  |xxx Xxx    |HR9999|xxx  |Xxx  |              | 4.50|123.4    | 45.6     |2016-06-30|approved
