@@ -1,6 +1,7 @@
 """Pydantic models pour l'alignement 3 étoiles."""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -47,7 +48,7 @@ class AlignmentModel(BaseModel):
     svd_matrix: list[list[float]]
     rms_arcmin: float
     residuals: dict[str, float]
-    validated_at_utc: str
-    gps_lat: float | None = None
-    gps_lon: float | None = None
+    validated_at_utc: datetime
+    gps_lat: float | None = Field(default=None, ge=-90, le=90)
+    gps_lon: float | None = Field(default=None, ge=-180, le=180)
     quality: Literal["good", "poor"] = "good"

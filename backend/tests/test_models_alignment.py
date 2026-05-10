@@ -52,3 +52,26 @@ def test_alignment_model_roundtrip_dict() -> None:
         quality="good",
     )
     assert m.model_dump()["rms_arcmin"] == pytest.approx(4.2)
+
+
+def test_alignment_model_rejects_bad_timestamp() -> None:
+    with pytest.raises(ValidationError):
+        AlignmentModel(
+            recorded_stars=[],
+            svd_matrix=[[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+            rms_arcmin=4.2,
+            residuals={},
+            validated_at_utc="not-a-timestamp",
+        )
+
+
+def test_alignment_model_rejects_out_of_range_gps() -> None:
+    with pytest.raises(ValidationError):
+        AlignmentModel(
+            recorded_stars=[],
+            svd_matrix=[[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+            rms_arcmin=4.2,
+            residuals={},
+            validated_at_utc="2026-05-09T22:47:00Z",
+            gps_lat=999.0,  # invalid
+        )
