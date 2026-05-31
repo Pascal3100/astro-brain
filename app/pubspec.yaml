@@ -41,6 +41,8 @@ dependencies:
   hugeicons: ^1.1.6
   http: ^1.6.0
   shared_preferences: ^2.5.5
+  bloc_concurrency: ^0.3.0
+  stream_transform: ^2.1.1
 
 dev_dependencies:
   flutter_test:
