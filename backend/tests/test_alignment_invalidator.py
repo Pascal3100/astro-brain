@@ -38,3 +38,13 @@ def test_no_invalidate_while_staying_ready():
     inv.on_mount_state("moving")
     inv.on_mount_state("ready")
     assert align.invalidated == 0
+
+
+def test_error_does_not_invalidate_but_disconnect_after_error_does():
+    align = _Alignment()
+    inv = AlignmentInvalidator(alignment=align)
+    inv.on_mount_state("ready")
+    inv.on_mount_state("error")  # échec de commande transitoire → pas d'invalidation
+    assert align.invalidated == 0
+    inv.on_mount_state("disconnected")  # vraie reconnexion → invalide
+    assert align.invalidated == 1

@@ -1,9 +1,15 @@
 """Invalide le flag is_aligned quand la monture perd son modèle natif.
 
 Le modèle 3-étoiles vit dans le driver INDI (en mémoire). Toute reconnexion
-(transition mount → disconnected/connecting/error) signifie sa perte : on
+(transition mount → disconnected/connecting) signifie sa perte : on
 remet ``is_aligned`` à faux. Edge-triggered : ne ré-invalide qu'après être
 repassé par ``ready``.
+
+Le state transitoire ``error`` (publié à chaque échec de commande INDI
+récupérable, ex. sync_radec/goto_radec raté) n'invalide PAS l'alignement :
+le driver ne se déconnecte pas, le modèle natif est préservé. Le latch
+``_was_ready`` survit aux états transitoires non-perdants (ex. ``moving``,
+``error``) jusqu'à une vraie reconnexion (``disconnected`` ou ``connecting``).
 
 Branché sur le StateBus comme l'Orchestrator (une tâche de fond qui consomme
 les events et appelle :meth:`on_mount_state`).
@@ -19,7 +25,7 @@ from astro_brain.subsystems import MountState, SubsystemState
 logger = logging.getLogger(__name__)
 
 _LOST_STATES = frozenset(
-    {MountState.DISCONNECTED.value, MountState.CONNECTING.value, MountState.ERROR.value}
+    {MountState.DISCONNECTED.value, MountState.CONNECTING.value}
 )
 
 
