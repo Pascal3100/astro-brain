@@ -87,4 +87,15 @@ void main() {
     act: (b) => b.add(const CatalogueOpened()),
     expect: () => [isA<CatalogueLoading>(), isA<CatalogueError>()],
   );
+
+  blocTest<CatalogueBloc, CatalogueState>(
+    'GoToRequested failure → CatalogueError',
+    build: () {
+      when(() => repo.goto(any(), any(), any()))
+          .thenThrow(Exception('rejected'));
+      return CatalogueBloc(repo: repo);
+    },
+    act: (b) => b.add(const GoToRequested(101.0, -16.0, 'Sirius')),
+    expect: () => [isA<CatalogueError>()],
+  );
 }

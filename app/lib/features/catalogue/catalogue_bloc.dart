@@ -65,10 +65,18 @@ class CatalogueBloc extends Bloc<CatalogueEvent, CatalogueState> {
       _query(emit, _filters.copyWith(visibleNow: e.enabled));
 
   Future<void> _onGoTo(GoToRequested e, Emitter<CatalogueState> emit) async {
-    await repo.goto(e.raDeg, e.decDeg, e.targetName);
+    try {
+      await repo.goto(e.raDeg, e.decDeg, e.targetName);
+    } catch (err) {
+      emit(CatalogueError(err.toString(), _filters));
+    }
   }
 
   Future<void> _onAbort(AbortRequested e, Emitter<CatalogueState> emit) async {
-    await repo.abort();
+    try {
+      await repo.abort();
+    } catch (err) {
+      emit(CatalogueError(err.toString(), _filters));
+    }
   }
 }
