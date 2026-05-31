@@ -8,9 +8,8 @@ from datetime import datetime
 from importlib import resources
 
 from astro_brain.models.alignment import Star
-from astro_brain.services._ephemeris import (  # ré-export pour compat
+from astro_brain.services._ephemeris import (
     Observer,
-    _gmst_deg,
     sky_az_alt_from_ra_dec,
 )
 

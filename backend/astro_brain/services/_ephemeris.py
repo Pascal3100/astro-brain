@@ -10,6 +10,8 @@ import math
 from dataclasses import dataclass
 from datetime import datetime
 
+__all__ = ["Observer", "sky_az_alt_from_ra_dec"]
+
 
 @dataclass(frozen=True)
 class Observer:
@@ -33,7 +35,12 @@ def _julian_date(t_utc: datetime) -> float:
 
 
 def _gmst_deg(t_utc: datetime) -> float:
-    """Greenwich Mean Sidereal Time en degrés (IAU 1982)."""
+    """Greenwich Mean Sidereal Time en degrés (IAU 1982).
+
+    ``T₀`` est évalué à 0h UT du jour, et l'heure UT du jour est ajoutée
+    séparément via le terme ``1.00273790935·H``. Mélanger les deux introduit
+    un biais systématique d'environ 0.5° en GMST.
+    """
     jd = _julian_date(t_utc)
     jd0 = math.floor(jd - 0.5) + 0.5  # JD à 0h UT du même jour
     h_ut = (jd - jd0) * 24.0           # heures UT depuis 0h
