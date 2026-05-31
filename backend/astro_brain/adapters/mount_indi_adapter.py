@@ -64,6 +64,8 @@ class MountIndiAdapter:
         )
         self._device: Any | None = None
         self._active_slews: list[dict[str, Any]] = []
+        self._goto_in_progress: bool = False
+        self._goto_target: dict[str, Any] | None = None
 
     async def start(self) -> None:
         """Connect to indiserver and discover the mount device.
@@ -329,6 +331,53 @@ class MountIndiAdapter:
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),
             )
+
+    # --- goto (slew vers coordonnées + tracking sidéral natif) ------------
+
+    async def goto_radec(
+        self, ra_deg: float, dec_deg: float, target_name: str | None = None
+    ) -> None:
+        if self._device is None:
+            return
+        try:
+            mode = self._device.getSwitch("ON_COORD_SET")
+            if mode is None:
+                raise RuntimeError("ON_COORD_SET property not found")
+            set_switch_one_of_many(mode, "TRACK")
+            await asyncio.to_thread(self._client.sendNewProperty, mode)
+
+            coord = self._device.getNumber("EQUATORIAL_EOD_COORD")
+            if coord is None:
+                raise RuntimeError("EQUATORIAL_EOD_COORD property not found")
+            coord["RA"].setValue(float(ra_deg) / 15.0)
+            coord["DEC"].setValue(float(dec_deg))
+            await asyncio.to_thread(self._client.sendNewProperty, coord)
+        except Exception as exc:
+            logger.exception("indi: goto_radec failed")
+            self._bus.publish(
+                "mount",
+                SubsystemState(state="error", message=str(exc), since=_now()),
+            )
+            return
+
+        self._goto_in_progress = True
+        self._goto_target = {
+            "target_name": target_name,
+            "ra_deg": float(ra_deg),
+            "dec_deg": float(dec_deg),
+        }
+        self._bus.publish(
+            "mount",
+            SubsystemState(
+                state="moving",
+                details={
+                    "device": self._device_name,
+                    "goto_in_progress": True,
+                    "goto": dict(self._goto_target),
+                },
+                since=_now(),
+            ),
+        )
 
     # --- tracking (TrackingService surface) -------------------------------
 

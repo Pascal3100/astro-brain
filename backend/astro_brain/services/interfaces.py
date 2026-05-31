@@ -45,6 +45,18 @@ class MountService(Protocol):
         """
         ...
 
+    async def goto_radec(
+        self, ra_deg: float, dec_deg: float, target_name: str | None = None
+    ) -> None:
+        """Pointe la monture sur (ra, dec) et enchaîne le tracking sidéral.
+
+        Pattern INDI ``ON_COORD_SET=TRACK`` puis ``EQUATORIAL_EOD_COORD``
+        (RA en heures, DEC en degrés, JNow). Publie l'état ``moving`` avec
+        ``details.goto_in_progress = True`` ; l'arrivée (propriété passée à
+        ``Ok``/``Idle``) repasse en ``ready``.
+        """
+        ...
+
     async def cordwrap_get_enabled(self) -> bool: ...
     async def cordwrap_set_enabled(self, enabled: bool) -> None: ...
     async def cordwrap_get_position(self) -> str: ...
