@@ -21,6 +21,8 @@ class CatalogObject(BaseModel):
     constellation: str | None = None
     object_type: str | None = None
     angular_size_arcmin: float | None = None
+    altitude_deg: float | None = None
+    azimuth_deg: float | None = None
     extras: dict[str, Any] = Field(default_factory=dict)
 
 

@@ -77,3 +77,21 @@ def test_catalog_filter_limit_must_be_positive() -> None:
 def test_catalog_filter_offset_must_be_non_negative() -> None:
     with pytest.raises(ValidationError):
         CatalogFilter(offset=-1)
+
+
+def test_catalog_object_altitude_azimuth_default_none():
+    from astro_brain.services.catalog.models import CatalogObject
+
+    obj = CatalogObject(
+        qualified_id="star:sirius",
+        kind="star",
+        name="Sirius",
+        ra_deg=101.287,
+        dec_deg=-16.716,
+    )
+    assert obj.altitude_deg is None
+    assert obj.azimuth_deg is None
+
+    enriched = obj.model_copy(update={"altitude_deg": 34.0, "azimuth_deg": 168.0})
+    assert enriched.altitude_deg == 34.0
+    assert enriched.azimuth_deg == 168.0
