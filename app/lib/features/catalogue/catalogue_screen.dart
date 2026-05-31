@@ -13,6 +13,7 @@ import 'catalogue_models.dart';
 import 'catalogue_state.dart';
 import 'widgets/catalogue_detail_sheet.dart';
 import 'widgets/catalogue_object_card.dart';
+import 'widgets/goto_slew_bar.dart';
 
 /// Page Catalogue — Macro 3 #5. Liste cherchable/filtrable d'objets célestes
 /// avec GoTo conditionné à l'alignement.
@@ -52,6 +53,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
               _NotAlignedBanner(),
               _Filters(),
               Expanded(child: _ObjectList()),
+              _SlewBarSlot(),
             ],
           ),
         ),
@@ -223,6 +225,31 @@ class _ObjectList extends StatelessWidget {
           GoToRequested(obj.raDeg, obj.decDeg, obj.name),
         ),
       ),
+    );
+  }
+}
+
+class _SlewBarSlot extends StatelessWidget {
+  const _SlewBarSlot();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<AppBloc, AppState>(
+      buildWhen: (a, b) =>
+          a.system?.gotoInProgress != b.system?.gotoInProgress ||
+          a.system?.gotoTarget != b.system?.gotoTarget,
+      builder: (ctx, state) {
+        if (state.system?.gotoInProgress != true) {
+          return const SizedBox.shrink();
+        }
+        final target =
+            state.system?.gotoTarget?['target_name'] as String?;
+        return GotoSlewBar(
+          targetName: target ?? 'cible',
+          onStop: () =>
+              ctx.read<CatalogueBloc>().add(const AbortRequested()),
+        );
+      },
     );
   }
 }
