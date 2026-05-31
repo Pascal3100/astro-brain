@@ -40,9 +40,18 @@ class AlignmentServiceImpl:
         self._db = db
         self._now = now_utc
         self._session: AlignmentSession | None = None
+        self._is_aligned: bool = False
 
     def session(self) -> AlignmentSession | None:
         return self._session
+
+    @property
+    def is_aligned(self) -> bool:
+        return self._is_aligned
+
+    def invalidate(self) -> None:
+        """Perte du modèle natif (reconnexion monture / redémarrage driver)."""
+        self._is_aligned = False
 
     async def start(self) -> AlignmentSession:
         candidates = self._select()
@@ -118,10 +127,12 @@ class AlignmentServiceImpl:
         )
         await self._repo_save(self._db, model)
         self._session = None
+        self._is_aligned = True
         return model
 
     async def cancel(self) -> None:
         self._session = None
+        self._is_aligned = False
 
     def _require_session(self) -> AlignmentSession:
         if self._session is None:

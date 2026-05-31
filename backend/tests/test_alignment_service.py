@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from astro_brain.models.alignment import Star, StarRecord
+from astro_brain.models.alignment import Star
 from astro_brain.services.alignment import AlignmentServiceImpl
 from astro_brain.services.interfaces import ConflictError
 
@@ -137,3 +137,20 @@ async def test_cancel_clears_session_only() -> None:
     await svc.cancel()
     assert svc.session() is None
     svc._repo_save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_is_aligned_lifecycle() -> None:
+    """is_aligned: False at start, True after finalize, False after invalidate."""
+    svc = _build_service()
+    assert svc.is_aligned is False
+
+    await svc.start()
+    for i in range(3):
+        await svc.record(i)
+
+    await svc.finalize()
+    assert svc.is_aligned is True
+
+    svc.invalidate()
+    assert svc.is_aligned is False
