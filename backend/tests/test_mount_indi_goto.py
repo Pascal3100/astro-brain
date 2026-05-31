@@ -96,3 +96,26 @@ async def test_fake_mount_goto_records_call_and_publishes():
     state = bus.get_full_state().subsystems["mount"]
     assert state.state == "moving"
     assert state.details["goto_in_progress"] is True
+
+
+@pytest.mark.asyncio
+async def test_abort_clears_goto_latch_no_spurious_completion():
+    client = FakeIndiClient()
+    dev = client.add_device("Celestron AUX")
+    dev.add_switch("ON_COORD_SET", {"SLEW": "OFF", "TRACK": "OFF", "SYNC": "OFF"})
+    dev.add_number("EQUATORIAL_EOD_COORD", {"RA": 0.0, "DEC": 0.0})
+    dev.add_switch("TELESCOPE_ABORT_MOTION", {"ABORT_MOTION": "OFF"})
+    adapter = MountIndiAdapter(StateBus(), client=client)
+    await adapter.start()
+    await adapter.goto_radec(101.0, -16.0, target_name="Sirius")
+    assert adapter._goto_in_progress is True
+
+    await adapter.stop_slew(None)
+    assert adapter._goto_in_progress is False
+
+    # La propriété retombe à Ok après l'abort : pas de complétion fantôme.
+    adapter.handle_property_update(
+        FakeNumberVector(name="EQUATORIAL_EOD_COORD", state="Ok")
+    )
+    tracking = adapter._bus.get_full_state().subsystems["tracking"]
+    assert tracking.state != "sidereal"

@@ -223,7 +223,7 @@ def build_app(
         )
         bus.publish(
             "alignment",
-            SubsystemState(state="idle", details={}, since=datetime.now(UTC)),
+            SubsystemState(state="idle", details={"is_aligned": False}, since=datetime.now(UTC)),
         )
 
         invalidator = AlignmentInvalidator(

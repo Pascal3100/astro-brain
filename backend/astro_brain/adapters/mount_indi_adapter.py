@@ -222,6 +222,8 @@ class MountIndiAdapter:
                 abort_vec["ABORT_MOTION"].setState("ON")
                 await asyncio.to_thread(self._client.sendNewProperty, abort_vec)
                 self._active_slews = []
+                self._goto_in_progress = False
+                self._goto_target = None
             else:
                 motion_name = self._AXIS_TO_MOTION_VECTOR[axis]
                 motion_vec = self._device.getSwitch(motion_name)
