@@ -52,6 +52,7 @@ from astro_brain.services.calibration import CalibrationServiceImpl
 from astro_brain.services.catalog.providers import SqliteCatalogProvider
 from astro_brain.services.catalog.registry import CatalogRegistry
 from astro_brain.services.catalog.seed_runner import apply_seeds
+from astro_brain.services.catalog.visibility import VisibilityEnricher
 from astro_brain.services.fakes import (
     FakeGps,
     FakeMount,
@@ -199,6 +200,11 @@ def build_app(
         _app.state.lazy_lis3mdl = _LazySensor(services["lis3mdl"])
 
         sensors_bridge = _AlignmentSensorsBridge(bus)
+
+        _app.state.visibility_enricher = VisibilityEnricher(
+            gps_fix=sensors_bridge.gps_fix,
+            now_utc=lambda: datetime.now(UTC),
+        )
 
         def _candidates_provider() -> list[Any]:
             obs = sensors_bridge.observer()
