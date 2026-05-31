@@ -26,6 +26,7 @@ from typing import Any
 import aiosqlite
 from fastapi import FastAPI
 
+from astro_brain.alignment_invalidator import AlignmentInvalidator
 from astro_brain.bus import StateBus
 from astro_brain.orchestrator import Orchestrator
 from astro_brain.repository import alignment_repo
@@ -222,6 +223,13 @@ def build_app(
         bus.publish(
             "alignment",
             SubsystemState(state="idle", details={}, since=datetime.now(UTC)),
+        )
+
+        invalidator = AlignmentInvalidator(
+            alignment=_app.state.alignment, bus=bus
+        )
+        background_tasks.append(
+            asyncio.create_task(invalidator.run(), name="alignment-invalidator")
         )
 
         await services["mount"].start()
