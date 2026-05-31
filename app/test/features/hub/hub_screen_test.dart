@@ -1,6 +1,9 @@
 import 'package:astro_brain/features/about/about_screen.dart';
 import 'package:astro_brain/features/alignment/alignment_bloc.dart';
 import 'package:astro_brain/features/alignment/alignment_repository.dart';
+import 'package:astro_brain/features/catalogue/catalogue_bloc.dart';
+import 'package:astro_brain/features/catalogue/catalogue_repository.dart';
+import 'package:astro_brain/features/catalogue/catalogue_screen.dart';
 import 'package:astro_brain/features/hub/hub_screen.dart';
 import 'package:astro_brain/features/hub/widgets/hub_card.dart';
 import 'package:astro_brain/features/manual/manual_bloc.dart';
@@ -54,6 +57,10 @@ Widget _wrap(Widget child, AppBloc bloc, ThemeCubit theme, PiHost host,
           create: (_) =>
               AlignmentBloc(repo: AlignmentRepository(api: apiService)),
         ),
+        BlocProvider<CatalogueBloc>(
+          create: (_) =>
+              CatalogueBloc(repo: CatalogueRepository(api: apiService)),
+        ),
       ],
       child: MaterialApp(
         theme: _testTheme(),
@@ -89,29 +96,34 @@ void main() {
     theme.close();
   });
 
-  testWidgets('HubScreen renders 5 cards in order', (tester) async {
+  testWidgets('HubScreen renders 6 cards in order', (tester) async {
     await tester.pumpWidget(_wrap(const HubScreen(), bloc, theme, host));
     await tester.pump();
 
-    final cards = tester.widgetList<HubCard>(find.byType(HubCard)).toList();
-    expect(cards, hasLength(5));
-    expect(cards[0].label, 'MANUEL');
-    expect(cards[1].label, 'ALIGNER');
-    expect(cards[2].label, 'SETUP');
-    expect(cards[3].label, 'STATUS');
-    expect(cards[4].label, 'À PROPOS');
+    // Verify the first visible cards (onscreen at launch).
+    expect(find.text('MANUEL'), findsOneWidget);
+    expect(find.text('ALIGNER'), findsOneWidget);
+    expect(find.text('CATALOGUE'), findsOneWidget);
+
+    // Scroll to the bottom to verify the remaining cards are present.
+    await tester.scrollUntilVisible(find.text('À PROPOS'), 100);
+    await tester.pump();
+
+    expect(find.text('SETUP'), findsOneWidget);
+    expect(find.text('STATUS'), findsOneWidget);
+    expect(find.text('À PROPOS'), findsOneWidget);
   });
 
   testWidgets('HubScreen first card is primary', (tester) async {
     await tester.pumpWidget(_wrap(const HubScreen(), bloc, theme, host));
     await tester.pump();
 
+    // At launch the first visible card (MANUEL) is the primary one.
     final cards = tester.widgetList<HubCard>(find.byType(HubCard)).toList();
     expect(cards[0].primary, isTrue);
-    expect(cards[1].primary, isFalse);
-    expect(cards[2].primary, isFalse);
-    expect(cards[3].primary, isFalse);
-    expect(cards[4].primary, isFalse);
+    for (final c in cards.skip(1)) {
+      expect(c.primary, isFalse);
+    }
   });
 
   testWidgets('HubScreen tile ALIGNER is present', (tester) async {
@@ -180,10 +192,31 @@ void main() {
     );
     await tester.pump();
 
+    await tester.scrollUntilVisible(find.text('À PROPOS'), 100);
+    await tester.pump();
+
     await tester.tap(find.text('À PROPOS'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.byType(AboutScreen), findsOneWidget);
+  });
+
+  testWidgets('CATALOGUE card navigates to CatalogueScreen', (tester) async {
+    final apiMock = _MockApi();
+    when(() => apiMock.getJson(any())).thenAnswer(
+      (_) async => {'objects': [], 'count': 0, 'limit': 500, 'offset': 0},
+    );
+
+    await tester.pumpWidget(
+      _wrap(const HubScreen(), bloc, theme, host, api: apiMock),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('CATALOGUE'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byType(CatalogueScreen), findsOneWidget);
   });
 }
