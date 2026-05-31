@@ -103,8 +103,21 @@ class _NotAlignedBanner extends StatelessWidget {
   }
 }
 
-class _Filters extends StatelessWidget {
+class _Filters extends StatefulWidget {
   const _Filters();
+
+  @override
+  State<_Filters> createState() => _FiltersState();
+}
+
+class _FiltersState extends State<_Filters> {
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,30 +126,29 @@ class _Filters extends StatelessWidget {
       final g = b.state.system?.gps.state.name;
       return g == 'fix2d' || g == 'fix3d';
     });
-    return BlocBuilder<CatalogueBloc, CatalogueState>(
-      builder: (ctx, state) {
-        final filters = switch (state) {
-          CatalogueLoading(:final filters) => filters,
-          CatalogueLoaded(:final filters) => filters,
-          CatalogueError(:final filters) => filters,
-        };
-        return Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: DesignTokens.spaceMD,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: DesignTokens.spaceMD),
+      child: Column(
+        children: [
+          TextField(
+            controller: _searchController,
+            onChanged: (v) =>
+                context.read<CatalogueBloc>().add(SearchChanged(v)),
+            style: TextStyle(color: colors.textPrimary),
+            decoration: const InputDecoration(
+              hintText: 'Rechercher une étoile…',
+              prefixIcon: Icon(Icons.search),
+            ),
           ),
-          child: Column(
-            children: [
-              TextField(
-                onChanged: (v) =>
-                    ctx.read<CatalogueBloc>().add(SearchChanged(v)),
-                style: TextStyle(color: colors.textPrimary),
-                decoration: const InputDecoration(
-                  hintText: 'Rechercher une étoile…',
-                  prefixIcon: Icon(Icons.search),
-                ),
-              ),
-              const SizedBox(height: DesignTokens.spaceSM),
-              Wrap(
+          const SizedBox(height: DesignTokens.spaceSM),
+          BlocBuilder<CatalogueBloc, CatalogueState>(
+            builder: (ctx, state) {
+              final filters = switch (state) {
+                CatalogueLoading(:final filters) => filters,
+                CatalogueLoaded(:final filters) => filters,
+                CatalogueError(:final filters) => filters,
+              };
+              return Wrap(
                 spacing: DesignTokens.spaceSM,
                 children: [
                   FilterChip(
@@ -162,11 +174,11 @@ class _Filters extends StatelessWidget {
                         .add(MagFilterChanged(v ? 2.0 : null)),
                   ),
                 ],
-              ),
-            ],
+              );
+            },
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
