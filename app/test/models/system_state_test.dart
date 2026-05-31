@@ -159,4 +159,60 @@ void main() {
       );
     });
   });
+
+  group('SystemState alignment subsystem', () {
+    Map<String, dynamic> baseSubsystems() => {
+          'mount': {
+            'state': 'ready',
+            'details': {},
+            'since': '2026-05-31T20:00:00Z'
+          },
+          'gps': {
+            'state': 'fix_3d',
+            'details': {},
+            'since': '2026-05-31T20:00:00Z'
+          },
+          'tracking': {
+            'state': 'off',
+            'details': {},
+            'since': '2026-05-31T20:00:00Z'
+          },
+          'network': {
+            'state': 'client',
+            'details': {},
+            'since': '2026-05-31T20:00:00Z'
+          },
+          'system': {
+            'state': 'ok',
+            'details': {},
+            'since': '2026-05-31T20:00:00Z'
+          },
+        };
+
+    test('parses alignment subsystem with is_aligned', () {
+      final subs = baseSubsystems()
+        ..['alignment'] = {
+          'state': 'idle',
+          'details': {'is_aligned': true},
+          'since': '2026-05-31T20:00:00Z',
+        };
+      final s = SystemState.fromJson({
+        'overall': 'blue',
+        'subsystems': subs,
+        'seq': 1,
+        'ts': '2026-05-31T20:00:00Z',
+      });
+      expect(s.isAligned, isTrue);
+    });
+
+    test('isAligned false when alignment subsystem absent', () {
+      final s = SystemState.fromJson({
+        'overall': 'blue',
+        'subsystems': baseSubsystems(),
+        'seq': 1,
+        'ts': '2026-05-31T20:00:00Z',
+      });
+      expect(s.isAligned, isFalse);
+    });
+  });
 }

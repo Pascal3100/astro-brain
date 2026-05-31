@@ -74,3 +74,14 @@ enum SystemInfoState {
         _ => throw FormatException('SystemInfoState inconnu: $v'),
       };
 }
+
+enum AlignmentSubsysState {
+  idle,
+  active;
+
+  static AlignmentSubsysState fromJson(String v) => switch (v) {
+        'idle' => AlignmentSubsysState.idle,
+        'active' => AlignmentSubsysState.active,
+        _ => throw FormatException('AlignmentSubsysState inconnu: $v'),
+      };
+}
