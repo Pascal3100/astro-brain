@@ -88,7 +88,9 @@ class MountIndiAdapter:
                     AstroBrainIndiClient,
                 )
 
-                self._client = AstroBrainIndiClient(bus=self._bus)
+                self._client = AstroBrainIndiClient(
+                    bus=self._bus, on_update=self.handle_property_update
+                )
             self._client.setServer(self._host, self._port)
             ok = await asyncio.to_thread(self._client.connectServer)
             if not ok:
@@ -377,6 +379,41 @@ class MountIndiAdapter:
                 },
                 since=_now(),
             ),
+        )
+
+    _GOTO_DONE_STATES: frozenset[str] = frozenset({"Ok", "Idle"})
+
+    def handle_property_update(self, prop: Any) -> None:
+        """Réagit aux mises à jour de propriétés INDI (thread C++ → loop).
+
+        Détecte la fin d'un GoTo : quand ``EQUATORIAL_EOD_COORD`` repasse à
+        ``Ok``/``Idle`` alors qu'un goto était en cours, publie ``ready`` +
+        ``tracking=sidereal`` et désarme le goto. Sync method : sûre à
+        appeler depuis un callback (aucun await).
+        """
+        if not self._goto_in_progress:
+            return
+        try:
+            name = prop.getName()
+        except Exception:
+            return
+        if name != "EQUATORIAL_EOD_COORD":
+            return
+        if prop.getStateAsString() not in self._GOTO_DONE_STATES:
+            return
+        self._goto_in_progress = False
+        self._goto_target = None
+        self._bus.publish(
+            "mount",
+            SubsystemState(
+                state="ready",
+                details={"device": self._device_name},
+                since=_now(),
+            ),
+        )
+        self._bus.publish(
+            "tracking",
+            SubsystemState(state="sidereal", since=_now()),
         )
 
     # --- tracking (TrackingService surface) -------------------------------

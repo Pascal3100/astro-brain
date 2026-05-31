@@ -9,9 +9,9 @@ Responsibilities:
 
 * Forward ``serverConnected`` / ``serverDisconnected`` to the bus
   (mount = ``error`` on disconnect — matches v0.1 watchdog semantics).
-* No-op for ``newDevice`` / ``updateProperty`` for now; subsystems read
-  property values on demand. Future enhancement (post-v0.2): forward
-  ``EQUATORIAL_EOD_COORD`` updates so the bus exposes live coords.
+* ``updateProperty`` forwards property updates to the adapter via
+  ``call_soon_threadsafe`` so goto completion can be detected from the
+  C++ PyIndi thread without blocking.
 """
 
 from __future__ import annotations
@@ -35,9 +35,10 @@ def _now() -> datetime:
 class AstroBrainIndiClient(PyIndi.BaseClient):
     """Production INDI client. Pushes connection lifecycle to the bus."""
 
-    def __init__(self, *, bus: StateBus) -> None:
+    def __init__(self, *, bus: StateBus, on_update=None) -> None:
         super().__init__()
         self._bus = bus
+        self._on_update = on_update
         # Capture the loop so callbacks fired from PyIndi's C++ thread
         # can hand work back to asyncio safely.
         self._loop = asyncio.get_running_loop()
@@ -68,8 +69,10 @@ class AstroBrainIndiClient(PyIndi.BaseClient):
         pass
 
     def updateProperty(self, prop: PyIndi.Property) -> None:  # noqa: N802
-        # Property updates are pulled on-demand by MountIndiAdapter for now.
-        pass
+        # Forward to the adapter on the asyncio loop (callback fires from
+        # PyIndi's C++ thread). Used for goto completion detection.
+        if self._on_update is not None:
+            self._loop.call_soon_threadsafe(self._on_update, prop)
 
     def newMessage(self, dev: PyIndi.BaseDevice, msg_id: int) -> None:  # noqa: N802
         pass

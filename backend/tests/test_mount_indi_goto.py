@@ -1,11 +1,11 @@
-"""Tests goto_radec + détection de fin de slew du MountIndiAdapter."""
+"""Tests goto_radec + détection de fin de GoTo du MountIndiAdapter."""
 from __future__ import annotations
 
 import pytest
 
 from astro_brain.adapters.mount_indi_adapter import MountIndiAdapter
 from astro_brain.bus import StateBus
-from tests.fakes.fake_indi import FakeIndiClient
+from tests.fakes.fake_indi import FakeIndiClient, FakeNumberVector
 
 
 def _adapter_with_device() -> tuple[MountIndiAdapter, FakeIndiClient]:
@@ -49,6 +49,40 @@ async def test_goto_radec_publishes_moving_with_goto_details():
 async def test_goto_radec_noop_when_device_absent():
     adapter = MountIndiAdapter(StateBus(), client=FakeIndiClient())
     await adapter.goto_radec(10.0, 10.0, target_name="X")  # ne lève pas
+
+
+@pytest.mark.asyncio
+async def test_goto_completion_on_eq_coord_ok_publishes_ready():
+    adapter, _ = _adapter_with_device()
+    await adapter.start()
+    await adapter.goto_radec(101.287, -16.716, target_name="Sirius")
+    assert adapter._goto_in_progress is True
+
+    prop = FakeNumberVector(name="EQUATORIAL_EOD_COORD", state="Ok")
+    adapter.handle_property_update(prop)
+
+    assert adapter._goto_in_progress is False
+    mount = adapter._bus.get_full_state().subsystems["mount"]
+    assert mount.state == "ready"
+    tracking = adapter._bus.get_full_state().subsystems["tracking"]
+    assert tracking.state == "sidereal"
+
+
+@pytest.mark.asyncio
+async def test_goto_completion_ignores_busy_and_other_props():
+    adapter, _ = _adapter_with_device()
+    await adapter.start()
+    await adapter.goto_radec(10.0, 10.0, target_name="X")
+
+    adapter.handle_property_update(
+        FakeNumberVector(name="EQUATORIAL_EOD_COORD", state="Busy")
+    )
+    assert adapter._goto_in_progress is True
+
+    adapter.handle_property_update(
+        FakeNumberVector(name="GEOGRAPHIC_COORD", state="Ok")
+    )
+    assert adapter._goto_in_progress is True
 
 
 @pytest.mark.asyncio
