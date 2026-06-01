@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_typography.dart';
 import '../../../theme/design_tokens.dart';
 import '../catalogue_models.dart';
+import '../constellations.dart';
 
-/// Carte aérée d'un objet du catalogue (option B du design — lisibilité).
+/// Carte aérée d'un objet du catalogue (design B — lisibilité priorisée).
 ///
-/// Affiche le nom principal, la désignation + constellation en sous-titre,
-/// une pilule magnitude et une pilule altitude (surlignée quand visible).
+/// Grand nom + badge magnitude en tête, sous-titre désignation · constellation
+/// (nom complet), puis pilules ALT/AZ (ALT surlignée quand l'objet est visible).
 class CatalogueObjectCard extends StatelessWidget {
   const CatalogueObjectCard({
     super.key,
@@ -27,7 +27,8 @@ class CatalogueObjectCard extends StatelessWidget {
 
     final subtitleParts = <String>[
       if (object.designation != null) object.designation!,
-      if (object.constellation != null) object.constellation!,
+      if (object.constellation != null)
+        constellationFullName(object.constellation)!,
     ];
     final subtitle = subtitleParts.join(' · ');
 
@@ -37,64 +38,95 @@ class CatalogueObjectCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(DesignTokens.radiusLG),
         child: Container(
-          padding: const EdgeInsets.all(DesignTokens.spaceMD),
+          padding: const EdgeInsets.all(DesignTokens.spaceLG),
           decoration: BoxDecoration(
-            color: colors.bgGradientTop.withValues(alpha: 0.5),
+            color: colors.bgGradientTop.withValues(alpha: 0.55),
             border: Border.all(
-              color: colors.accent.withValues(alpha: 0.18),
+              color: colors.accent.withValues(alpha: 0.22),
             ),
             borderRadius: BorderRadius.circular(DesignTokens.radiusLG),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      object.name,
-                      style: text.hudValue.copyWith(
-                        color: colors.textPrimary,
-                        fontSize: 16,
-                      ),
-                    ),
-                    if (subtitle.isNotEmpty) ...[
-                      const SizedBox(height: DesignTokens.spaceXS),
-                      Text(
-                        subtitle,
-                        style: text.hudCaption.copyWith(
-                          color: colors.textMuted,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: DesignTokens.spaceSM),
-                    Row(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (object.mag != null)
-                          _Pill(
-                            label: 'mag ${object.mag!.toStringAsFixed(1)}',
+                        Text(
+                          object.name,
+                          style: text.hudValue.copyWith(
+                            color: colors.textPrimary,
+                            fontSize: 20,
+                            height: 1.1,
                           ),
-                        if (object.mag != null && object.altitudeDeg != null)
-                          const SizedBox(width: DesignTokens.spaceSM),
-                        if (object.altitudeDeg != null)
-                          _Pill(
-                            label: 'ALT ${object.altitudeDeg!.round()}°',
-                            highlight: object.isVisible,
+                        ),
+                        if (subtitle.isNotEmpty) ...[
+                          const SizedBox(height: DesignTokens.spaceXS),
+                          Text(
+                            subtitle,
+                            style: text.hudCaption.copyWith(
+                              color: colors.textMuted,
+                            ),
                           ),
+                        ],
                       ],
                     ),
+                  ),
+                  if (object.mag != null) ...[
+                    const SizedBox(width: DesignTokens.spaceMD),
+                    _MagBadge(mag: object.mag!),
+                  ],
+                ],
+              ),
+              if (object.altitudeDeg != null) ...[
+                const SizedBox(height: DesignTokens.spaceMD),
+                Row(
+                  children: [
+                    _Pill(
+                      label: '▲ ALT ${object.altitudeDeg!.round()}°',
+                      highlight: object.isVisible,
+                    ),
+                    if (object.azimuthDeg != null) ...[
+                      const SizedBox(width: DesignTokens.spaceSM),
+                      _Pill(label: 'AZ ${object.azimuthDeg!.round()}°'),
+                    ],
                   ],
                 ),
-              ),
-              const SizedBox(width: DesignTokens.spaceSM),
-              PhosphorIcon(
-                PhosphorIconsBold.caretRight,
-                color: colors.accent,
-                size: DesignTokens.iconSizeSM,
-              ),
+              ],
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MagBadge extends StatelessWidget {
+  const _MagBadge({required this.mag});
+
+  final double mag;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = context.textStyles;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: DesignTokens.spaceSM,
+        vertical: DesignTokens.spaceXXS,
+      ),
+      decoration: BoxDecoration(
+        color: colors.accent.withValues(alpha: 0.12),
+        border: Border.all(color: colors.accent.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(DesignTokens.radiusSM),
+      ),
+      child: Text(
+        'mag ${mag.toStringAsFixed(1)}',
+        style: text.hudBadge.copyWith(color: colors.textPrimary),
       ),
     );
   }

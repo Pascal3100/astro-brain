@@ -1,0 +1,110 @@
+/// Table de correspondance abréviation IAU (3 lettres) → nom français complet
+/// des 88 constellations. Le catalogue backend stocke l'abréviation (ex. `CMa`,
+/// `Lyr`, `UMa`) ; cette table sert uniquement à l'affichage.
+library;
+
+const Map<String, String> _kConstellationFr = {
+  'And': 'Andromède',
+  'Ant': 'Machine pneumatique',
+  'Aps': 'Oiseau de paradis',
+  'Aqr': 'Verseau',
+  'Aql': 'Aigle',
+  'Ara': 'Autel',
+  'Ari': 'Bélier',
+  'Aur': 'Cocher',
+  'Boo': 'Bouvier',
+  'Cae': 'Burin',
+  'Cam': 'Girafe',
+  'Cnc': 'Cancer',
+  'CVn': 'Chiens de chasse',
+  'CMa': 'Grand Chien',
+  'CMi': 'Petit Chien',
+  'Cap': 'Capricorne',
+  'Car': 'Carène',
+  'Cas': 'Cassiopée',
+  'Cen': 'Centaure',
+  'Cep': 'Céphée',
+  'Cet': 'Baleine',
+  'Cha': 'Caméléon',
+  'Cir': 'Compas',
+  'Col': 'Colombe',
+  'Com': 'Chevelure de Bérénice',
+  'CrA': 'Couronne australe',
+  'CrB': 'Couronne boréale',
+  'Crv': 'Corbeau',
+  'Crt': 'Coupe',
+  'Cru': 'Croix du Sud',
+  'Cyg': 'Cygne',
+  'Del': 'Dauphin',
+  'Dor': 'Dorade',
+  'Dra': 'Dragon',
+  'Equ': 'Petit Cheval',
+  'Eri': 'Éridan',
+  'For': 'Fourneau',
+  'Gem': 'Gémeaux',
+  'Gru': 'Grue',
+  'Her': 'Hercule',
+  'Hor': 'Horloge',
+  'Hya': 'Hydre',
+  'Hyi': 'Hydre mâle',
+  'Ind': 'Indien',
+  'Lac': 'Lézard',
+  'Leo': 'Lion',
+  'LMi': 'Petit Lion',
+  'Lep': 'Lièvre',
+  'Lib': 'Balance',
+  'Lup': 'Loup',
+  'Lyn': 'Lynx',
+  'Lyr': 'Lyre',
+  'Men': 'Table',
+  'Mic': 'Microscope',
+  'Mon': 'Licorne',
+  'Mus': 'Mouche',
+  'Nor': 'Règle',
+  'Oct': 'Octant',
+  'Oph': 'Ophiuchus',
+  'Ori': 'Orion',
+  'Pav': 'Paon',
+  'Peg': 'Pégase',
+  'Per': 'Persée',
+  'Phe': 'Phénix',
+  'Pic': 'Peintre',
+  'Psc': 'Poissons',
+  'PsA': 'Poisson austral',
+  'Pup': 'Poupe',
+  'Pyx': 'Boussole',
+  'Ret': 'Réticule',
+  'Sge': 'Flèche',
+  'Sgr': 'Sagittaire',
+  'Sco': 'Scorpion',
+  'Scl': 'Sculpteur',
+  'Sct': 'Écu de Sobieski',
+  'Ser': 'Serpent',
+  'Sex': 'Sextant',
+  'Tau': 'Taureau',
+  'Tel': 'Télescope',
+  'Tri': 'Triangle',
+  'TrA': 'Triangle austral',
+  'Tuc': 'Toucan',
+  'UMa': 'Grande Ourse',
+  'UMi': 'Petite Ourse',
+  'Vel': 'Voiles',
+  'Vir': 'Vierge',
+  'Vol': 'Poisson volant',
+  'Vul': 'Petit Renard',
+};
+
+/// Nom complet (français) d'une constellation à partir de son abréviation IAU.
+/// Tolère la casse ; renvoie l'abréviation telle quelle si inconnue, `null` si
+/// l'entrée est `null`/vide.
+String? constellationFullName(String? abbr) {
+  if (abbr == null || abbr.isEmpty) return null;
+  final direct = _kConstellationFr[abbr];
+  if (direct != null) return direct;
+  // Repli insensible à la casse (au cas où la donnée diffère du standard IAU).
+  final lower = abbr.toLowerCase();
+  for (final entry in _kConstellationFr.entries) {
+    if (entry.key.toLowerCase() == lower) return entry.value;
+  }
+  return abbr;
+}

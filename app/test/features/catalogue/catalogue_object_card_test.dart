@@ -41,6 +41,8 @@ void main() {
     ));
     expect(find.text('Sirius'), findsOneWidget);
     expect(find.textContaining('-1.4'), findsWidgets);
+    // La constellation s'affiche en nom complet (pas l'abréviation IAU seule).
+    expect(find.textContaining('Grand Chien'), findsOneWidget);
     await tester.tap(find.byType(CatalogueObjectCard));
     expect(tapped, isTrue);
   });

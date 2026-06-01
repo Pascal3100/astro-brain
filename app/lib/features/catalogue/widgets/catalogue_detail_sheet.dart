@@ -4,6 +4,7 @@ import '../../../theme/app_colors.dart';
 import '../../../theme/app_typography.dart';
 import '../../../theme/design_tokens.dart';
 import '../catalogue_models.dart';
+import '../constellations.dart';
 
 /// Bottom sheet de détail d'un objet + bouton POINTER (grisé si non aligné).
 class CatalogueDetailSheet extends StatelessWidget {
@@ -40,12 +41,14 @@ class CatalogueDetailSheet extends StatelessWidget {
           ),
         );
 
-    return Padding(
-      padding: const EdgeInsets.all(DesignTokens.spaceLG),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.all(DesignTokens.spaceLG),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Text(
             object.name,
             style:
@@ -55,8 +58,8 @@ class CatalogueDetailSheet extends StatelessWidget {
           Text(
             [
               if (object.designation != null) object.designation!,
-              if (object.constellation != null) object.constellation!,
-              object.kind,
+              if (object.constellation != null)
+                constellationFullName(object.constellation)!,
             ].join(' · '),
             style: text.hudCaption.copyWith(color: colors.textMuted),
           ),
@@ -121,7 +124,8 @@ class CatalogueDetailSheet extends StatelessWidget {
               style: text.hudCaption.copyWith(color: colors.dotWarn),
             ),
           ],
-        ],
+          ],
+        ),
       ),
     );
   }
