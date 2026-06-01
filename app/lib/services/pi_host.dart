@@ -25,7 +25,12 @@ class PiHost {
   final String host;
   final int port;
 
-  Uri restUri(String path) => Uri.http('$host:$port', path);
+  /// Construit l'URI REST. Les paramètres de requête doivent passer par
+  /// [query] (et non être collés dans [path]) : `Uri.http` encode alors
+  /// correctement clés et valeurs. Coller `?x=y` dans [path] ferait encoder
+  /// le `?` en `%3F` → chemin invalide (404).
+  Uri restUri(String path, [Map<String, dynamic>? query]) =>
+      Uri.http('$host:$port', path, query);
   Uri sseUri(String path) => Uri.http('$host:$port', path);
 
   static const String prefsHostKey = _kPrefsHost;

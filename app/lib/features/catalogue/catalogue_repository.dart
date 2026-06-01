@@ -18,8 +18,7 @@ class CatalogueRepository {
     if (search != null && search.isNotEmpty) params['search'] = search;
     if (maxMag != null) params['max_mag'] = maxMag.toString();
     if (visibleNow) params['visible_now'] = 'true';
-    final query = params.entries.map((e) => '${e.key}=${e.value}').join('&');
-    final j = await api.getJson('/catalog/objects?$query');
+    final j = await api.getJson('/catalog/objects', query: params);
     return (j['objects'] as List)
         .map((e) => CatalogObjectDto.fromJson(e as Map<String, dynamic>))
         .toList();

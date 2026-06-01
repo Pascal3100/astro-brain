@@ -89,9 +89,13 @@ class ApiService {
   // Helpers JSON génériques (utilisés par les repositories)
   // -------------------------------------------------------------------------
 
-  /// GET [path] et retourne le JSON décodé.
-  Future<Map<String, dynamic>> getJson(String path) async {
-    final resp = await _client.get(host.restUri(path)).timeout(_timeout);
+  /// GET [path] et retourne le JSON décodé. Les paramètres de requête
+  /// passent par [query] (encodage correct via `Uri.http`), pas dans [path].
+  Future<Map<String, dynamic>> getJson(
+    String path, {
+    Map<String, String>? query,
+  }) async {
+    final resp = await _client.get(host.restUri(path, query)).timeout(_timeout);
     if (resp.statusCode != 200) {
       throw ApiException('GET $path failed', statusCode: resp.statusCode);
     }

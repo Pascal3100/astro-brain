@@ -9,17 +9,19 @@ void main() {
   late _MockApi api;
   setUp(() => api = _MockApi());
 
-  test('listObjects builds query and parses objects', () async {
-    when(() => api.getJson(any())).thenAnswer((_) async => {
-          'objects': [
-            {
-              'qualified_id': 'star:vega', 'kind': 'star', 'name': 'Vega',
-              'ra_deg': 279.23, 'dec_deg': 38.78, 'mag': 0.0,
-              'altitude_deg': 18.0, 'azimuth_deg': 51.0,
-            }
-          ],
-          'count': 1, 'limit': 500, 'offset': 0,
-        });
+  test('listObjects passes query params (not embedded in path) and parses',
+      () async {
+    when(() => api.getJson(any(), query: any(named: 'query')))
+        .thenAnswer((_) async => {
+              'objects': [
+                {
+                  'qualified_id': 'star:vega', 'kind': 'star', 'name': 'Vega',
+                  'ra_deg': 279.23, 'dec_deg': 38.78, 'mag': 0.0,
+                  'altitude_deg': 18.0, 'azimuth_deg': 51.0,
+                }
+              ],
+              'count': 1, 'limit': 500, 'offset': 0,
+            });
 
     final repo = CatalogueRepository(api: api);
     final objs = await repo.listObjects(
@@ -27,12 +29,16 @@ void main() {
 
     expect(objs, hasLength(1));
     expect(objs.first.name, 'Vega');
-    final captured =
-        verify(() => api.getJson(captureAny())).captured.single as String;
-    expect(captured, contains('/catalog/objects'));
-    expect(captured, contains('search=veg'));
-    expect(captured, contains('max_mag=3.0'));
-    expect(captured, contains('visible_now=true'));
+    // Le path ne doit PAS contenir de query string (sinon `?` encodé → 404).
+    final path = verify(() => api.getJson(captureAny(),
+            query: captureAny(named: 'query')))
+        .captured;
+    expect(path[0], '/catalog/objects');
+    final query = path[1] as Map<String, String>;
+    expect(query['search'], 'veg');
+    expect(query['max_mag'], '3.0');
+    expect(query['visible_now'], 'true');
+    expect(query['limit'], '500');
   });
 
   test('goto posts ra/dec/target_name', () async {
