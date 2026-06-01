@@ -65,9 +65,9 @@ Première mise en station effective, GoTo réel, catalogue d'objets brillants. H
 
 - ✅ Hub central (landing post-Splash, 4 cartes Manuel / Setup / Status / À propos) — livré 2026-05-08 (Session 20)
 - 🚧 Wizard alignement 3 étoiles assisté capteurs (compass + tilt + GPS pour pré-pointage, validation auto via résiduel SVD < ~1°, fallback manuel) — software livré 2026-05-10 (Session 22, backend + Flutter, 180 tests app + tests backend), validation matérielle bloquée dongle CP2102 (Macro 1)
-- 📦 GoTo réel (`/goto {ra_deg, dec_deg}` sur monture alignée — set `EQUATORIAL_EOD_COORD` avec `ON_COORD_SET=TRACK`, le driver gère slew + tracking sidéral natif) — statut `goto_in_progress` exposé via SSE
-- 🚧 Catalogue minimal backend : tranche A (stars étendues IAU CSN cap mag 3, 140 entrées) livrée 2026-05-10 — tranches Messier + planètes (skyfield) à suivre
-- 📦 Page Catalogue minimal (recherche/sélection + GoTo)
+- 🚧 GoTo réel (`POST /goto {ra_deg, dec_deg, target_name}` sur monture alignée — `EQUATORIAL_EOD_COORD` + `ON_COORD_SET=TRACK`, slew + tracking sidéral natif) — software livré 2026-06-01 (Session 24 : `MountService.goto_radec`, garde `is_aligned`, complétion BUSY→OK via `updateProperty`, `goto_in_progress` exposé via SSE, abort réutilise `/stop`) ; validation matérielle (slew réel) reportée dongle CP2102 (Macro 1)
+- 🚧 Catalogue minimal backend : tranche A (stars étendues IAU CSN cap mag 3, 140 entrées) livrée 2026-05-10 ; enrichissement visibilité `visible_now` (alt/az courants via `_ephemeris` + `VisibilityEnricher`, dégradation gracieuse sans fix GPS) livré 2026-06-01 (Session 24) — tranches Messier + planètes (skyfield) à suivre
+- 🚧 Page Catalogue minimal (recherche + filtres magnitude/visible-now, détail bottom sheet, GoTo + slew bar, bandeau non-aligné) — software livré 2026-06-01 (Session 24, Flutter) ; validation visuelle Android + slew réel reportés dongle CP2102
 
 *Done quand* : on peut faire une mise en station 3 étoiles puis pointer fiablement Messier/planètes/étoiles brillantes en session réelle.
 

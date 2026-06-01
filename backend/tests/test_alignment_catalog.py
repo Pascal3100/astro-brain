@@ -1,9 +1,7 @@
 """Tests pour _alignment_catalog (chargement + sélection candidates)."""
 from __future__ import annotations
 
-from datetime import datetime, UTC
-
-import pytest
+from datetime import UTC, datetime
 
 from astro_brain.services._alignment_catalog import (
     MountLimits,
@@ -80,7 +78,7 @@ def test_gmst_known_epoch() -> None:
     Pin pour empêcher régression du bug de 0.5° (T₀ doit être évalué à 0h UT,
     pas à l'instant complet).
     """
-    from astro_brain.services._alignment_catalog import _gmst_deg
+    from astro_brain.services._ephemeris import _gmst_deg
 
     when = datetime(2000, 1, 1, 12, 0, tzinfo=UTC)
     gmst = _gmst_deg(when)

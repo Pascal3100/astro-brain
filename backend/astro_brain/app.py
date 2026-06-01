@@ -26,6 +26,7 @@ from typing import Any
 import aiosqlite
 from fastapi import FastAPI
 
+from astro_brain.alignment_invalidator import AlignmentInvalidator
 from astro_brain.bus import StateBus
 from astro_brain.orchestrator import Orchestrator
 from astro_brain.repository import alignment_repo
@@ -37,6 +38,7 @@ from astro_brain.routes.calibration import router as calibration_router
 from astro_brain.routes.catalog import router as catalog_router
 from astro_brain.routes.commands import router as commands_router
 from astro_brain.routes.events import router as events_router
+from astro_brain.routes.goto import router as goto_router
 from astro_brain.routes.limits import router as limits_router
 from astro_brain.routes.sensors import _LazySensor
 from astro_brain.routes.sensors import router as sensors_router
@@ -52,6 +54,7 @@ from astro_brain.services.calibration import CalibrationServiceImpl
 from astro_brain.services.catalog.providers import SqliteCatalogProvider
 from astro_brain.services.catalog.registry import CatalogRegistry
 from astro_brain.services.catalog.seed_runner import apply_seeds
+from astro_brain.services.catalog.visibility import VisibilityEnricher
 from astro_brain.services.fakes import (
     FakeGps,
     FakeMount,
@@ -200,6 +203,11 @@ def build_app(
 
         sensors_bridge = _AlignmentSensorsBridge(bus)
 
+        _app.state.visibility_enricher = VisibilityEnricher(
+            gps_fix=sensors_bridge.gps_fix,
+            now_utc=lambda: datetime.now(UTC),
+        )
+
         def _candidates_provider() -> list[Any]:
             obs = sensors_bridge.observer()
             limits = MountLimits(alt_min=10.0, alt_max=85.0, az_min=0.0, az_max=360.0)
@@ -215,7 +223,14 @@ def build_app(
         )
         bus.publish(
             "alignment",
-            SubsystemState(state="idle", details={}, since=datetime.now(UTC)),
+            SubsystemState(state="idle", details={"is_aligned": False}, since=datetime.now(UTC)),
+        )
+
+        invalidator = AlignmentInvalidator(
+            alignment=_app.state.alignment, bus=bus
+        )
+        background_tasks.append(
+            asyncio.create_task(invalidator.run(), name="alignment-invalidator")
         )
 
         await services["mount"].start()
@@ -255,6 +270,7 @@ def build_app(
     app.include_router(limits_router)
     app.include_router(alignment_router)
     app.include_router(catalog_router)
+    app.include_router(goto_router)
     return app
 
 

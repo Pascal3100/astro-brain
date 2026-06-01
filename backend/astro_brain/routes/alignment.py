@@ -29,7 +29,11 @@ def _publish_session(bus: StateBus, service: AlignmentService) -> None:
     if sess is None:
         bus.publish(
             "alignment",
-            SubsystemState(state="idle", details={}, since=datetime.now(UTC)),
+            SubsystemState(
+                state="idle",
+                details={"is_aligned": service.is_aligned},
+                since=datetime.now(UTC),
+            ),
         )
         return
     bus.publish(
@@ -37,6 +41,7 @@ def _publish_session(bus: StateBus, service: AlignmentService) -> None:
         SubsystemState(
             state="active",
             details={
+                "is_aligned": service.is_aligned,
                 "session_id": sess.session_id,
                 "current_idx": sess.current_idx,
                 "recorded_count": len(sess.recorded_stars),

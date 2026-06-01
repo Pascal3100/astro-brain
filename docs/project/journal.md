@@ -24,11 +24,26 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 **Macro 3 — Mise en station + GoTo basique 🚧** :
 - ✅ Item #1 Hub central (Session 20).
 - 🚧 Item #2 Wizard alignement 3 étoiles : implémentation software complète (backend + Flutter, 22 tasks plan, Session 22). Validation matérielle bloquée dongle CP2102.
-- 📦 Items #3 GoTo réel, #4 Catalogue, #5 Page catalogue.
+- 🚧 Item #3 GoTo réel + #5 Page Catalogue : software livré (backend + Flutter, 19 tasks plan, Session 24). Validation matérielle (slew réel) bloquée dongle CP2102.
+- 🚧 Item #4 Catalogue : tranche A stars (Session 23) + enrichissement visibilité `visible_now` (Session 24). Messier/planètes à suivre.
 
 **Doc tree** : nouvelle arborescence `docs/INDEX.md` → 3 vues (`technical/`, `project/`, `product/`). Petits docs ciblés, navigation par liens. Voir Session 12.
 
 ## Session en cours
+
+### Session 24 — Macro 3 #3 GoTo réel + #5 Page Catalogue (software) (2026-06-01)
+
+Plan `docs/superpowers/plans/2026-05-31-catalogue-goto.md` (19 tasks) exécuté en mode `superpowers:subagent-driven-development` (implémenteur + revue spec/qualité par task) sur branche `feat/catalogue-goto`. Brainstorm + spec validés en amont (`docs/superpowers/specs/2026-05-31-catalogue-goto-design.md`, companion visuel pour la mise en page). Feature complète « parcourir le catalogue → pointer ».
+
+**Backend (B1→B9)** : extraction `_ephemeris.py` (conversion RA/Dec→Az/Alt, partagé alignement + catalogue, ré-export depuis `_alignment_catalog.py`) ; `CatalogObject` gagne `altitude_deg`/`azimuth_deg` ; `VisibilityEnricher` (alt/az courants + filtre `visible_now`, dégradation gracieuse sans fix GPS) au-dessus du `CatalogRegistry`, câblé sur `/catalog/objects?visible_now=` via `sensors_bridge.gps_fix` ; `MountService.goto_radec(ra,dec,target_name)` (`ON_COORD_SET=TRACK` + `EQUATORIAL_EOD_COORD`, publie `moving`+`goto_in_progress`+`goto`) ; détection de fin de slew en activant `AstroBrainIndiClient.updateProperty` (no-op jusqu'ici) → `handle_property_update` adapter (EQUATORIAL_EOD_COORD BUSY→Ok/Idle → `ready`+`tracking=sidereal`) ; flag `is_aligned` en RAM (`finalize`→vrai, `cancel`/`invalidate`→faux), publié dans l'état SSE `alignment` ; `AlignmentInvalidator` (abonné bus, invalide à la reconnexion monture `disconnected`/`connecting` — **pas** sur `error` transitoire, fix de revue) ; router `POST /goto` (gardes 409 non-aligné / 409 slew en cours, 422 coords), abort réutilise `POST /stop`.
+
+**Frontend (F1→F10)** : `SystemState` parse le sous-système `alignment` (getters `isAligned`/`gotoInProgress`/`gotoTarget`) ; feature `lib/features/catalogue/` (DTO, `CatalogueRepository`, `CatalogueBloc` recherche debounce + filtres + goto/abort) ; `CatalogueScreen` (bandeau non-aligné + CTA wizard, recherche, chips magnitude/visible-now désactivée sans GPS, liste de cartes, détail en bottom sheet, bouton GoTo grisé si non aligné, slew bar pilotée SSE + STOP) ; carte Hub CATALOGUE + wiring `app.dart`.
+
+**Corrections de revue notables** : `error` retiré des états d'invalidation alignement (un échec de commande INDI transitoire ne doit pas perdre l'alignement) ; `_onGoTo`/`_onAbort` capturent les erreurs → `CatalogueError` (convention codebase) ; `TextField` de recherche extrait dans un widget stateful avec contrôleur (hors `BlocBuilder`) pour ne pas perdre le curseur ; **revue finale (Opus)** a trouvé un défaut masqué par les fakes : `stop_slew(None)` ne réinitialisait pas le latch goto → complétion fantôme `sidereal` après un STOP — corrigé + test de régression.
+
+**Tests** : backend 300 → 322 verts ; app 182 → 196 verts ; `ruff`/`flutter analyze` clean. Validation matérielle (slew réel sur monture) et validation visuelle Android reportées dongle CP2102 (Macro 1).
+
+**Raffinements différés** consignés dans [`backlog.md`](backlog.md) (feedback d'échec GoTo en SnackBar, `buildWhen` slew bar, seuil de visibilité par obstruction).
 
 ### Session 23 — Macro 3 #4 catalogue backend tranche A (stars IAU CSN) (2026-05-10)
 

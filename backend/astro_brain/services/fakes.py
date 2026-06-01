@@ -30,6 +30,7 @@ class FakeMount:
         self._bus = bus
         self._active_slews: list[dict[str, Any]] = []
         self.sync_calls: list[tuple[float, float]] = []
+        self.goto_calls: list[tuple[float, float, str | None]] = []
 
     async def start(self) -> None:
         self._bus.publish(
@@ -99,6 +100,28 @@ class FakeMount:
 
     async def sync_radec(self, ra_deg: float, dec_deg: float) -> None:
         self.sync_calls.append((float(ra_deg), float(dec_deg)))
+
+    # --- goto (slew vers coordonnées + tracking sidéral natif) -----------
+
+    async def goto_radec(
+        self, ra_deg: float, dec_deg: float, target_name: str | None = None
+    ) -> None:
+        self.goto_calls.append((float(ra_deg), float(dec_deg), target_name))
+        self._bus.publish(
+            "mount",
+            SubsystemState(
+                state="moving",
+                details={
+                    "goto_in_progress": True,
+                    "goto": {
+                        "target_name": target_name,
+                        "ra_deg": float(ra_deg),
+                        "dec_deg": float(dec_deg),
+                    },
+                },
+                since=_now(),
+            ),
+        )
 
     # --- cordwrap (in-memory toggles) ------------------------------------
 

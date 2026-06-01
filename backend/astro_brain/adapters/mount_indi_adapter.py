@@ -64,6 +64,8 @@ class MountIndiAdapter:
         )
         self._device: Any | None = None
         self._active_slews: list[dict[str, Any]] = []
+        self._goto_in_progress: bool = False
+        self._goto_target: dict[str, Any] | None = None
 
     async def start(self) -> None:
         """Connect to indiserver and discover the mount device.
@@ -86,7 +88,9 @@ class MountIndiAdapter:
                     AstroBrainIndiClient,
                 )
 
-                self._client = AstroBrainIndiClient(bus=self._bus)
+                self._client = AstroBrainIndiClient(
+                    bus=self._bus, on_update=self.handle_property_update
+                )
             self._client.setServer(self._host, self._port)
             ok = await asyncio.to_thread(self._client.connectServer)
             if not ok:
@@ -218,6 +222,8 @@ class MountIndiAdapter:
                 abort_vec["ABORT_MOTION"].setState("ON")
                 await asyncio.to_thread(self._client.sendNewProperty, abort_vec)
                 self._active_slews = []
+                self._goto_in_progress = False
+                self._goto_target = None
             else:
                 motion_name = self._AXIS_TO_MOTION_VECTOR[axis]
                 motion_vec = self._device.getSwitch(motion_name)
@@ -329,6 +335,88 @@ class MountIndiAdapter:
                 "mount",
                 SubsystemState(state="error", message=str(exc), since=_now()),
             )
+
+    # --- goto (slew vers coordonnées + tracking sidéral natif) ------------
+
+    async def goto_radec(
+        self, ra_deg: float, dec_deg: float, target_name: str | None = None
+    ) -> None:
+        if self._device is None:
+            return
+        try:
+            mode = self._device.getSwitch("ON_COORD_SET")
+            if mode is None:
+                raise RuntimeError("ON_COORD_SET property not found")
+            set_switch_one_of_many(mode, "TRACK")
+            await asyncio.to_thread(self._client.sendNewProperty, mode)
+
+            coord = self._device.getNumber("EQUATORIAL_EOD_COORD")
+            if coord is None:
+                raise RuntimeError("EQUATORIAL_EOD_COORD property not found")
+            coord["RA"].setValue(float(ra_deg) / 15.0)
+            coord["DEC"].setValue(float(dec_deg))
+            await asyncio.to_thread(self._client.sendNewProperty, coord)
+        except Exception as exc:
+            logger.exception("indi: goto_radec failed")
+            self._bus.publish(
+                "mount",
+                SubsystemState(state="error", message=str(exc), since=_now()),
+            )
+            return
+
+        self._goto_in_progress = True
+        self._goto_target = {
+            "target_name": target_name,
+            "ra_deg": float(ra_deg),
+            "dec_deg": float(dec_deg),
+        }
+        self._bus.publish(
+            "mount",
+            SubsystemState(
+                state="moving",
+                details={
+                    "device": self._device_name,
+                    "goto_in_progress": True,
+                    "goto": dict(self._goto_target),
+                },
+                since=_now(),
+            ),
+        )
+
+    _GOTO_DONE_STATES: frozenset[str] = frozenset({"Ok", "Idle"})
+
+    def handle_property_update(self, prop: Any) -> None:
+        """Réagit aux mises à jour de propriétés INDI (thread C++ → loop).
+
+        Détecte la fin d'un GoTo : quand ``EQUATORIAL_EOD_COORD`` repasse à
+        ``Ok``/``Idle`` alors qu'un goto était en cours, publie ``ready`` +
+        ``tracking=sidereal`` et désarme le goto. Sync method : sûre à
+        appeler depuis un callback (aucun await).
+        """
+        if not self._goto_in_progress:
+            return
+        try:
+            name = prop.getName()
+        except Exception:
+            return
+        if name != "EQUATORIAL_EOD_COORD":
+            return
+        if prop.getStateAsString() not in self._GOTO_DONE_STATES:
+            return
+        self._goto_in_progress = False
+        self._goto_target = None
+        self._bus.publish(
+            "mount",
+            SubsystemState(
+                state="ready",
+                details={"device": self._device_name},
+                since=_now(),
+            ),
+        )
+        self._bus.publish(
+            "tracking",
+            SubsystemState(state="sidereal", since=_now()),
+        )
 
     # --- tracking (TrackingService surface) -------------------------------
 

@@ -199,3 +199,9 @@ Scindé en deux livraisons :
 - **Alignement par plate solve** (option alternative au 3-star) — centrage automatique après snap + solve
 - UX critique : utilisé dans le noir, avec lampe rouge, parfois à l'aveugle → ergonomie soignée, instructions courtes, pas de couleurs vives en mode nuit
 - Lien fort avec le compass et le plate solving (Macro 5).
+
+## Raffinements UX Page Catalogue (issus Session 24)
+
+- **Feedback d'échec GoTo** : aujourd'hui un échec `POST /goto` (409/422/réseau) fait émettre `CatalogueError` au `CatalogueBloc`, ce qui remplace toute la liste par un message plein écran. Préférable : surfacer l'erreur via un `SnackBar` (BlocListener sur un sous-état dédié) sans détruire la liste chargée.
+- **`_SlewBarSlot.buildWhen`** compare `gotoTarget` (map re-castée à chaque accès) par identité → rebuild quasi systématique quand un goto est en cours. Bénin (over-rebuild), mais à nettoyer (comparer une clé stable, ex. `target_name`).
+- **Seuil de visibilité** : le filtre `visible_now` utilise l'horizon géométrique (alt > 0°). Quand le Setup tube arrivera (Macro 4), brancher un seuil pratique (obstruction / min-alt).

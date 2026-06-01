@@ -4,7 +4,8 @@ enum SubsystemKind {
   gps,
   tracking,
   network,
-  system;
+  system,
+  alignment;
 
   static SubsystemKind fromJson(String v) => values.firstWhere(
         (k) => k.name == v,

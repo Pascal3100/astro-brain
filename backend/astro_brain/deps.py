@@ -92,3 +92,7 @@ def get_alignment_service(request: Request) -> AlignmentService:
 
 def get_catalog_registry(request: Request) -> Any:
     return request.app.state.catalog_registry
+
+
+def get_visibility_enricher(request: Request) -> Any:
+    return request.app.state.visibility_enricher

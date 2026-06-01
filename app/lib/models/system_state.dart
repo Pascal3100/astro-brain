@@ -17,6 +17,7 @@ class SystemState extends Equatable {
     required this.system,
     required this.seq,
     required this.ts,
+    this.alignment,
   });
 
   final OverallStatus overall;
@@ -25,8 +26,20 @@ class SystemState extends Equatable {
   final SubsystemState<TrackingState> tracking;
   final SubsystemState<NetworkState> network;
   final SubsystemState<SystemInfoState> system;
+  final SubsystemState<AlignmentSubsysState>? alignment;
   final int seq;
   final DateTime ts;
+
+  /// `is_aligned` publié par le backend dans les détails du sous-système
+  /// alignment. `false` si le sous-système est absent du snapshot.
+  bool get isAligned => alignment?.details['is_aligned'] == true;
+
+  /// `true` si un GoTo est en cours (détails du sous-système mount).
+  bool get gotoInProgress => mount.details['goto_in_progress'] == true;
+
+  /// Détails de la cible du GoTo courant, ou `null`.
+  Map<String, dynamic>? get gotoTarget =>
+      mount.details['goto'] as Map<String, dynamic>?;
 
   factory SystemState.fromJson(Map<String, dynamic> json) {
     final subs = json['subsystems'] as Map<String, dynamic>;
@@ -42,6 +55,11 @@ class SystemState extends Equatable {
           subs['network'] as Map<String, dynamic>, NetworkState.fromJson),
       system: SubsystemState.fromJson(
           subs['system'] as Map<String, dynamic>, SystemInfoState.fromJson),
+      alignment: subs['alignment'] == null
+          ? null
+          : SubsystemState.fromJson(
+              subs['alignment'] as Map<String, dynamic>,
+              AlignmentSubsysState.fromJson),
       seq: json['seq'] as int,
       ts: DateTime.parse(json['ts'] as String),
     );
@@ -73,6 +91,9 @@ class SystemState extends Equatable {
       system: kind == SubsystemKind.system
           ? SubsystemState.fromJson(stateJson, SystemInfoState.fromJson)
           : system,
+      alignment: kind == SubsystemKind.alignment
+          ? SubsystemState.fromJson(stateJson, AlignmentSubsysState.fromJson)
+          : alignment,
       seq: seq,
       ts: ts,
     );
@@ -80,5 +101,5 @@ class SystemState extends Equatable {
 
   @override
   List<Object?> get props =>
-      [overall, mount, gps, tracking, network, system, seq, ts];
+      [overall, mount, gps, tracking, network, system, alignment, seq, ts];
 }
