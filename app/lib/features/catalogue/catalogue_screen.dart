@@ -11,6 +11,7 @@ import 'catalogue_bloc.dart';
 import 'catalogue_event.dart';
 import 'catalogue_models.dart';
 import 'catalogue_state.dart';
+import 'constellations.dart';
 import 'widgets/catalogue_detail_sheet.dart';
 import 'widgets/catalogue_object_card.dart';
 import 'widgets/goto_slew_bar.dart';
@@ -150,31 +151,47 @@ class _FiltersState extends State<_Filters> {
                 CatalogueLoaded(:final filters) => filters,
                 CatalogueError(:final filters) => filters,
               };
-              return Wrap(
-                spacing: DesignTokens.spaceSM,
+              final available = state is CatalogueLoaded
+                  ? state.availableConstellations
+                  : const <String>[];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  FilterChip(
-                    label: const Text('VISIBLE MAINTENANT'),
-                    selected: filters.visibleNow && gpsFixed,
-                    onSelected: gpsFixed
-                        ? (v) =>
-                            ctx.read<CatalogueBloc>().add(VisibleNowToggled(v))
-                        : null,
+                  Wrap(
+                    spacing: DesignTokens.spaceSM,
+                    children: [
+                      FilterChip(
+                        label: const Text('VISIBLE MAINTENANT'),
+                        selected: filters.visibleNow && gpsFixed,
+                        onSelected: gpsFixed
+                            ? (v) => ctx
+                                .read<CatalogueBloc>()
+                                .add(VisibleNowToggled(v))
+                            : null,
+                      ),
+                      FilterChip(
+                        label: const Text('MAG ≤ 3'),
+                        selected: filters.maxMag == 3.0,
+                        onSelected: (v) => ctx
+                            .read<CatalogueBloc>()
+                            .add(MagFilterChanged(v ? 3.0 : null)),
+                      ),
+                      FilterChip(
+                        label: const Text('MAG ≤ 2'),
+                        selected: filters.maxMag == 2.0,
+                        onSelected: (v) => ctx
+                            .read<CatalogueBloc>()
+                            .add(MagFilterChanged(v ? 2.0 : null)),
+                      ),
+                    ],
                   ),
-                  FilterChip(
-                    label: const Text('MAG ≤ 3'),
-                    selected: filters.maxMag == 3.0,
-                    onSelected: (v) => ctx
-                        .read<CatalogueBloc>()
-                        .add(MagFilterChanged(v ? 3.0 : null)),
-                  ),
-                  FilterChip(
-                    label: const Text('MAG ≤ 2'),
-                    selected: filters.maxMag == 2.0,
-                    onSelected: (v) => ctx
-                        .read<CatalogueBloc>()
-                        .add(MagFilterChanged(v ? 2.0 : null)),
-                  ),
+                  if (available.isNotEmpty) ...[
+                    const SizedBox(height: DesignTokens.spaceSM),
+                    _ConstellationDropdown(
+                      value: filters.constellation,
+                      available: available,
+                    ),
+                  ],
                 ],
               );
             },
@@ -250,6 +267,56 @@ class _SlewBarSlot extends StatelessWidget {
               ctx.read<CatalogueBloc>().add(const AbortRequested()),
         );
       },
+    );
+  }
+}
+
+/// Menu déroulant de filtre par constellation (noms complets). N'affiche que
+/// les constellations présentes dans la liste courante ; « Toutes » = pas de
+/// filtre. Le filtrage est fait côté app par le [CatalogueBloc].
+class _ConstellationDropdown extends StatelessWidget {
+  const _ConstellationDropdown({required this.value, required this.available});
+
+  final String? value;
+  final List<String> available;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = context.textStyles;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: DesignTokens.spaceMD),
+      decoration: BoxDecoration(
+        color: colors.bgGradientTop.withValues(alpha: 0.5),
+        border: Border.all(color: colors.accent.withValues(alpha: 0.22)),
+        borderRadius: BorderRadius.circular(DesignTokens.radiusMD),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String?>(
+          value: value,
+          isExpanded: true,
+          dropdownColor: colors.bgGradientBottom,
+          iconEnabledColor: colors.accent,
+          style: text.hudValue.copyWith(color: colors.textPrimary),
+          items: [
+            DropdownMenuItem<String?>(
+              value: null,
+              child: Text(
+                'Toutes les constellations',
+                style: text.hudValue.copyWith(color: colors.textMuted),
+              ),
+            ),
+            ...available.map(
+              (abbr) => DropdownMenuItem<String?>(
+                value: abbr,
+                child: Text(constellationFullName(abbr) ?? abbr),
+              ),
+            ),
+          ],
+          onChanged: (v) =>
+              context.read<CatalogueBloc>().add(ConstellationChanged(v)),
+        ),
+      ),
     );
   }
 }

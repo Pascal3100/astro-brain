@@ -32,6 +32,15 @@ class VisibleNowToggled extends CatalogueEvent {
   List<Object?> get props => [enabled];
 }
 
+/// Filtre par constellation (abréviation IAU, `null` = toutes). Appliqué
+/// côté app sur la liste déjà chargée — pas de requête backend.
+class ConstellationChanged extends CatalogueEvent {
+  const ConstellationChanged(this.constellation);
+  final String? constellation;
+  @override
+  List<Object?> get props => [constellation];
+}
+
 class GoToRequested extends CatalogueEvent {
   const GoToRequested(this.raDeg, this.decDeg, this.targetName);
   final double raDeg;

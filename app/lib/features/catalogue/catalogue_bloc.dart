@@ -3,8 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:stream_transform/stream_transform.dart';
 
 import 'catalogue_event.dart';
+import 'catalogue_models.dart';
 import 'catalogue_repository.dart';
 import 'catalogue_state.dart';
+import 'constellations.dart';
 
 const _debounce = Duration(milliseconds: 300);
 
@@ -21,11 +23,15 @@ class CatalogueBloc extends Bloc<CatalogueEvent, CatalogueState> {
     on<SearchChanged>(_onSearch, transformer: _debounced());
     on<MagFilterChanged>(_onMag);
     on<VisibleNowToggled>(_onVisible);
+    on<ConstellationChanged>(_onConstellation);
     on<GoToRequested>(_onGoTo);
     on<AbortRequested>(_onAbort);
   }
 
   final CatalogueRepository repo;
+
+  /// Dernière liste rapatriée du backend (avant filtre constellation côté app).
+  List<CatalogObjectDto> _fetched = const [];
 
   CatalogueFilters get _filters => switch (state) {
         CatalogueLoading(:final filters) => filters,
@@ -33,19 +39,60 @@ class CatalogueBloc extends Bloc<CatalogueEvent, CatalogueState> {
         CatalogueError(:final filters) => filters,
       };
 
+  /// Émet un [CatalogueLoaded] en appliquant le filtre constellation à
+  /// [_fetched] et en recalculant les constellations disponibles.
+  void _emitLoaded(Emitter<CatalogueState> emit, CatalogueFilters filters) {
+    final available = _fetched
+        .map((o) => o.constellation)
+        .whereType<String>()
+        .toSet()
+        .toList()
+      ..sort((a, b) => (constellationFullName(a) ?? a)
+          .compareTo(constellationFullName(b) ?? b));
+
+    // Si la constellation sélectionnée n'est plus présente, on la lève.
+    var effective = filters;
+    if (effective.constellation != null &&
+        !available.contains(effective.constellation)) {
+      effective = effective.copyWith(clearConstellation: true);
+    }
+
+    final shown = effective.constellation == null
+        ? _fetched
+        : _fetched
+            .where((o) => o.constellation == effective.constellation)
+            .toList();
+
+    emit(CatalogueLoaded(
+      objects: shown,
+      filters: effective,
+      availableConstellations: available,
+    ));
+  }
+
   Future<void> _query(
       Emitter<CatalogueState> emit, CatalogueFilters filters) async {
     emit(CatalogueLoading(filters));
     try {
-      final objects = await repo.listObjects(
+      _fetched = await repo.listObjects(
         search: filters.search,
         maxMag: filters.maxMag,
         visibleNow: filters.visibleNow,
       );
-      emit(CatalogueLoaded(objects: objects, filters: filters));
+      _emitLoaded(emit, filters);
     } catch (e) {
       emit(CatalogueError(e.toString(), filters));
     }
+  }
+
+  void _onConstellation(
+      ConstellationChanged e, Emitter<CatalogueState> emit) {
+    _emitLoaded(
+      emit,
+      e.constellation == null
+          ? _filters.copyWith(clearConstellation: true)
+          : _filters.copyWith(constellation: e.constellation),
+    );
   }
 
   Future<void> _onReload(CatalogueOpened e, Emitter<CatalogueState> emit) =>

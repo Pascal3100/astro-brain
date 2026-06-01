@@ -98,4 +98,77 @@ void main() {
     act: (b) => b.add(const GoToRequested(101.0, -16.0, 'Sirius')),
     expect: () => [isA<CatalogueError>()],
   );
+
+  CatalogObjectDto sirius() => const CatalogObjectDto(
+        qualifiedId: 'star:sirius',
+        kind: 'star',
+        name: 'Sirius',
+        raDeg: 101.0,
+        decDeg: -16.0,
+        mag: -1.45,
+        constellation: 'CMa',
+      );
+
+  CatalogObjectDto vegaLyr() => const CatalogObjectDto(
+        qualifiedId: 'star:vega',
+        kind: 'star',
+        name: 'Vega',
+        raDeg: 279.23,
+        decDeg: 38.78,
+        mag: 0.0,
+        constellation: 'Lyr',
+      );
+
+  blocTest<CatalogueBloc, CatalogueState>(
+    'Loaded exposes available constellations (sorted by full name)',
+    build: () {
+      when(() => repo.listObjects(
+              search: any(named: 'search'),
+              maxMag: any(named: 'maxMag'),
+              visibleNow: any(named: 'visibleNow')))
+          .thenAnswer((_) async => [sirius(), vegaLyr()]);
+      return CatalogueBloc(repo: repo);
+    },
+    act: (b) => b.add(const CatalogueOpened()),
+    expect: () => [
+      isA<CatalogueLoading>(),
+      isA<CatalogueLoaded>()
+          // "Grand Chien" (CMa) avant "Lyre" (Lyr) en tri par nom complet.
+          .having((s) => s.availableConstellations, 'constellations',
+              ['CMa', 'Lyr'])
+          .having((s) => s.objects.length, 'count', 2),
+    ],
+  );
+
+  blocTest<CatalogueBloc, CatalogueState>(
+    'ConstellationChanged filters client-side without re-querying',
+    build: () {
+      when(() => repo.listObjects(
+              search: any(named: 'search'),
+              maxMag: any(named: 'maxMag'),
+              visibleNow: any(named: 'visibleNow')))
+          .thenAnswer((_) async => [sirius(), vegaLyr()]);
+      return CatalogueBloc(repo: repo);
+    },
+    act: (b) async {
+      b.add(const CatalogueOpened());
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      b.add(const ConstellationChanged('CMa'));
+    },
+    expect: () => [
+      isA<CatalogueLoading>(),
+      isA<CatalogueLoaded>().having((s) => s.objects.length, 'all', 2),
+      isA<CatalogueLoaded>()
+          .having((s) => s.objects.length, 'filtered', 1)
+          .having((s) => s.objects.first.name, 'name', 'Sirius')
+          .having((s) => s.filters.constellation, 'sel', 'CMa'),
+    ],
+    verify: (_) {
+      // Un seul appel backend : le filtre constellation est client-side.
+      verify(() => repo.listObjects(
+          search: any(named: 'search'),
+          maxMag: any(named: 'maxMag'),
+          visibleNow: any(named: 'visibleNow'))).called(1);
+    },
+  );
 }
