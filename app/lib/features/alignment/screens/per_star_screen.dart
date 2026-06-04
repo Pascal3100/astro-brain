@@ -33,6 +33,7 @@ class PerStarScreen extends StatefulWidget {
     required this.onRelease,
     required this.onRateChanged,
     required this.onCentered,
+    this.onSwapRequested,
   });
 
   final AlignmentRepository repo;
@@ -48,6 +49,10 @@ class PerStarScreen extends StatefulWidget {
   final VoidCallback onRelease;
   final ValueChanged<int> onRateChanged;
   final VoidCallback onCentered;
+
+  /// Callback optionnel pour demander un swap d'étoile. Quand fourni, un bouton
+  /// "Changer d'étoile" est affiché sous le nom de l'étoile cible.
+  final VoidCallback? onSwapRequested;
 
   @override
   State<PerStarScreen> createState() => _PerStarScreenState();
@@ -183,6 +188,28 @@ class _PerStarScreenState extends State<PerStarScreen> {
                     ),
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(color: colors.accent.withValues(alpha: 0.5)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: DesignTokens.spaceMD,
+                        vertical: DesignTokens.spaceXS,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+                if (widget.onSwapRequested != null) ...[
+                  const SizedBox(height: DesignTokens.spaceXS),
+                  OutlinedButton.icon(
+                    onPressed: widget.onSwapRequested,
+                    icon: Icon(Icons.swap_horiz, size: 16, color: colors.textMuted),
+                    label: Text(
+                      'Changer d\'étoile',
+                      style: TextStyle(fontSize: 12, color: colors.textMuted),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: colors.textMuted.withValues(alpha: 0.3),
+                      ),
                       padding: const EdgeInsets.symmetric(
                         horizontal: DesignTokens.spaceMD,
                         vertical: DesignTokens.spaceXS,
