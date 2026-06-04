@@ -139,6 +139,16 @@ async def test_cancel_clears_session_only() -> None:
     svc._repo_save.assert_not_awaited()
 
 
+async def test_record_raises_conflict_when_position_unavailable() -> None:
+    """sky_az_alt_for returning None must raise ConflictError, not crash with TypeError."""
+    svc = _build_service()
+    await svc.start()
+    # Simulate GPS drop / no observer position mid-session
+    svc._sensors.sky_az_alt_for = MagicMock(return_value=None)
+    with pytest.raises(ConflictError):
+        await svc.record(0)
+
+
 @pytest.mark.asyncio
 async def test_is_aligned_lifecycle() -> None:
     """is_aligned: False at start, True after finalize, False after invalidate."""
