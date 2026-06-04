@@ -119,7 +119,7 @@ def test_visible_stars_groups_by_constellation_and_filters_horizon() -> None:
     assert groups, "au moins une constellation visible attendue"
     for entries in groups.values():
         for _star, _az, alt in entries:
-            assert alt >= 10.0
+            assert alt >= 20.0
 
 
 def test_visible_stars_excludes_below_horizon() -> None:
