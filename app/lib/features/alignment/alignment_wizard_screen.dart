@@ -30,6 +30,7 @@ class AlignmentWizardScreen extends StatelessWidget {
               : (state as AlignmentFineTuning).session;
           // TODO(macro-3-runtime): brancher coords mount + cible (T21)
           return PerStarScreen(
+            repo: bloc.repo,
             stepIndex: session.currentIdx + 1,
             totalSteps: 3,
             target: session.candidates[session.currentIdx],
