@@ -162,8 +162,8 @@ class _PerStarScreenState extends State<PerStarScreen> {
                     ),
                   ),
                 ],
-                const SizedBox(height: DesignTokens.spaceSM),
-                if (abbr.isNotEmpty)
+                if (abbr.isNotEmpty) ...[
+                  const SizedBox(height: DesignTokens.spaceSM),
                   OutlinedButton.icon(
                     onPressed:
                         _loadingConstellation ? null : _showConstellationSheet,
@@ -191,6 +191,7 @@ class _PerStarScreenState extends State<PerStarScreen> {
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
+                ],
                 const SizedBox(height: DesignTokens.spaceLG),
                 HudPanel(
                   child: Column(

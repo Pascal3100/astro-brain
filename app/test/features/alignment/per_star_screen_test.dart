@@ -65,7 +65,7 @@ Widget _wrap(
 StarDto _vega() => const StarDto(
       id: 'vega',
       name: 'Vega',
-      bayer: 'α Lyrae',
+      bayer: 'α Lyr',
       raDeg: 279.234,
       decDeg: 38.784,
       mag: 0.03,
