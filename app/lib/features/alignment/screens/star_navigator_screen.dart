@@ -103,6 +103,7 @@ class _StarNavigatorScreenState extends State<StarNavigatorScreen> {
         decDeg: star.decDeg,
       );
       if (!mounted) return;
+      if (_selectedAbbr != abbr) return; // sélection changée pendant le fetch : résultat périmé, on ignore
       setState(() => _figure = figure);
     } on Exception {
       if (!mounted) return;
