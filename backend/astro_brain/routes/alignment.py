@@ -7,6 +7,7 @@ Erreurs :
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
@@ -82,8 +83,8 @@ async def get_session(
 @router.post("/location/client")
 async def set_client_location(
     body: _ClientLocationBody,
-    position=Depends(deps.get_position_provider),
-) -> dict:
+    position: Any = Depends(deps.get_position_provider),
+) -> dict[str, bool]:
     """Store a position provided by the client (téléphone GPS).
 
     Called when the Pi has no GPS fix and the phone forwards its own
@@ -98,7 +99,7 @@ async def set_client_location(
 async def start(
     service: AlignmentService = Depends(deps.get_alignment_service),
     bus: StateBus = Depends(deps.get_bus),
-    position=Depends(deps.get_position_provider),
+    position: Any = Depends(deps.get_position_provider),
 ) -> AlignmentSession:
     if position.position() is None:
         raise HTTPException(status_code=409, detail="position requise")
