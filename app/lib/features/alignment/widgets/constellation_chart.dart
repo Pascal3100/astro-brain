@@ -19,10 +19,10 @@ class ConstellationChart extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     // Nœud cible — `null` si aucun nœud n'est marqué isTarget.
-    final ConstellationNodeDto? target = figure.nodes.cast<ConstellationNodeDto?>().firstWhere(
-      (n) => n!.isTarget,
-      orElse: () => null,
-    );
+    ConstellationNodeDto? target;
+    for (final n in figure.nodes) {
+      if (n.isTarget) { target = n; break; }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -101,14 +101,20 @@ class _ChartPainter extends CustomPainter {
   final Color targetColor;
 
   /// Coordonnées brutes (avant normalisation) : Az/Alt si orienté, -RA/Dec sinon.
-  List<Offset> _rawPoints() => figure.nodes.map((n) {
-        if (figure.oriented && n.az != null && n.alt != null) {
-          return Offset(n.az!, n.alt!);
-        }
-        // Atlas : RA croît vers la droite en degrés négatifs pour respecter
-        // la convention Est-Ouest du ciel.
-        return Offset(-n.raDeg, n.decDeg);
-      }).toList();
+  ///
+  /// La décision oriented vs atlas est prise UNE FOIS pour la figure entière :
+  /// on n'utilise le mode orienté que si [figure.oriented] est `true` ET
+  /// que chaque nœud possède az et alt. Sinon, projection atlas pour tous.
+  List<Offset> _rawPoints() {
+    final useOriented = figure.oriented &&
+        figure.nodes.every((n) => n.az != null && n.alt != null);
+    return figure.nodes.map((n) {
+      if (useOriented) return Offset(n.az!, n.alt!);
+      // Atlas : RA croît vers la droite en degrés négatifs pour respecter
+      // la convention Est-Ouest du ciel.
+      return Offset(-n.raDeg, n.decDeg);
+    }).toList();
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -145,6 +151,8 @@ class _ChartPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     for (final seg in figure.segments) {
+      if (seg.length < 2) continue;
+      if (seg[0] >= screen.length || seg[1] >= screen.length) continue;
       canvas.drawLine(screen[seg[0]], screen[seg[1]], linePaint);
     }
 
