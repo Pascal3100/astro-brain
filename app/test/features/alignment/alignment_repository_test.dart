@@ -173,6 +173,103 @@ void main() {
     });
   });
 
+  group('AlignmentRepository.fetchConstellation', () {
+    test('calls getJson with path + query params, returns parsed dto', () async {
+      when(
+        () => api.getJson(any(), query: any(named: 'query')),
+      ).thenAnswer(
+        (_) async => {
+          'abbr': 'UMa',
+          'name': 'Ursa Major',
+          'oriented': false,
+          'nodes': [],
+          'segments': [],
+        },
+      );
+
+      final dto = await repo.fetchConstellation(
+        'UMa',
+        raDeg: 165.9,
+        decDeg: 61.7,
+      );
+
+      expect(dto.abbr, 'UMa');
+      expect(dto.name, 'Ursa Major');
+      expect(dto.oriented, isFalse);
+      expect(dto.nodes, isEmpty);
+      expect(dto.segments, isEmpty);
+
+      // Vérifie que le path ne contient PAS de query string (bug f179db4).
+      final captured = verify(
+        () => api.getJson(captureAny(), query: captureAny(named: 'query')),
+      ).captured;
+      expect(captured[0], '/align/constellation/UMa');
+      final query = captured[1] as Map<String, String>;
+      expect(query['target_ra'], '165.9');
+      expect(query['target_dec'], '61.7');
+    });
+  });
+
+  group('AlignmentRepository.fetchVisibleStars', () {
+    test('parses constellations map into Map<abbr, List<StarDto>>', () async {
+      when(
+        () => api.getJson(any(), query: any(named: 'query')),
+      ).thenAnswer(
+        (_) async => {
+          'constellations': {
+            'UMa': [
+              {
+                'id': 'alkaid',
+                'name': 'Alkaid',
+                'bayer': 'η UMa',
+                'ra_deg': 206.885,
+                'dec_deg': 49.313,
+                'mag': 1.86,
+                'az': 42.0,
+                'alt': 58.0,
+              },
+            ],
+          },
+        },
+      );
+
+      final map = await repo.fetchVisibleStars();
+
+      expect(map.keys, contains('UMa'));
+      expect(map['UMa'], hasLength(1));
+      final star = map['UMa']!.first;
+      expect(star.id, 'alkaid');
+      expect(star.name, 'Alkaid');
+      expect(star.bayer, 'η UMa');
+      expect(star.raDeg, closeTo(206.885, 0.001));
+      expect(star.decDeg, closeTo(49.313, 0.001));
+      expect(star.mag, closeTo(1.86, 0.001));
+
+      final captured = verify(
+        () => api.getJson(captureAny(), query: captureAny(named: 'query')),
+      ).captured;
+      expect(captured[0], '/align/stars/visible');
+    });
+  });
+
+  group('AlignmentRepository.postClientLocation', () {
+    test('posts lat/lon to /align/location/client', () async {
+      when(
+        () => api.postJson(any(), any()),
+      ).thenAnswer((_) async => {'ok': true});
+
+      await repo.postClientLocation(43.6, 1.44);
+
+      final captured = verify(
+        () => api.postJson(captureAny(), captureAny()),
+      ).captured;
+      expect(captured[0], '/align/location/client');
+      final body = captured[1] as Map<String, dynamic>;
+      expect(body['lat'], closeTo(43.6, 0.001));
+      expect(body['lon'], closeTo(1.44, 0.001));
+    });
+  });
+
   group('AlignmentModelDto.outlierId', () {
     test('returns null when residuals are roughly equal', () {
       const model = AlignmentModelDto(
