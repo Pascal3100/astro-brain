@@ -19,7 +19,35 @@ __all__ = [
     "load_catalog",
     "select_candidates",
     "sky_az_alt_from_ra_dec",
+    "constellation_of",
 ]
+
+
+# Abréviations IAU officielles : 3 lettres, première en majuscule.
+_IAU_ABBRS = frozenset({
+    "And", "Ant", "Aps", "Aqr", "Aql", "Ara", "Ari", "Aur", "Boo", "Cae",
+    "Cam", "Cnc", "CVn", "CMa", "CMi", "Cap", "Car", "Cas", "Cen", "Cep",
+    "Cet", "Cha", "Cir", "Col", "Com", "CrA", "CrB", "Crv", "Crt", "Cru",
+    "Cyg", "Del", "Dor", "Dra", "Equ", "Eri", "For", "Gem", "Gru", "Her",
+    "Hor", "Hya", "Hyi", "Ind", "Lac", "Leo", "LMi", "Lep", "Lib", "Lup",
+    "Lyn", "Lyr", "Men", "Mic", "Mon", "Mus", "Nor", "Oct", "Oph", "Ori",
+    "Pav", "Peg", "Per", "Phe", "Pic", "Psc", "PsA", "Pup", "Pyx", "Ret",
+    "Sge", "Sgr", "Sco", "Scl", "Sct", "Ser", "Sex", "Tau", "Tel", "Tri",
+    "TrA", "Tuc", "UMa", "UMi", "Vel", "Vir", "Vol", "Vul",
+})
+
+
+def constellation_of(star: Star) -> str | None:
+    """Dérive l'abréviation IAU (3 lettres) depuis le champ `bayer`.
+
+    Le bayer est de la forme « <lettre/numéro> <Abbr> » (ex. « α CMa »,
+    « 51 Peg »). On lit le dernier token. Renvoie None si non reconnu.
+    """
+    parts = star.bayer.split()
+    if not parts:
+        return None
+    abbr = parts[-1]
+    return abbr if abbr in _IAU_ABBRS else None
 
 
 @dataclass(frozen=True)

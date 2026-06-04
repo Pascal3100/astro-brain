@@ -72,6 +72,39 @@ def test_select_candidates_excludes_ids() -> None:
     assert all(s.id not in excluded for s in second)
 
 
+def test_constellation_of_extracts_iau_abbr() -> None:
+    from astro_brain.services._alignment_catalog import constellation_of
+    from astro_brain.models.alignment import Star
+
+    def _star(bayer: str) -> Star:
+        return Star(id="x", name="X", bayer=bayer, ra_deg=0.0, dec_deg=0.0, mag=1.0)
+
+    assert constellation_of(_star("α CMa")) == "CMa"
+    assert constellation_of(_star("β UMa")) == "UMa"
+
+
+def test_constellation_of_handles_no_greek_prefix() -> None:
+    from astro_brain.services._alignment_catalog import constellation_of
+    from astro_brain.models.alignment import Star
+
+    def _star(bayer: str) -> Star:
+        return Star(id="x", name="X", bayer=bayer, ra_deg=0.0, dec_deg=0.0, mag=1.0)
+
+    # Certains bayer n'ont pas de lettre grecque (ex. designation Flamsteed).
+    assert constellation_of(_star("51 Peg")) == "Peg"
+
+
+def test_constellation_of_returns_none_when_unparseable() -> None:
+    from astro_brain.services._alignment_catalog import constellation_of
+    from astro_brain.models.alignment import Star
+
+    def _star(bayer: str) -> Star:
+        return Star(id="x", name="X", bayer=bayer, ra_deg=0.0, dec_deg=0.0, mag=1.0)
+
+    assert constellation_of(_star("")) is None
+    assert constellation_of(_star("Sirius")) is None
+
+
 def test_gmst_known_epoch() -> None:
     """GMST à J2000.0 (2000-01-01 12:00 UTC) ≈ 280.4606° (textbook IAU 1982).
 
