@@ -4,7 +4,7 @@ from scripts.build_constellation_figures import parse_fab_lines
 
 
 def test_parse_fab_lines_returns_segments_as_hip_pairs():
-    fab = Path("tests/fixtures/western_lines_sample.fab").read_text()
+    fab = (Path(__file__).parent / "fixtures" / "western_lines_sample.fab").read_text()
     figures = parse_fab_lines(fab)
     assert set(figures) == {"UMa", "CMa"}
     assert len(figures["UMa"]) == 6

@@ -22,6 +22,7 @@ _FR_NAMES = {
     "Cep": "Céphée", "Car": "Carène", "Cen": "Centaure", "Cru": "Croix du Sud",
     "PsA": "Poisson Austral", "Sgr": "Sagittaire", "Eri": "Éridan",
     "Gru": "Grue", "Oph": "Ophiuchus", "Aqr": "Verseau",
+    "Ari": "Bélier", "CrB": "Couronne boréale", "Cet": "Baleine", "Hya": "Hydre",
 }
 
 
@@ -68,7 +69,7 @@ def _load_hyg(path: Path) -> dict[int, dict]:
 def build(data_dir: Path, out_path: Path) -> dict:
     """Construit l'asset JSON et l'écrit dans ``out_path``.
 
-    Returns le dictionnaire généré (pratique pour les tests d'intégration).
+    Return le dictionnaire généré (pratique pour les tests d'intégration).
     """
     needed = {
         abbr
@@ -87,7 +88,8 @@ def build(data_dir: Path, out_path: Path) -> dict:
             for h in (a, b):
                 if h not in hip_order:
                     hip_order.append(h)
-        index = {h: i for i, h in enumerate(hip_order)}
+        filtered_hips = [h for h in hip_order if h in hyg]
+        index = {h: i for i, h in enumerate(filtered_hips)}
         nodes = [
             {
                 "label": hyg[h]["label"],
@@ -95,8 +97,7 @@ def build(data_dir: Path, out_path: Path) -> dict:
                 "dec_deg": round(hyg[h]["dec_deg"], 5),
                 "mag": hyg[h]["mag"],
             }
-            for h in hip_order
-            if h in hyg
+            for h in filtered_hips
         ]
         if len(nodes) < 2:
             continue

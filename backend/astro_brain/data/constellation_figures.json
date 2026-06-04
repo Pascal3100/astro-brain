@@ -93,7 +93,7 @@
     ]
   },
   "Cet": {
-    "name": "Cet",
+    "name": "Baleine",
     "nodes": [
       {
         "label": "Xi-1",
@@ -294,7 +294,7 @@
     ]
   },
   "Ari": {
-    "name": "Ari",
+    "name": "Bélier",
     "nodes": [
       {
         "label": "Bharani",
@@ -654,7 +654,7 @@
     ]
   },
   "CrB": {
-    "name": "CrB",
+    "name": "Couronne boréale",
     "nodes": [
       {
         "label": "The",
@@ -1648,7 +1648,7 @@
     ]
   },
   "Hya": {
-    "name": "Hya",
+    "name": "Hydre",
     "nodes": [
       {
         "label": "Eta",
