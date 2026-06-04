@@ -252,7 +252,7 @@ def client() -> TestClient:
 
 
 def test_get_constellation_known_marks_target(
-    client: TestClient, client_located: TestClient
+    client_located: TestClient,
 ) -> None:
     r = client_located.get(
         "/align/constellation/UMa",
@@ -267,7 +267,7 @@ def test_get_constellation_known_marks_target(
 
 
 def test_get_constellation_unknown_404(
-    client: TestClient, client_located: TestClient
+    client_located: TestClient,
 ) -> None:
     r = client_located.get(
         "/align/constellation/ZZZ",
@@ -281,13 +281,20 @@ def test_get_constellation_unknown_404(
 # ---------------------------------------------------------------------------
 
 
-def test_get_visible_stars_grouped(
-    client: TestClient, client_located: TestClient
-) -> None:
+def test_get_visible_stars_grouped(client_located: TestClient) -> None:
     r = client_located.get("/align/stars/visible")
     assert r.status_code == 200
     body = r.json()
     assert isinstance(body["constellations"], dict)
     for stars in body["constellations"].values():
         for s in stars:
-            assert {"id", "name", "bayer", "mag", "az", "alt"} <= set(s)
+            assert {"id", "name", "bayer", "ra_deg", "dec_deg", "mag", "az", "alt"} <= set(s)
+
+
+def test_get_visible_stars_without_position_returns_409() -> None:
+    svc = MagicMock()
+    svc.session = MagicMock(return_value=None)
+    pp = _FakePositionProvider()  # no GPS fix, no client location set
+    client, _ = _client_with_service(svc, position_provider=pp)
+    r = client.get("/align/stars/visible")
+    assert r.status_code == 409
