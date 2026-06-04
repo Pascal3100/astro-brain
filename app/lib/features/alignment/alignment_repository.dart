@@ -89,7 +89,6 @@ class AlignmentRepository {
 
   /// POST /align/location/client {lat, lon} — transmet la position GPS du
   /// téléphone au backend (utilisé quand le GPS du Pi est indisponible).
-  Future<void> postClientLocation(double lat, double lon) async {
-    await api.postJson('/align/location/client', {'lat': lat, 'lon': lon});
-  }
+  Future<void> postClientLocation(double lat, double lon) =>
+      api.postJson('/align/location/client', {'lat': lat, 'lon': lon});
 }

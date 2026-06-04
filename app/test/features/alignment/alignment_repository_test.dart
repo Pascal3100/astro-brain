@@ -213,7 +213,7 @@ void main() {
   group('AlignmentRepository.fetchVisibleStars', () {
     test('parses constellations map into Map<abbr, List<StarDto>>', () async {
       when(
-        () => api.getJson(any(), query: any(named: 'query')),
+        () => api.getJson('/align/stars/visible'),
       ).thenAnswer(
         (_) async => {
           'constellations': {
@@ -245,10 +245,7 @@ void main() {
       expect(star.decDeg, closeTo(49.313, 0.001));
       expect(star.mag, closeTo(1.86, 0.001));
 
-      final captured = verify(
-        () => api.getJson(captureAny(), query: captureAny(named: 'query')),
-      ).captured;
-      expect(captured[0], '/align/stars/visible');
+      verify(() => api.getJson('/align/stars/visible')).called(1);
     });
   });
 
