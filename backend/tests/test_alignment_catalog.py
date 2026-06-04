@@ -3,13 +3,20 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from astro_brain.models.alignment import Star
 from astro_brain.services._alignment_catalog import (
     MountLimits,
     Observer,
+    constellation_of,
     load_catalog,
     select_candidates,
     sky_az_alt_from_ra_dec,
 )
+
+
+def _star(bayer: str) -> Star:
+    """Helper to create a Star with minimal fields for testing."""
+    return Star(id="x", name="X", bayer=bayer, ra_deg=0.0, dec_deg=0.0, mag=1.0)
 
 
 def test_load_catalog_returns_at_least_30_stars() -> None:
@@ -73,34 +80,16 @@ def test_select_candidates_excludes_ids() -> None:
 
 
 def test_constellation_of_extracts_iau_abbr() -> None:
-    from astro_brain.services._alignment_catalog import constellation_of
-    from astro_brain.models.alignment import Star
-
-    def _star(bayer: str) -> Star:
-        return Star(id="x", name="X", bayer=bayer, ra_deg=0.0, dec_deg=0.0, mag=1.0)
-
     assert constellation_of(_star("α CMa")) == "CMa"
     assert constellation_of(_star("β UMa")) == "UMa"
 
 
 def test_constellation_of_handles_no_greek_prefix() -> None:
-    from astro_brain.services._alignment_catalog import constellation_of
-    from astro_brain.models.alignment import Star
-
-    def _star(bayer: str) -> Star:
-        return Star(id="x", name="X", bayer=bayer, ra_deg=0.0, dec_deg=0.0, mag=1.0)
-
     # Certains bayer n'ont pas de lettre grecque (ex. designation Flamsteed).
     assert constellation_of(_star("51 Peg")) == "Peg"
 
 
 def test_constellation_of_returns_none_when_unparseable() -> None:
-    from astro_brain.services._alignment_catalog import constellation_of
-    from astro_brain.models.alignment import Star
-
-    def _star(bayer: str) -> Star:
-        return Star(id="x", name="X", bayer=bayer, ra_deg=0.0, dec_deg=0.0, mag=1.0)
-
     assert constellation_of(_star("")) is None
     assert constellation_of(_star("Sirius")) is None
 
