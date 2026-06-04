@@ -161,8 +161,8 @@ class ConstellationNodeDto extends Equatable {
     required this.mag,
     required this.raDeg,
     required this.decDeg,
-    required this.az,
-    required this.alt,
+    this.az,
+    this.alt,
     required this.isTarget,
   });
 
