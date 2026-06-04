@@ -187,7 +187,7 @@ async def get_constellation(
     target_ra: float,
     target_dec: float,
     position: Any = Depends(deps.get_position_provider),
-) -> dict:
+) -> dict[str, Any]:
     """Renvoie la figure de la constellation et marque l'étoile cible.
 
     - 404 si l'abréviation n'est pas dans l'asset des figures.
@@ -211,7 +211,7 @@ async def get_constellation(
 @router.get("/stars/visible")
 async def get_visible_stars(
     position: Any = Depends(deps.get_position_provider),
-) -> dict:
+) -> dict[str, Any]:
     """Étoiles d'alignement actuellement pointables, groupées par constellation.
 
     Requiert une position connue (GPS ou client) — 409 sinon.
@@ -219,6 +219,7 @@ async def get_visible_stars(
     obs = position.observer()
     if obs is None:
         raise HTTPException(status_code=409, detail="position requise")
+    # Bornes pleine-voûte (mêmes valeurs que select_candidates) ; le Setup tube affinera plus tard.
     limits = MountLimits(alt_min=10.0, alt_max=85.0, az_min=0.0, az_max=360.0)
     groups = visible_stars(obs, datetime.now(UTC), limits)
     return {

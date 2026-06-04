@@ -237,15 +237,6 @@ def client_located() -> TestClient:
     return client
 
 
-@pytest.fixture()
-def client() -> TestClient:
-    """TestClient with a generic mock service (no position set)."""
-    svc = MagicMock()
-    svc.session = MagicMock(return_value=None)
-    tc, _ = _client_with_service(svc)
-    return tc
-
-
 # ---------------------------------------------------------------------------
 # GET /align/constellation/{abbr}
 # ---------------------------------------------------------------------------
