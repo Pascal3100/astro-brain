@@ -16,6 +16,8 @@ from pydantic import BaseModel
 from astro_brain import deps
 from astro_brain.bus import StateBus
 from astro_brain.models.alignment import AlignmentModel, AlignmentSession, Star
+from astro_brain.services._alignment_catalog import MountLimits, visible_stars
+from astro_brain.services.constellation_figures import figure_for, render_figure
 from astro_brain.services.interfaces import AlignmentService, ConflictError
 from astro_brain.subsystems import SubsystemState
 
@@ -177,3 +179,63 @@ async def cancel(
     await service.cancel()
     _publish_session(bus, service)
     return Response(status_code=204)
+
+
+@router.get("/constellation/{abbr}")
+async def get_constellation(
+    abbr: str,
+    target_ra: float,
+    target_dec: float,
+    position: Any = Depends(deps.get_position_provider),
+) -> dict:
+    """Renvoie la figure de la constellation et marque l'étoile cible.
+
+    - 404 si l'abréviation n'est pas dans l'asset des figures.
+    - ``oriented`` = True si une position est disponible (az/alt calculés).
+    """
+    figure = figure_for(abbr)
+    if figure is None:
+        raise HTTPException(status_code=404, detail=f"constellation inconnue: {abbr}")
+    obs = position.observer()
+    t = datetime.now(UTC) if obs is not None else None
+    rendered = render_figure(
+        figure,
+        target_ra=target_ra,
+        target_dec=target_dec,
+        observer=obs,
+        t_utc=t,
+    )
+    return {"abbr": abbr, **rendered}
+
+
+@router.get("/stars/visible")
+async def get_visible_stars(
+    position: Any = Depends(deps.get_position_provider),
+) -> dict:
+    """Étoiles d'alignement actuellement pointables, groupées par constellation.
+
+    Requiert une position connue (GPS ou client) — 409 sinon.
+    """
+    obs = position.observer()
+    if obs is None:
+        raise HTTPException(status_code=409, detail="position requise")
+    limits = MountLimits(alt_min=10.0, alt_max=85.0, az_min=0.0, az_max=360.0)
+    groups = visible_stars(obs, datetime.now(UTC), limits)
+    return {
+        "constellations": {
+            abbr: [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "bayer": s.bayer,
+                    "ra_deg": s.ra_deg,
+                    "dec_deg": s.dec_deg,
+                    "mag": s.mag,
+                    "az": round(az, 2),
+                    "alt": round(alt, 2),
+                }
+                for s, az, alt in entries
+            ]
+            for abbr, entries in groups.items()
+        }
+    }

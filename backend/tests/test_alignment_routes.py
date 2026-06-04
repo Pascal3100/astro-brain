@@ -14,6 +14,7 @@ from astro_brain.models.alignment import (
     StarRecord,
 )
 from astro_brain.routes.alignment import router
+from astro_brain.services._ephemeris import Observer
 from astro_brain.services.interfaces import ConflictError
 
 
@@ -179,7 +180,8 @@ class _FakePositionProvider:
 
     Starts with no position (simulates no GPS fix, no client location set).
     ``set_client_location`` stores the coordinates so that ``position``
-    returns them on the next call.
+    returns them on the next call, and ``observer`` returns an ``Observer``
+    instance once a position is available.
     """
 
     def __init__(self) -> None:
@@ -190,6 +192,11 @@ class _FakePositionProvider:
 
     def set_client_location(self, lat: float, lon: float) -> None:
         self._pos = (lat, lon)
+
+    def observer(self) -> Observer | None:
+        if self._pos is None:
+            return None
+        return Observer(lat_deg=self._pos[0], lon_deg=self._pos[1])
 
 
 def test_post_client_location_then_start_succeeds() -> None:
@@ -212,3 +219,75 @@ def test_start_without_position_returns_409() -> None:
     client, _ = _client_with_service(svc, position_provider=pp)
     r = client.post("/align/start", json={})
     assert r.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# Fixtures for constellation / visible-stars routes
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def client_located() -> TestClient:
+    """TestClient with a located _FakePositionProvider (lat=43.6, lon=1.44)."""
+    svc = MagicMock()
+    svc.session = MagicMock(return_value=None)
+    pp = _FakePositionProvider()
+    pp.set_client_location(43.6, 1.44)
+    client, _ = _client_with_service(svc, position_provider=pp)
+    return client
+
+
+@pytest.fixture()
+def client() -> TestClient:
+    """TestClient with a generic mock service (no position set)."""
+    svc = MagicMock()
+    svc.session = MagicMock(return_value=None)
+    tc, _ = _client_with_service(svc)
+    return tc
+
+
+# ---------------------------------------------------------------------------
+# GET /align/constellation/{abbr}
+# ---------------------------------------------------------------------------
+
+
+def test_get_constellation_known_marks_target(
+    client: TestClient, client_located: TestClient
+) -> None:
+    r = client_located.get(
+        "/align/constellation/UMa",
+        params={"target_ra": 165.932, "target_dec": 61.751},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["abbr"] == "UMa"
+    assert body["name"] == "Grande Ourse"
+    assert sum(1 for n in body["nodes"] if n["is_target"]) == 1
+    assert body["oriented"] is True
+
+
+def test_get_constellation_unknown_404(
+    client: TestClient, client_located: TestClient
+) -> None:
+    r = client_located.get(
+        "/align/constellation/ZZZ",
+        params={"target_ra": 0.0, "target_dec": 0.0},
+    )
+    assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# GET /align/stars/visible
+# ---------------------------------------------------------------------------
+
+
+def test_get_visible_stars_grouped(
+    client: TestClient, client_located: TestClient
+) -> None:
+    r = client_located.get("/align/stars/visible")
+    assert r.status_code == 200
+    body = r.json()
+    assert isinstance(body["constellations"], dict)
+    for stars in body["constellations"].values():
+        for s in stars:
+            assert {"id", "name", "bayer", "mag", "az", "alt"} <= set(s)
