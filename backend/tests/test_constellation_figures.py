@@ -36,7 +36,7 @@ def test_render_figure_marks_target_by_proximity_and_computes_altaz():
     assert len(targets) == 1
     assert "Dubhe" in targets[0]["label"]
     for node in out["nodes"]:
-        assert "az" in node and "alt" in node
+        assert node["az"] is not None and node["alt"] is not None
 
 
 def test_render_figure_without_observer_is_not_oriented():

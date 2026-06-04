@@ -8,20 +8,25 @@ from __future__ import annotations
 import json
 import math
 from datetime import datetime
-from functools import lru_cache
 from importlib import resources
 
 from astro_brain.services._ephemeris import Observer, sky_az_alt_from_ra_dec
 
+__all__ = ["load_figures", "figure_for", "render_figure"]
+
 _TARGET_MATCH_DEG = 1.0  # tolérance de matching cible
+_FIGURES: dict[str, dict] | None = None
 
 
-@lru_cache(maxsize=1)
 def load_figures() -> dict[str, dict]:
-    raw = resources.files("astro_brain.data").joinpath(
-        "constellation_figures.json"
-    ).read_text()
-    return json.loads(raw)
+    """Charge l'asset des figures (une seule fois, mis en cache module)."""
+    global _FIGURES
+    if _FIGURES is None:
+        raw = resources.files("astro_brain.data").joinpath(
+            "constellation_figures.json"
+        ).read_text(encoding="utf-8")
+        _FIGURES = json.loads(raw)
+    return _FIGURES
 
 
 def figure_for(abbr: str) -> dict | None:
