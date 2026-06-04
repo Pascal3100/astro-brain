@@ -55,6 +55,11 @@ def _publish_session(bus: StateBus, service: AlignmentService) -> None:
 router = APIRouter(tags=["alignment"], prefix="/align")
 
 
+class _ClientLocationBody(BaseModel):
+    lat: float
+    lon: float
+
+
 class _RecordBody(BaseModel):
     idx: int
 
@@ -74,11 +79,29 @@ async def get_session(
     return {"session": service.session()}
 
 
+@router.post("/location/client")
+async def set_client_location(
+    body: _ClientLocationBody,
+    position=Depends(deps.get_position_provider),
+) -> dict:
+    """Store a position provided by the client (téléphone GPS).
+
+    Called when the Pi has no GPS fix and the phone forwards its own
+    coordinates.  The coordinates are stored in the position provider and
+    used by ``/align/start`` to unlock the session.
+    """
+    position.set_client_location(body.lat, body.lon)
+    return {"ok": True}
+
+
 @router.post("/start")
 async def start(
     service: AlignmentService = Depends(deps.get_alignment_service),
     bus: StateBus = Depends(deps.get_bus),
+    position=Depends(deps.get_position_provider),
 ) -> AlignmentSession:
+    if position.position() is None:
+        raise HTTPException(status_code=409, detail="position requise")
     try:
         sess = await service.start()
     except ConflictError as e:

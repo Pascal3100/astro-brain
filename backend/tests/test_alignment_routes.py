@@ -29,7 +29,9 @@ def _stub_session() -> AlignmentSession:
     )
 
 
-def _client_with_service(service) -> tuple[TestClient, "StateBus"]:
+def _client_with_service(
+    service, position_provider=None
+) -> tuple[TestClient, "StateBus"]:
     from astro_brain.bus import StateBus
 
     app = FastAPI()
@@ -37,6 +39,12 @@ def _client_with_service(service) -> tuple[TestClient, "StateBus"]:
     app.state.alignment = service
     bus = StateBus()
     app.state.bus = bus
+    if position_provider is None:
+        pp = MagicMock()
+        pp.position = MagicMock(return_value=(43.6, 1.44))
+    else:
+        pp = position_provider
+    app.state.position_provider = pp
     return TestClient(app), bus
 
 
@@ -164,3 +172,43 @@ def test_delete_session_publishes_idle_subsystem_state() -> None:
     assert r.status_code == 204
     full = bus.get_full_state()
     assert full.subsystems["alignment"].state == "idle"
+
+
+class _FakePositionProvider:
+    """Fake position provider for tests.
+
+    Starts with no position (simulates no GPS fix, no client location set).
+    ``set_client_location`` stores the coordinates so that ``position``
+    returns them on the next call.
+    """
+
+    def __init__(self) -> None:
+        self._pos: tuple[float, float] | None = None
+
+    def position(self) -> tuple[float, float] | None:
+        return self._pos
+
+    def set_client_location(self, lat: float, lon: float) -> None:
+        self._pos = (lat, lon)
+
+
+def test_post_client_location_then_start_succeeds() -> None:
+    svc = MagicMock()
+    svc.start = AsyncMock(return_value=_stub_session())
+    svc.session = MagicMock(return_value=_stub_session())
+    pp = _FakePositionProvider()
+    client, _ = _client_with_service(svc, position_provider=pp)
+    r = client.post("/align/location/client", json={"lat": 43.6, "lon": 1.44})
+    assert r.status_code == 200
+    r2 = client.post("/align/start", json={})
+    assert r2.status_code == 200
+
+
+def test_start_without_position_returns_409() -> None:
+    svc = MagicMock()
+    svc.start = AsyncMock(return_value=_stub_session())
+    svc.session = MagicMock(return_value=_stub_session())
+    pp = _FakePositionProvider()  # no GPS fix, no client location set
+    client, _ = _client_with_service(svc, position_provider=pp)
+    r = client.post("/align/start", json={})
+    assert r.status_code == 409
