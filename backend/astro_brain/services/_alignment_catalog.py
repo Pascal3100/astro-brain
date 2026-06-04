@@ -20,6 +20,7 @@ __all__ = [
     "select_candidates",
     "sky_az_alt_from_ra_dec",
     "constellation_of",
+    "visible_stars",
 ]
 
 
@@ -133,3 +134,32 @@ def select_candidates(
                     best_score = score
                     best_triplet = [isolated[i][0], isolated[j][0], isolated[k][0]]
     return best_triplet or [s for s, _, _ in isolated[:3]]
+
+
+def visible_stars(
+    observer: Observer,
+    t_utc: datetime,
+    limits: MountLimits,
+    *,
+    min_alt: float = 20.0,
+) -> dict[str, list[tuple[Star, float, float]]]:
+    """Étoiles d'alignement actuellement pointables, groupées par constellation.
+
+    Filtre alt > min_alt et dans `limits` (mêmes critères que
+    `select_candidates`). Renvoie {abbr_IAU: [(star, az, alt), ...]} trié par
+    magnitude croissante dans chaque groupe.
+    """
+    groups: dict[str, list[tuple[Star, float, float]]] = {}
+    for star in load_catalog():
+        az, alt = sky_az_alt_from_ra_dec(star.ra_deg, star.dec_deg, observer, t_utc)
+        if alt < min_alt or alt < limits.alt_min or alt > limits.alt_max:
+            continue
+        if not (limits.az_min <= az <= limits.az_max):
+            continue
+        abbr = constellation_of(star)
+        if abbr is None:
+            continue
+        groups.setdefault(abbr, []).append((star, az, alt))
+    for entries in groups.values():
+        entries.sort(key=lambda e: e[0].mag)
+    return groups

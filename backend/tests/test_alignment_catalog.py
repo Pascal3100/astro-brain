@@ -11,6 +11,7 @@ from astro_brain.services._alignment_catalog import (
     load_catalog,
     select_candidates,
     sky_az_alt_from_ra_dec,
+    visible_stars,
 )
 
 
@@ -105,3 +106,25 @@ def test_gmst_known_epoch() -> None:
     when = datetime(2000, 1, 1, 12, 0, tzinfo=UTC)
     gmst = _gmst_deg(when)
     assert abs(gmst - 280.4606) < 0.01
+
+
+def test_visible_stars_groups_by_constellation_and_filters_horizon() -> None:
+    obs = Observer(lat_deg=43.6, lon_deg=1.44)  # Toulouse
+    t = datetime(2026, 1, 1, 22, 0, tzinfo=UTC)
+    limits = MountLimits(alt_min=10.0, alt_max=85.0, az_min=0.0, az_max=360.0)
+
+    groups = visible_stars(obs, t, limits)
+
+    assert isinstance(groups, dict)
+    assert groups, "au moins une constellation visible attendue"
+    for entries in groups.values():
+        for _star, _az, alt in entries:
+            assert alt >= 10.0
+
+
+def test_visible_stars_excludes_below_horizon() -> None:
+    obs = Observer(lat_deg=-89.0, lon_deg=0.0)
+    t = datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
+    limits = MountLimits(alt_min=10.0, alt_max=85.0, az_min=0.0, az_max=360.0)
+    groups = visible_stars(obs, t, limits)
+    assert "UMi" not in groups
