@@ -96,3 +96,8 @@ def get_catalog_registry(request: Request) -> Any:
 
 def get_visibility_enricher(request: Request) -> Any:
     return request.app.state.visibility_enricher
+
+
+def get_position_provider(request: Request) -> Any:
+    """Fournit le provider de position (fix Pi → téléphone → None)."""
+    return request.app.state.position_provider

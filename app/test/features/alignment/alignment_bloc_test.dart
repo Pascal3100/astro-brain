@@ -3,11 +3,23 @@ import 'package:astro_brain/features/alignment/alignment_event.dart';
 import 'package:astro_brain/features/alignment/alignment_models.dart';
 import 'package:astro_brain/features/alignment/alignment_repository.dart';
 import 'package:astro_brain/features/alignment/alignment_state.dart';
+import 'package:astro_brain/features/alignment/phone_location.dart';
+import 'package:astro_brain/services/api_service.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockRepo extends Mock implements AlignmentRepository {}
+
+class _MockPhoneLocation extends Mock implements PhoneLocation {}
+
+/// Fake qui retourne toujours une position fixe.
+class _FakePhoneLocation implements PhoneLocation {
+  _FakePhoneLocation({required this.result});
+  final ({double lat, double lon})? result;
+  @override
+  Future<({double lat, double lon})?> current() async => result;
+}
 
 AlignmentSessionDto _sessionWithIdx(int idx, {int recCount = 0}) =>
     AlignmentSessionDto(
@@ -184,4 +196,99 @@ void main() {
     act: (b) => b.add(const ValidationAccepted()),
     expect: () => [isA<AlignmentDone>()],
   );
+
+  // ---------------------------------------------------------------------------
+  // Fallback GPS téléphone
+  // ---------------------------------------------------------------------------
+
+  blocTest<AlignmentBloc, AlignmentState>(
+    'WizardStarted — 409 puis GPS téléphone disponible → postClientLocation + start → PrePointing',
+    build: () {
+      when(() => repo.getSession()).thenAnswer((_) async => null);
+
+      // Premier appel → 409 (pas de position Pi).
+      var startCalls = 0;
+      when(() => repo.start()).thenAnswer((_) async {
+        startCalls++;
+        if (startCalls == 1) {
+          throw ApiException('position requise', statusCode: 409);
+        }
+        return _sessionWithIdx(0);
+      });
+
+      when(
+        () => repo.postClientLocation(43.6, 1.44),
+      ).thenAnswer((_) async {});
+
+      return AlignmentBloc(
+        repo: repo,
+        phoneLocation: _FakePhoneLocation(result: (lat: 43.6, lon: 1.44)),
+      );
+    },
+    act: (b) => b.add(const WizardStarted()),
+    expect: () => [
+      isA<AlignmentLoadingCandidates>(),
+      isA<AlignmentPrePointing>().having((s) => s.session.currentIdx, 'idx', 0),
+    ],
+    verify: (_) {
+      verify(() => repo.postClientLocation(43.6, 1.44)).called(1);
+      verify(() => repo.start()).called(2);
+    },
+  );
+
+  blocTest<AlignmentBloc, AlignmentState>(
+    'WizardStarted — 409 et GPS téléphone refusé → AlignmentError position requise',
+    build: () {
+      when(() => repo.getSession()).thenAnswer((_) async => null);
+      when(
+        () => repo.start(),
+      ).thenThrow(ApiException('position requise', statusCode: 409));
+
+      return AlignmentBloc(
+        repo: repo,
+        phoneLocation: _FakePhoneLocation(result: null), // permission refusée
+      );
+    },
+    act: (b) => b.add(const WizardStarted()),
+    expect: () => [
+      isA<AlignmentLoadingCandidates>(),
+      isA<AlignmentError>().having(
+        (s) => s.message,
+        'msg',
+        contains('Position GPS requise'),
+      ),
+    ],
+    verify: (_) {
+      verifyNever(() => repo.postClientLocation(any(), any()));
+    },
+  );
+
+  () {
+    final phoneLoc = _MockPhoneLocation();
+    blocTest<AlignmentBloc, AlignmentState>(
+      'WizardStarted — erreur non-409 n\'active pas le fallback GPS',
+      build: () {
+        when(() => repo.getSession()).thenAnswer((_) async => null);
+        when(
+          () => repo.start(),
+        ).thenThrow(ApiException('server error', statusCode: 500));
+
+        return AlignmentBloc(repo: repo, phoneLocation: phoneLoc);
+      },
+      act: (b) => b.add(const WizardStarted()),
+      expect: () => [
+        isA<AlignmentLoadingCandidates>(),
+        isA<AlignmentError>().having(
+          (s) => s.message,
+          'msg',
+          contains('server error'),
+        ),
+      ],
+      // _MockPhoneLocation.current() n'a pas été appelé.
+      verify: (_) {
+        verifyNever(() => repo.postClientLocation(any(), any()));
+        verifyNever(() => phoneLoc.current());
+      },
+    );
+  }();
 }

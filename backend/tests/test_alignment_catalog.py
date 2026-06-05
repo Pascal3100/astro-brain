@@ -3,13 +3,21 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from astro_brain.models.alignment import Star
 from astro_brain.services._alignment_catalog import (
     MountLimits,
     Observer,
+    constellation_of,
     load_catalog,
     select_candidates,
     sky_az_alt_from_ra_dec,
+    visible_stars,
 )
+
+
+def _star(bayer: str) -> Star:
+    """Helper to create a Star with minimal fields for testing."""
+    return Star(id="x", name="X", bayer=bayer, ra_deg=0.0, dec_deg=0.0, mag=1.0)
 
 
 def test_load_catalog_returns_at_least_30_stars() -> None:
@@ -72,6 +80,21 @@ def test_select_candidates_excludes_ids() -> None:
     assert all(s.id not in excluded for s in second)
 
 
+def test_constellation_of_extracts_iau_abbr() -> None:
+    assert constellation_of(_star("α CMa")) == "CMa"
+    assert constellation_of(_star("β UMa")) == "UMa"
+
+
+def test_constellation_of_handles_no_greek_prefix() -> None:
+    # Certains bayer n'ont pas de lettre grecque (ex. designation Flamsteed).
+    assert constellation_of(_star("51 Peg")) == "Peg"
+
+
+def test_constellation_of_returns_none_when_unparseable() -> None:
+    assert constellation_of(_star("")) is None
+    assert constellation_of(_star("Sirius")) is None
+
+
 def test_gmst_known_epoch() -> None:
     """GMST à J2000.0 (2000-01-01 12:00 UTC) ≈ 280.4606° (textbook IAU 1982).
 
@@ -83,3 +106,25 @@ def test_gmst_known_epoch() -> None:
     when = datetime(2000, 1, 1, 12, 0, tzinfo=UTC)
     gmst = _gmst_deg(when)
     assert abs(gmst - 280.4606) < 0.01
+
+
+def test_visible_stars_groups_by_constellation_and_filters_horizon() -> None:
+    obs = Observer(lat_deg=43.6, lon_deg=1.44)  # Toulouse
+    t = datetime(2026, 1, 1, 22, 0, tzinfo=UTC)
+    limits = MountLimits(alt_min=10.0, alt_max=85.0, az_min=0.0, az_max=360.0)
+
+    groups = visible_stars(obs, t, limits)
+
+    assert isinstance(groups, dict)
+    assert groups, "au moins une constellation visible attendue"
+    for entries in groups.values():
+        for _star, _az, alt in entries:
+            assert alt >= 20.0
+
+
+def test_visible_stars_excludes_below_horizon() -> None:
+    obs = Observer(lat_deg=-89.0, lon_deg=0.0)
+    t = datetime(2026, 1, 1, 0, 0, tzinfo=UTC)
+    limits = MountLimits(alt_min=10.0, alt_max=85.0, az_min=0.0, az_max=360.0)
+    groups = visible_stars(obs, t, limits)
+    assert "UMi" not in groups

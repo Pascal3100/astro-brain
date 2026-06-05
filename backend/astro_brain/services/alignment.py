@@ -85,7 +85,12 @@ class AlignmentServiceImpl:
         mount_az, mount_alt = await self._mount.current_position()
 
         star = sess.candidates[idx]
-        sky_az, sky_alt = self._sensors.sky_az_alt_for(star)
+        raw = self._sensors.sky_az_alt_for(star)
+        if raw is None:
+            raise ConflictError(
+                "position indisponible — impossible d'enregistrer sans observateur"
+            )
+        sky_az, sky_alt = raw
         sess.recorded_stars.append(
             StarRecord(
                 star_id=star.id,

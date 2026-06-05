@@ -205,3 +205,11 @@ Scindé en deux livraisons :
 - **Feedback d'échec GoTo** : aujourd'hui un échec `POST /goto` (409/422/réseau) fait émettre `CatalogueError` au `CatalogueBloc`, ce qui remplace toute la liste par un message plein écran. Préférable : surfacer l'erreur via un `SnackBar` (BlocListener sur un sous-état dédié) sans détruire la liste chargée.
 - **`_SlewBarSlot.buildWhen`** compare `gotoTarget` (map re-castée à chaque accès) par identité → rebuild quasi systématique quand un goto est en cours. Bénin (over-rebuild), mais à nettoyer (comparer une clé stable, ex. `target_name`).
 - **Seuil de visibilité** : le filtre `visible_now` utilise l'horizon géométrique (alt > 0°). Quand le Setup tube arrivera (Macro 4), brancher un seuil pratique (obstruction / min-alt).
+
+## [Macro 3 #5] Bug filtre constellation page Catalogue
+
+Le menu déroulant de filtrage par constellation de `CatalogueScreen` est client-side et liste **toutes** les constellations présentes dans la liste chargée, sans tenir compte de la visibilité depuis la latitude courante. Le navigateur du wizard d'alignement, lui, s'appuie sur `GET /align/stars/visible` calculé backend (filtrage alt/az réel). À corriger : filtrer le déroulant catalogue par visibilité réelle (appel backend similaire, ou réutilisation d'une logique de visibilité partagée). Hors scope de la feature constellation-aid (qui ne touchait que le wizard).
+
+## [Macro 3 #2] Projection ConstellationChart près du nord (azimut wrap-around)
+
+La projection orientée-ciel de `ConstellationChart` mappe l'azimut directement en x. Une constellation à cheval sur l'azimut 0°/360° (ex. circumpolaires près du pôle nord) produit une plage x dégénérée → figure écrasée ou coupée. Acceptable pour une aide de reconnaissance visuelle (le chart n'est pas une carte astrométrique de précision). À corriger seulement si ça devient un vrai problème UX : détecter le straddle (écart entre az_min et az_max > 180°), unwrapper les azimuts autour du centre de la figure, tester en isolation sur des données synthétiques circumpolaires.

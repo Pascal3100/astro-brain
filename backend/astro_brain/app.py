@@ -69,13 +69,22 @@ from astro_brain.subsystems import SubsystemState
 class _AlignmentSensorsBridge:
     """Adapts the StateBus + observer position to the duck-typed `sensors`
     interface AlignmentServiceImpl expects (`gps_fix`, `sky_az_alt_for`).
-    """
 
-    _DEFAULT_LAT = 48.8566
-    _DEFAULT_LON = 2.3522
+    Chaîne de position : fix GPS Pi → position client (téléphone) → None.
+    Plus de fallback codé en dur.
+    """
 
     def __init__(self, bus: StateBus) -> None:
         self._bus = bus
+        self._client: tuple[float, float] | None = None
+
+    def set_client_location(self, lat: float, lon: float) -> None:
+        """Set the observer position reported by the client (phone)."""
+        self._client = (lat, lon)
+
+    def clear_client_location(self) -> None:
+        """Clear the client-reported observer position."""
+        self._client = None
 
     def gps_fix(self) -> tuple[float, float] | None:
         gps = self._bus.get_full_state().subsystems.get("gps")
@@ -88,13 +97,22 @@ class _AlignmentSensorsBridge:
             return None
         return (float(lat), float(lon))
 
-    def observer(self) -> Observer:
-        lat, lon = self.gps_fix() or (self._DEFAULT_LAT, self._DEFAULT_LON)
-        return Observer(lat_deg=lat, lon_deg=lon)
+    def position(self) -> tuple[float, float] | None:
+        """Return the best available position: Pi GPS fix, then client, then None."""
+        return self.gps_fix() or self._client
 
-    def sky_az_alt_for(self, star: Any) -> tuple[float, float]:
+    def observer(self) -> Observer | None:
+        pos = self.position()
+        if pos is None:
+            return None
+        return Observer(lat_deg=pos[0], lon_deg=pos[1])
+
+    def sky_az_alt_for(self, star: Any) -> tuple[float, float] | None:
+        obs = self.observer()
+        if obs is None:
+            return None
         return sky_az_alt_from_ra_dec(
-            star.ra_deg, star.dec_deg, self.observer(), datetime.now(UTC)
+            star.ra_deg, star.dec_deg, obs, datetime.now(UTC)
         )
 
 
@@ -202,6 +220,7 @@ def build_app(
         _app.state.lazy_lis3mdl = _LazySensor(services["lis3mdl"])
 
         sensors_bridge = _AlignmentSensorsBridge(bus)
+        _app.state.position_provider = sensors_bridge
 
         _app.state.visibility_enricher = VisibilityEnricher(
             gps_fix=sensors_bridge.gps_fix,
@@ -210,6 +229,8 @@ def build_app(
 
         def _candidates_provider() -> list[Any]:
             obs = sensors_bridge.observer()
+            if obs is None:
+                return []
             limits = MountLimits(alt_min=10.0, alt_max=85.0, az_min=0.0, az_max=360.0)
             return select_candidates(obs, datetime.now(UTC), limits, exclude_ids=set())
 

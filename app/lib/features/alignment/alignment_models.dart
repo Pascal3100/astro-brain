@@ -153,3 +153,83 @@ class AlignmentModelDto extends Equatable {
     quality,
   ];
 }
+
+/// Nœud d'une figure de constellation (étoile avec coordonnées optionnelles Az/Alt).
+class ConstellationNodeDto extends Equatable {
+  const ConstellationNodeDto({
+    required this.label,
+    required this.mag,
+    required this.raDeg,
+    required this.decDeg,
+    this.az,
+    this.alt,
+    required this.isTarget,
+  });
+
+  final String label;
+  final double mag;
+  final double raDeg;
+  final double decDeg;
+
+  /// `null` si la constellation n'est pas encore orientée (az/alt non calculés).
+  final double? az;
+
+  /// `null` si la constellation n'est pas encore orientée (az/alt non calculés).
+  final double? alt;
+
+  final bool isTarget;
+
+  factory ConstellationNodeDto.fromJson(Map<String, dynamic> j) =>
+      ConstellationNodeDto(
+        label: j['label'] as String,
+        mag: (j['mag'] as num).toDouble(),
+        raDeg: (j['ra_deg'] as num).toDouble(),
+        decDeg: (j['dec_deg'] as num).toDouble(),
+        az: (j['az'] as num?)?.toDouble(),
+        alt: (j['alt'] as num?)?.toDouble(),
+        isTarget: j['is_target'] as bool,
+      );
+
+  @override
+  List<Object?> get props => [label, mag, raDeg, decDeg, az, alt, isTarget];
+}
+
+/// Figure d'une constellation : graphe de nœuds reliés par des segments.
+///
+/// Miroir de `ConstellationFigure` backend (`backend/astro_brain/models/alignment.py`).
+class ConstellationFigureDto extends Equatable {
+  const ConstellationFigureDto({
+    required this.abbr,
+    required this.name,
+    required this.oriented,
+    required this.nodes,
+    required this.segments,
+  });
+
+  final String abbr;
+  final String name;
+
+  /// `true` si [nodes] contiennent des coordonnées Az/Alt calculées.
+  final bool oriented;
+
+  final List<ConstellationNodeDto> nodes;
+
+  /// Liste de paires `[indexA, indexB]` reliant des nœuds dans [nodes].
+  final List<List<int>> segments;
+
+  factory ConstellationFigureDto.fromJson(Map<String, dynamic> j) =>
+      ConstellationFigureDto(
+        abbr: j['abbr'] as String,
+        name: j['name'] as String,
+        oriented: j['oriented'] as bool,
+        nodes: (j['nodes'] as List)
+            .map((e) => ConstellationNodeDto.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        segments: (j['segments'] as List)
+            .map((e) => (e as List).map((i) => i as int).toList())
+            .toList(),
+      );
+
+  @override
+  List<Object?> get props => [abbr, name, oriented, nodes, segments];
+}

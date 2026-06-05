@@ -1,5 +1,7 @@
 import 'package:astro_brain/features/alignment/alignment_models.dart';
+import 'package:astro_brain/features/alignment/alignment_repository.dart';
 import 'package:astro_brain/features/alignment/screens/per_star_screen.dart';
+import 'package:astro_brain/features/alignment/widgets/constellation_chart.dart';
 import 'package:astro_brain/models/system_state.dart';
 import 'package:astro_brain/services/api_service.dart';
 import 'package:astro_brain/services/event_stream_service.dart';
@@ -18,6 +20,8 @@ class _MockStream extends Mock implements EventStreamService {}
 
 class _MockApi extends Mock implements ApiService {}
 
+class _MockRepo extends Mock implements AlignmentRepository {}
+
 // Minimal ThemeData carrying the AppColors + AppTextStyles extensions.
 // Plain TextStyle to avoid GoogleFonts HTTP requests during tests.
 ThemeData _testTheme() {
@@ -33,7 +37,12 @@ ThemeData _testTheme() {
   );
 }
 
-Widget _wrap(Widget child, AppBloc bloc, ThemeCubit theme, PiHost host) {
+Widget _wrap(
+  Widget child,
+  AppBloc bloc,
+  ThemeCubit theme,
+  PiHost host,
+) {
   return MultiRepositoryProvider(
     providers: [
       RepositoryProvider<PiHost>.value(value: host),
@@ -56,10 +65,44 @@ Widget _wrap(Widget child, AppBloc bloc, ThemeCubit theme, PiHost host) {
 StarDto _vega() => const StarDto(
       id: 'vega',
       name: 'Vega',
-      bayer: 'α Lyrae',
+      bayer: 'α Lyr',
       raDeg: 279.234,
       decDeg: 38.784,
       mag: 0.03,
+    );
+
+StarDto _dubhe() => const StarDto(
+      id: 'dubhe',
+      name: 'Dubhe',
+      bayer: 'α UMa',
+      raDeg: 165.932,
+      decDeg: 61.751,
+      mag: 1.79,
+    );
+
+ConstellationFigureDto _umaFigure() => ConstellationFigureDto(
+      abbr: 'UMa',
+      name: 'Grande Ourse',
+      oriented: false,
+      nodes: [
+        ConstellationNodeDto(
+          label: 'Dubhe',
+          mag: 1.79,
+          raDeg: 165.9,
+          decDeg: 61.7,
+          isTarget: true,
+        ),
+        ConstellationNodeDto(
+          label: 'Merak',
+          mag: 2.37,
+          raDeg: 165.4,
+          decDeg: 56.3,
+          isTarget: false,
+        ),
+      ],
+      segments: const [
+        [0, 1],
+      ],
     );
 
 void main() {
@@ -67,6 +110,7 @@ void main() {
   late AppBloc bloc;
   late ThemeCubit theme;
   late PiHost host;
+  late _MockRepo mockRepo;
 
   setUp(() async {
     mockStream = _MockStream();
@@ -83,6 +127,7 @@ void main() {
     theme = ThemeCubit(prefs: prefs);
 
     host = const PiHost();
+    mockRepo = _MockRepo();
   });
 
   tearDown(() {
@@ -98,6 +143,7 @@ void main() {
 
     await t.pumpWidget(_wrap(
       PerStarScreen(
+        repo: mockRepo,
         stepIndex: 1,
         totalSteps: 3,
         target: _vega(),
@@ -130,6 +176,7 @@ void main() {
     bool tapped = false;
     await t.pumpWidget(_wrap(
       PerStarScreen(
+        repo: mockRepo,
         stepIndex: 1,
         totalSteps: 3,
         target: _vega(),
@@ -151,5 +198,169 @@ void main() {
 
     await t.tap(find.text('CENTRÉ ✓'));
     expect(tapped, isTrue);
+  });
+
+  testWidgets('Hero shows constellation name for known abbr', (t) async {
+    t.view.physicalSize = const Size(1080, 4000);
+    t.view.devicePixelRatio = 1.0;
+    addTearDown(t.view.reset);
+
+    await t.pumpWidget(_wrap(
+      PerStarScreen(
+        repo: mockRepo,
+        stepIndex: 2,
+        totalSteps: 3,
+        target: _dubhe(),
+        targetAz: 312.0,
+        targetAlt: 47.0,
+        currentAz: 310.0,
+        currentAlt: 46.0,
+        rate: 4,
+        onPress: (_) {},
+        onRelease: () {},
+        onRateChanged: (_) {},
+        onCentered: () {},
+      ),
+      bloc,
+      theme,
+      host,
+    ));
+    await t.pump();
+
+    // Full constellation name should appear in the hero area.
+    expect(find.textContaining('GRANDE OURSE'), findsOneWidget);
+  });
+
+  testWidgets(
+      '"Voir dans la constellation" button is present for star with known abbr',
+      (t) async {
+    t.view.physicalSize = const Size(1080, 4000);
+    t.view.devicePixelRatio = 1.0;
+    addTearDown(t.view.reset);
+
+    await t.pumpWidget(_wrap(
+      PerStarScreen(
+        repo: mockRepo,
+        stepIndex: 2,
+        totalSteps: 3,
+        target: _dubhe(),
+        targetAz: 312.0,
+        targetAlt: 47.0,
+        currentAz: 310.0,
+        currentAlt: 46.0,
+        rate: 4,
+        onPress: (_) {},
+        onRelease: () {},
+        onRateChanged: (_) {},
+        onCentered: () {},
+      ),
+      bloc,
+      theme,
+      host,
+    ));
+    await t.pump();
+
+    expect(find.textContaining('constellation'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Tapping "Voir dans la constellation" opens bottom sheet with ConstellationChart',
+      (t) async {
+    t.view.physicalSize = const Size(1080, 4000);
+    t.view.devicePixelRatio = 1.0;
+    addTearDown(t.view.reset);
+
+    when(
+      () => mockRepo.fetchConstellation(
+        any(),
+        raDeg: any(named: 'raDeg'),
+        decDeg: any(named: 'decDeg'),
+      ),
+    ).thenAnswer((_) async => _umaFigure());
+
+    await t.pumpWidget(_wrap(
+      PerStarScreen(
+        repo: mockRepo,
+        stepIndex: 2,
+        totalSteps: 3,
+        target: _dubhe(),
+        targetAz: 312.0,
+        targetAlt: 47.0,
+        currentAz: 310.0,
+        currentAlt: 46.0,
+        rate: 4,
+        onPress: (_) {},
+        onRelease: () {},
+        onRateChanged: (_) {},
+        onCentered: () {},
+      ),
+      bloc,
+      theme,
+      host,
+    ));
+    await t.pump();
+
+    await t.tap(find.textContaining('constellation'));
+    // Let the async future complete then render the bottom sheet.
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 100));
+
+    expect(find.byType(ConstellationChart), findsOneWidget);
+
+    // Verify repo was called with correct args.
+    verify(
+      () => mockRepo.fetchConstellation(
+        'UMa',
+        raDeg: 165.932,
+        decDeg: 61.751,
+      ),
+    ).called(1);
+  });
+
+  testWidgets(
+      'Shows SnackBar when fetchConstellation throws', (t) async {
+    t.view.physicalSize = const Size(1080, 4000);
+    t.view.devicePixelRatio = 1.0;
+    addTearDown(t.view.reset);
+
+    when(
+      () => mockRepo.fetchConstellation(
+        any(),
+        raDeg: any(named: 'raDeg'),
+        decDeg: any(named: 'decDeg'),
+      ),
+    ).thenThrow(Exception('404 not found'));
+
+    await t.pumpWidget(_wrap(
+      PerStarScreen(
+        repo: mockRepo,
+        stepIndex: 2,
+        totalSteps: 3,
+        target: _dubhe(),
+        targetAz: 312.0,
+        targetAlt: 47.0,
+        currentAz: 310.0,
+        currentAlt: 46.0,
+        rate: 4,
+        onPress: (_) {},
+        onRelease: () {},
+        onRateChanged: (_) {},
+        onCentered: () {},
+      ),
+      bloc,
+      theme,
+      host,
+    ));
+    await t.pump();
+
+    await t.tap(find.textContaining('constellation'));
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 100));
+
+    expect(find.byType(ConstellationChart), findsNothing);
+    expect(
+      find.textContaining('Schéma indisponible'),
+      findsOneWidget,
+    );
   });
 }

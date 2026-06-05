@@ -14,6 +14,7 @@ from astro_brain.models.alignment import (
     StarRecord,
 )
 from astro_brain.routes.alignment import router
+from astro_brain.services._ephemeris import Observer
 from astro_brain.services.interfaces import ConflictError
 
 
@@ -29,7 +30,9 @@ def _stub_session() -> AlignmentSession:
     )
 
 
-def _client_with_service(service) -> tuple[TestClient, "StateBus"]:
+def _client_with_service(
+    service, position_provider=None
+) -> tuple[TestClient, "StateBus"]:
     from astro_brain.bus import StateBus
 
     app = FastAPI()
@@ -37,6 +40,12 @@ def _client_with_service(service) -> tuple[TestClient, "StateBus"]:
     app.state.alignment = service
     bus = StateBus()
     app.state.bus = bus
+    if position_provider is None:
+        pp = MagicMock()
+        pp.position = MagicMock(return_value=(43.6, 1.44))
+    else:
+        pp = position_provider
+    app.state.position_provider = pp
     return TestClient(app), bus
 
 
@@ -164,3 +173,119 @@ def test_delete_session_publishes_idle_subsystem_state() -> None:
     assert r.status_code == 204
     full = bus.get_full_state()
     assert full.subsystems["alignment"].state == "idle"
+
+
+class _FakePositionProvider:
+    """Fake position provider for tests.
+
+    Starts with no position (simulates no GPS fix, no client location set).
+    ``set_client_location`` stores the coordinates so that ``position``
+    returns them on the next call, and ``observer`` returns an ``Observer``
+    instance once a position is available.
+    """
+
+    def __init__(self) -> None:
+        self._pos: tuple[float, float] | None = None
+
+    def position(self) -> tuple[float, float] | None:
+        return self._pos
+
+    def set_client_location(self, lat: float, lon: float) -> None:
+        self._pos = (lat, lon)
+
+    def observer(self) -> Observer | None:
+        if self._pos is None:
+            return None
+        return Observer(lat_deg=self._pos[0], lon_deg=self._pos[1])
+
+
+def test_post_client_location_then_start_succeeds() -> None:
+    svc = MagicMock()
+    svc.start = AsyncMock(return_value=_stub_session())
+    svc.session = MagicMock(return_value=_stub_session())
+    pp = _FakePositionProvider()
+    client, _ = _client_with_service(svc, position_provider=pp)
+    r = client.post("/align/location/client", json={"lat": 43.6, "lon": 1.44})
+    assert r.status_code == 200
+    r2 = client.post("/align/start", json={})
+    assert r2.status_code == 200
+
+
+def test_start_without_position_returns_409() -> None:
+    svc = MagicMock()
+    svc.start = AsyncMock(return_value=_stub_session())
+    svc.session = MagicMock(return_value=_stub_session())
+    pp = _FakePositionProvider()  # no GPS fix, no client location set
+    client, _ = _client_with_service(svc, position_provider=pp)
+    r = client.post("/align/start", json={})
+    assert r.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# Fixtures for constellation / visible-stars routes
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def client_located() -> TestClient:
+    """TestClient with a located _FakePositionProvider (lat=43.6, lon=1.44)."""
+    svc = MagicMock()
+    svc.session = MagicMock(return_value=None)
+    pp = _FakePositionProvider()
+    pp.set_client_location(43.6, 1.44)
+    client, _ = _client_with_service(svc, position_provider=pp)
+    return client
+
+
+# ---------------------------------------------------------------------------
+# GET /align/constellation/{abbr}
+# ---------------------------------------------------------------------------
+
+
+def test_get_constellation_known_marks_target(
+    client_located: TestClient,
+) -> None:
+    r = client_located.get(
+        "/align/constellation/UMa",
+        params={"target_ra": 165.932, "target_dec": 61.751},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["abbr"] == "UMa"
+    assert body["name"] == "Grande Ourse"
+    assert sum(1 for n in body["nodes"] if n["is_target"]) == 1
+    assert body["oriented"] is True
+
+
+def test_get_constellation_unknown_404(
+    client_located: TestClient,
+) -> None:
+    r = client_located.get(
+        "/align/constellation/ZZZ",
+        params={"target_ra": 0.0, "target_dec": 0.0},
+    )
+    assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# GET /align/stars/visible
+# ---------------------------------------------------------------------------
+
+
+def test_get_visible_stars_grouped(client_located: TestClient) -> None:
+    r = client_located.get("/align/stars/visible")
+    assert r.status_code == 200
+    body = r.json()
+    assert isinstance(body["constellations"], dict)
+    for stars in body["constellations"].values():
+        for s in stars:
+            assert {"id", "name", "bayer", "ra_deg", "dec_deg", "mag", "az", "alt"} <= set(s)
+
+
+def test_get_visible_stars_without_position_returns_409() -> None:
+    svc = MagicMock()
+    svc.session = MagicMock(return_value=None)
+    pp = _FakePositionProvider()  # no GPS fix, no client location set
+    client, _ = _client_with_service(svc, position_provider=pp)
+    r = client.get("/align/stars/visible")
+    assert r.status_code == 409

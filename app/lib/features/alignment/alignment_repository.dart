@@ -48,4 +48,47 @@ class AlignmentRepository {
 
   /// DELETE /align/session — annule la session en cours.
   Future<void> cancel() => api.delete('/align/session');
+
+  /// GET /align/constellation/{abbr}?target_ra=..&target_dec=..
+  ///
+  /// [raDeg] et [decDeg] sont les coordonnées de l'étoile cible ; le backend
+  /// s'en sert pour orienter la figure (calcul Az/Alt). Les paramètres passent
+  /// par [query] afin que `Uri.http` les encode correctement — coller `?…`
+  /// dans le chemin ferait encoder le `?` en `%3F` → 404 (cf. commit f179db4).
+  Future<ConstellationFigureDto> fetchConstellation(
+    String abbr, {
+    required double raDeg,
+    required double decDeg,
+  }) async {
+    final j = await api.getJson(
+      '/align/constellation/$abbr',
+      query: {
+        'target_ra': raDeg.toString(),
+        'target_dec': decDeg.toString(),
+      },
+    );
+    return ConstellationFigureDto.fromJson(j);
+  }
+
+  /// GET /align/stars/visible → `{constellations: {abbr: [star,…]}}`.
+  ///
+  /// Retourne une map `abbr → List<StarDto>` pour toutes les constellations
+  /// actuellement visibles (au-dessus de l'horizon du backend).
+  Future<Map<String, List<StarDto>>> fetchVisibleStars() async {
+    final j = await api.getJson('/align/stars/visible');
+    final raw = j['constellations'] as Map<String, dynamic>;
+    return raw.map(
+      (abbr, list) => MapEntry(
+        abbr,
+        (list as List)
+            .map((e) => StarDto.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      ),
+    );
+  }
+
+  /// POST /align/location/client {lat, lon} — transmet la position GPS du
+  /// téléphone au backend (utilisé quand le GPS du Pi est indisponible).
+  Future<void> postClientLocation(double lat, double lon) =>
+      api.postJson('/align/location/client', {'lat': lat, 'lon': lon});
 }

@@ -42,16 +42,33 @@ def test_gps_fix_returns_tuple_when_fix_3d_with_lat_lon() -> None:
     assert _AlignmentSensorsBridge(bus).gps_fix() == (48.5, 2.3)
 
 
-def test_observer_falls_back_to_paris_without_fix() -> None:
+def test_observer_returns_none_without_fix_or_client() -> None:
     bridge = _AlignmentSensorsBridge(StateBus())
+    assert bridge.observer() is None
+
+
+def test_observer_uses_client_location_when_no_fix() -> None:
+    bridge = _AlignmentSensorsBridge(StateBus())
+    bridge.set_client_location(43.6, 1.44)
     obs = bridge.observer()
-    assert obs.lat_deg == 48.8566
-    assert obs.lon_deg == 2.3522
+    assert obs is not None
+    assert (obs.lat_deg, obs.lon_deg) == (43.6, 1.44)
+
+
+def test_pi_fix_takes_precedence_over_client() -> None:
+    bus = StateBus()
+    bridge = _AlignmentSensorsBridge(bus)
+    bridge.set_client_location(0.0, 0.0)
+    _publish_gps(bus, "fix_3d", lat=48.0, lon=2.0)
+    obs = bridge.observer()
+    assert obs is not None
+    assert (obs.lat_deg, obs.lon_deg) == (48.0, 2.0)
 
 
 def test_observer_uses_gps_when_available() -> None:
     bus = StateBus()
     _publish_gps(bus, "fix_3d", lat=10.0, lon=20.0)
     obs = _AlignmentSensorsBridge(bus).observer()
+    assert obs is not None
     assert obs.lat_deg == 10.0
     assert obs.lon_deg == 20.0
