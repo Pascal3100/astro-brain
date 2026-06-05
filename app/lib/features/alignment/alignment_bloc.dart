@@ -1,12 +1,23 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../services/api_service.dart';
 import 'alignment_event.dart';
 import 'alignment_repository.dart';
 import 'alignment_state.dart';
+import 'phone_location.dart';
 
 /// Orchestrateur du wizard d'alignement 3 étoiles.
+///
+/// [phoneLocation] est injecté pour permettre le fallback GPS téléphone
+/// quand le backend n'a pas de position Pi. La valeur par défaut utilise
+/// le plugin `geolocator` ; en tests, on passe un fake.
 class AlignmentBloc extends Bloc<AlignmentEvent, AlignmentState> {
-  AlignmentBloc({required this.repo}) : super(const AlignmentIdle()) {
+  AlignmentBloc({
+    required this.repo,
+    PhoneLocation? phoneLocation,
+  })  : _phoneLocation =
+            phoneLocation ?? const GeolocatorPhoneLocation(),
+        super(const AlignmentIdle()) {
     on<WizardStarted>(_onStarted);
     on<RecordRequested>(_onRecord);
     on<RestartStarRequested>(_onRestart);
@@ -25,13 +36,40 @@ class AlignmentBloc extends Bloc<AlignmentEvent, AlignmentState> {
   }
 
   final AlignmentRepository repo;
+  final PhoneLocation _phoneLocation;
 
   Future<void> _onStarted(WizardStarted e, Emitter<AlignmentState> emit) async {
     emit(const AlignmentLoadingCandidates());
     try {
       final existing = await repo.getSession();
-      final session = existing ?? await repo.start();
-      emit(AlignmentPrePointing(session: session));
+      if (existing != null) {
+        emit(AlignmentPrePointing(session: existing));
+        return;
+      }
+
+      try {
+        final session = await repo.start();
+        emit(AlignmentPrePointing(session: session));
+      } on ApiException catch (err) {
+        if (err.statusCode == 409) {
+          // Backend exige une position : on tente le GPS du téléphone.
+          final pos = await _phoneLocation.current();
+          if (pos == null) {
+            // Permission refusée ou capteur indisponible.
+            emit(
+              const AlignmentError(
+                'Position GPS requise — permission refusée ou indisponible.',
+              ),
+            );
+            return;
+          }
+          await repo.postClientLocation(pos.lat, pos.lon);
+          final session = await repo.start();
+          emit(AlignmentPrePointing(session: session));
+        } else {
+          emit(AlignmentError('Erreur : $err'));
+        }
+      }
     } on Exception catch (err) {
       emit(AlignmentError('Erreur : $err'));
     }
