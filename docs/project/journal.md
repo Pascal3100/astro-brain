@@ -11,7 +11,7 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 **Macro 1 — Migration INDI 🚧**
 - ✅ Stack INDI installée sur le Pi (Session 15) : `libindi` 2.2.0 + `indi_celestron_aux` 1.5 + `indi-gpsd` 0.6 via repo Astroberry Trixie arm64. Driver fonctionnel en test isolé (port 7624, plugins SVD + Nearest).
 - ✅ Backend INDI atterri sur main (Session 16) : `MountIndiAdapter` + `AstroBrainIndiClient` + helpers + `FakeIndiClient`, `indiserver.service` systemd, script build driver patché, doc bascule. `nexstarpy` retiré du `pyproject.toml`. Patch C++ backlash mount-axis prêt (`/tmp/indi-research/indi-3rdparty/`, commit `538810c`, branche `astro-brain-backlash`).
-- ⛔ **Cap suivant** : smoke test E2E sur le Pi (Task 14 du plan migration) — bloque sur la livraison du **dongle USB-TTL CP2102 5V**. Dès que le dongle arrive : câblage HC RJ12, `bash deploy/install.sh`, fork upstream du patch backlash + build sur le Pi, `INTEGRATION_CHECKLIST.md` sections 0+3+Backlash+Cordwrap. Une fois la checklist verte, ouverture du chantier Macro 2 Setup.
+- ⛔ **Cap suivant** : smoke test E2E sur le Pi (Task 14 du plan migration). Blocage **précisé Session 26** : ce n'est pas le dongle CP2102 en soi, mais l'**interface single-wire** manquante entre le dongle et la broche 4 (DATA) du bus AUX (le bus est half-duplex 19200 8N2 — voir `hardware.md`). Décision interface en attente (diode Schottky / 74HC125 / Nano répéteur). Une fois l'interface en place : câblage sur le port HAND CONTROL, `bash deploy/install.sh`, fork upstream du patch backlash + build sur le Pi, `INTEGRATION_CHECKLIST.md` sections 0+3+Backlash+Cordwrap. Une fois la checklist verte, ouverture du chantier Macro 2 Setup.
 
 **Macro 2 — Setup 🚧** :
 - ✅ Carte #8 RÉSEAU livrée (Session 14).
@@ -30,6 +30,16 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 **Doc tree** : nouvelle arborescence `docs/INDEX.md` → 3 vues (`technical/`, `project/`, `product/`). Petits docs ciblés, navigation par liens. Voir Session 12.
 
 ## Session en cours
+
+### Session 26 — Investigation liaison monture : bus AUX NexStar SLT (2026-06-05)
+
+Thread matériel (pas de code), déclenché par la lecture d'un doc reverse-engineering HC Celestron. **Monture identifiée formellement** (photos) : **NexStar 127 SLT**, raquette **NexStar+ pré-2016** (port PC en bas = RJ-22 RS-232, **pas d'USB**). Les deux jacks RJ-12 de la base (`AUX` + `HAND CONTROL`) sont en parallèle sur le **bus AUX interne**.
+
+**Corrections de doc** (`CLAUDE.md` + `docs/technical/hardware.md`) : l'ancienne description « port HC, 9600 baud, pass-through `P` » était fausse pour le chemin retenu. Réalité du bus AUX : **5V TTL, 19200 8N2, ligne DATA unique bidirectionnelle (half-duplex)** sur la broche 4 ; **+12V sur broche 3 (à ne jamais brancher)** ; GND broche 5 ; SELECT broche 6. Brochage refait, test `K` Echo retiré (invalide en AUX direct — c'est une commande de la raquette, pas du bus), test remplacé par validation stack INDI. `indi-reference.md` était déjà correct (19200, AUX direct, SLT reconnu).
+
+**Le vrai blocage n'est pas le dongle CP2102** : le bus est single-wire, un TX push-pull nu y crée un conflit avec les moteurs. Il faut une **interface single-wire** entre le dongle et la broche 4. Options comparées : (a) **diode Schottky + pull-up** (le plus sain, ~0 firmware, 1 composant à sourcer) ; (b) **74HC125** (n'existe pas en breakout prêt façon ADXL — puce DIP à câbler) ; (c) **Nano en répéteur open-drain bit-à-bit** (~15 lignes, 0 commande si Nano dispo, mais déroge à l'ADR « pas d'Arduino »). **Décision en attente** : l'utilisateur arbitre selon les pièces qu'il trouve.
+
+**Impact backend = nul** : le série (baud, port, `PORT_TYPE`, single-wire) est 100 % géré par `indi_celestron_aux` ; `mount_indi_adapter.py` ne pousse ni baud ni `PORT_TYPE` (champ `_serial_device` stocké mais non utilisé pour configurer le driver — petit TODO connexion à prévoir). À noter : `nexstar-protocol-reference.md` + `nexstar-capabilities.md` décrivent encore l'ancien chemin série nexstarpy (9600/RJ-22/pass-through, `nexstar_adapter.py` supprimé) — à marquer historiques ou conserver comme réf du jeu de commandes AUX (non tranché).
 
 ### Session 24 — Macro 3 #3 GoTo réel + #5 Page Catalogue (software) (2026-06-01)
 

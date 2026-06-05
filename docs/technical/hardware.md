@@ -7,7 +7,7 @@ Référence pratique pour le matériel et les branchements physiques.
 | Composant | Rôle | Connexion |
 |---|---|---|
 | **Raspberry Pi 3 B+** | Backend FastAPI, GPS, calculs astro, plate solving (Macro 5+) | — |
-| **Monture Celestron** | GoTo + suivi sidéral | USB-série via dongle CP2102 (port HC RJ12 → `/dev/ttyUSB0`, driver INDI `indi_celestron_aux`) |
+| **Monture Celestron NexStar SLT** | GoTo + suivi sidéral | USB-série sur bus AUX (port HAND CONTROL RJ-12, interface single-wire → dongle CP2102 5V → `/dev/ttyUSB0`, driver INDI `indi_celestron_aux`) |
 | **GPS DroTek Ublox M8N + compass XL** | Géolocalisation, heure UTC, cap magnétique | UART0 GPIO (GPS) + I2C1 GPIO (compass LIS3MDL) |
 | **ADXL345 tube** (`0x53`) | Zéro ALT + détection butées d'inclinaison | I2C1 GPIO |
 | **ADXL345 monture** (`0x1D`) | Mise à niveau pré-session (bulle virtuelle) | I2C1 GPIO |
@@ -154,35 +154,52 @@ sudo i2cset -y 1 0x1e 0x23 0x0C      # CTRL_REG4 : high-perf Z
 sudo i2cset -y 1 0x1e 0x22 0x00      # CTRL_REG3 : mode continu
 ```
 
-## Monture — USB-série via dongle CP2102 (port HC)
+## Monture — USB-série sur le bus AUX (port HAND CONTROL de la base SLT)
 
-Le HC Celestron parle en TTL **5V** sur connecteur RJ12 6P6C. Pour éviter un level shifter + un conflit UART avec le GPS (qui occupe `ttyAMA0`), on passe par un dongle USB-TTL CP2102 (ou FT232RL) en mode 5V, branché sur un port USB du Pi. Le HC apparaît alors en `/dev/ttyUSB0`.
+La **NexStar SLT** expose deux jacks **RJ-12 6P6C** sur la base — `AUX` et `HAND CONTROL` — **câblés en parallèle sur le même bus AUX interne**. On se branche sur le port **HAND CONTROL** : on n'entre **pas** dans le cerveau de la raquette, on se pose directement sur le bus, en face des contrôleurs moteur ALT/AZ. La raquette est alors **hors boucle** (débranchée) ; `indi_celestron_aux` devient maître du bus et gère lui-même alignement/GoTo.
 
-### Brochage RJ12 HC Celestron → dongle CP2102
+Pour éviter un conflit UART avec le GPS (qui occupe `ttyAMA0`), on passe par un dongle USB-TTL CP2102 (ou FT232RL) en mode **5V**, branché sur un port USB du Pi → `/dev/ttyUSB0`.
 
-Vue clip vers le bas, broches numérotées 1→6 de gauche à droite :
+> Config driver (baud, `DEVICE_PORT`, `PORT_TYPE`) : voir [indi-reference.md](indi-reference.md). Le backend (`mount_indi_adapter.py`) ne touche **pas** la couche série — tout est délégué à `indi_celestron_aux`.
 
-| Broche RJ12 | Fonction | Côté dongle |
-|---|---|---|
-| 1 | N/C | — |
-| 2 | N/C **ou +12V selon HC** ⚠️ | **ne pas connecter** |
-| 3 | RX (HC reçoit) | TX du dongle |
-| 4 | TX (HC envoie) | RX du dongle |
-| 5 | GND | GND du dongle |
-| 6 | N/C | — |
+### Nature du bus AUX (≠ UART point-à-point)
 
-⚠️ **À valider au multimètre avant mise sous tension.** Certains HC NexStar+ exposent +12 V sur la broche 2 ; un contact accidentel grille le dongle voire le port USB du Pi.
+- **5V TTL**, série asynchrone **19200 baud, 8N2**, tri-state au repos, multi-maître avec ligne de handshake.
+- **DATA = une seule ligne bidirectionnelle (half-duplex)** : TX *et* RX partagent le même fil (broche 4). Pas de RX/TX croisés comme un UART classique.
+- Conséquence : le TX *push-pull* d'un CP2102 nu posé direct sur DATA entre en conflit avec les réponses des moteurs → bus bloqué. Il faut une **interface single-wire** :
+  - **TX dongle → diode (cathode vers DATA) + RX dongle → DATA + résistance de pull-up**, ou
+  - un **buffer tri-state 74HC125**.
 
-⚠️ **Sélecteur du dongle sur 5V**, pas 3.3V. Un dongle qui ne sort qu'en 3.3V ne dialoguera pas correctement avec le HC.
+  On reçoit alors son propre écho ; `indi_celestron_aux` le filtre. **C'est ce montage (pas le brochage) qui bloquait le smoke test.**
+- Alternative sans soudure : un **ESP32 « SkyPortal clone »** sur le port AUX, driver connecté en TCP (le firmware gère le bus single-wire). Change le câblage — à arbitrer dans le backlog si on bascule.
+
+### Brochage RJ-12 6P6C du port AUX/HAND CONTROL
+
+| Broche | Couleur typique | Fonction | Côté dongle |
+|---|---|---|---|
+| 1 | — | non utilisé | — |
+| 2 | — | non utilisé | — |
+| 3 | vert | **+12V** (alim raquette) | **ne JAMAIS connecter** ⚠️ |
+| 4 | jaune | **DATA** (single-wire bidirectionnel) | TX **et** RX via interface single-wire |
+| 5 | rose/blanc | **GND** | GND du dongle |
+| 6 | gris/noir | SELECT (handshake bus) | non requis pour un maître unique |
+
+⚠️ **Orientation à confirmer au multimètre avant mise sous tension.** Le n° de broche dépend du sens de vue, et un câble RJ-12 *reversed* inverse tout. Repère d'abord le **+12V (broche 3)** monture allumée → ça cale l'orientation. Un contact +12V → dongle grille le dongle voire le port USB du Pi.
+
+⚠️ **Sélecteur du dongle sur 5V**, pas 3.3V.
 
 ### Vérification
 
 ```bash
-# Avec dongle branché côté Pi, monture ALIMENTÉE et HC connectée au dongle :
+# Dongle branché côté Pi (via interface single-wire), monture ALIMENTÉE, raquette débranchée :
 ls -l /dev/ttyUSB0                        # doit exister, owner dialout
 dmesg | grep -i cp2102                    # vu côté kernel
-echo -e -n '\x4b\xa5' > /dev/ttyUSB0      # commande HC Echo (K + byte 0xA5)
-                                          # (alternative : tester via INDI une fois en place)
+# Le protocole AUX est binaire (préambule 0x3b) et single-wire : NE PAS tester
+# avec un echo brut (le test 'K' NexStar n'a de sens que sur le port PC de la raquette).
+# Valider via la stack INDI :
+indiserver -v indi_celestron_aux          # doit énumérer le device "Celestron AUX"
+# puis connexion INDI (DEVICE_PORT=/dev/ttyUSB0, baud 19200, PORT_TYPE AUX direct) :
+# un GET_VER vers le contrôleur AZM (0x10) doit répondre.
 ```
 
 L'utilisateur Pi (`pascal3100`) doit être dans le groupe `dialout` (`groups | grep dialout`, sinon `sudo usermod -aG dialout pascal3100` + re-login).
@@ -206,7 +223,10 @@ GPS  RX   ──── Pin 8  (TXD0)
 Mag  SDA  ──── Pin 3  (SDA1)
 Mag  SCL  ──── Pin 5  (SCL1)
 ADXL ×2   ──── Pin 3 + Pin 5 (parallèle sur I2C1)
-HC RJ12   ──── dongle CP2102 (5V) ──── port USB Pi (→ /dev/ttyUSB0)
+Mount    HAND CONTROL/AUX (RJ-12) — bus AUX :
+  Pin 3 (+12V) ──── NE PAS connecter
+  Pin 4 (DATA single-wire) ──┬── interface single-wire (diode+pull-up / 74HC125) ──── dongle CP2102 (5V) ──── USB Pi (→ /dev/ttyUSB0)
+  Pin 5 (GND)  ──────────────┴── GND dongle
 ```
 
 ## Dépannage rapide
