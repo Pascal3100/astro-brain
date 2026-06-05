@@ -122,7 +122,7 @@ class HubScreen extends StatelessWidget {
                   itemBuilder: (ctx, i) {
                     final e = entries[i];
                     if (e.dynamicHint != null) {
-                      return e.dynamicHint!(ctx, e);
+                      return e.dynamicHint!(e);
                     }
                     return HubCard(
                       heroIcon: e.heroIcon,
@@ -154,16 +154,19 @@ class HubScreen extends StatelessWidget {
 /// La carte reste tappable dans tous les cas : le fallback GPS téléphone
 /// est tenté au démarrage du wizard (AlignmentBloc._onStarted).
 class _AlignmentHint extends StatelessWidget {
-  const _AlignmentHint(this.ctx, this.entry);
+  const _AlignmentHint(this.entry);
 
-  final BuildContext ctx;
   final _HubEntry entry;
 
   @override
   Widget build(BuildContext context) {
     return BlocSelector<AppBloc, AppState, bool>(
       selector: (state) {
-        final gps = state.system?.gps.state;
+        // Tant que l'état système n'est pas connu (null au démarrage), on ne
+        // crie pas à l'absence de GPS. On n'affiche le bandeau que si on SAIT
+        // qu'il n'y a pas de fix Pi.
+        if (state.system == null) return true;
+        final gps = state.system!.gps.state;
         return gps == GpsState.fix2d || gps == GpsState.fix3d;
       },
       builder: (context, hasPiGps) {
@@ -225,5 +228,5 @@ class _HubEntry {
   final bool primary;
 
   /// Si non null, ce builder remplace le [HubCard] standard pour cet item.
-  final Widget Function(BuildContext, _HubEntry)? dynamicHint;
+  final Widget Function(_HubEntry)? dynamicHint;
 }

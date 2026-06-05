@@ -218,7 +218,7 @@ void main() {
 
       when(
         () => repo.postClientLocation(43.6, 1.44),
-      ).thenAnswer((_) async => {'ok': true});
+      ).thenAnswer((_) async {});
 
       return AlignmentBloc(
         repo: repo,
@@ -263,29 +263,32 @@ void main() {
     },
   );
 
-  blocTest<AlignmentBloc, AlignmentState>(
-    'WizardStarted — erreur non-409 n\'active pas le fallback GPS',
-    build: () {
-      when(() => repo.getSession()).thenAnswer((_) async => null);
-      when(
-        () => repo.start(),
-      ).thenThrow(ApiException('server error', statusCode: 500));
+  () {
+    final phoneLoc = _MockPhoneLocation();
+    blocTest<AlignmentBloc, AlignmentState>(
+      'WizardStarted — erreur non-409 n\'active pas le fallback GPS',
+      build: () {
+        when(() => repo.getSession()).thenAnswer((_) async => null);
+        when(
+          () => repo.start(),
+        ).thenThrow(ApiException('server error', statusCode: 500));
 
-      final phoneLoc = _MockPhoneLocation();
-      return AlignmentBloc(repo: repo, phoneLocation: phoneLoc);
-    },
-    act: (b) => b.add(const WizardStarted()),
-    expect: () => [
-      isA<AlignmentLoadingCandidates>(),
-      isA<AlignmentError>().having(
-        (s) => s.message,
-        'msg',
-        contains('server error'),
-      ),
-    ],
-    // _MockPhoneLocation.current() n'a pas été appelé.
-    verify: (_) {
-      verifyNever(() => repo.postClientLocation(any(), any()));
-    },
-  );
+        return AlignmentBloc(repo: repo, phoneLocation: phoneLoc);
+      },
+      act: (b) => b.add(const WizardStarted()),
+      expect: () => [
+        isA<AlignmentLoadingCandidates>(),
+        isA<AlignmentError>().having(
+          (s) => s.message,
+          'msg',
+          contains('server error'),
+        ),
+      ],
+      // _MockPhoneLocation.current() n'a pas été appelé.
+      verify: (_) {
+        verifyNever(() => repo.postClientLocation(any(), any()));
+        verifyNever(() => phoneLoc.current());
+      },
+    );
+  }();
 }
