@@ -26,6 +26,7 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 - 🚧 Item #2 Wizard alignement 3 étoiles : implémentation software complète (backend + Flutter, 22 tasks plan, Session 22). Validation matérielle bloquée dongle CP2102.
 - 🚧 Item #3 GoTo réel + #5 Page Catalogue : software livré (backend + Flutter, 19 tasks plan, Session 24). Validation matérielle (slew réel) bloquée dongle CP2102.
 - 🚧 Item #4 Catalogue : tranche A stars (Session 23) + enrichissement visibilité `visible_now` (Session 24). Messier/planètes à suivre.
+- 🚧 Aide étoile/constellation (rattachée #2 wizard) : `ConstellationChart` au trait + navigateur par constellation + chaîne de position fix Pi → téléphone → sinon pas de wizard (fallback Paris supprimé) — software livré Session 25.
 
 **Doc tree** : nouvelle arborescence `docs/INDEX.md` → 3 vues (`technical/`, `project/`, `product/`). Petits docs ciblés, navigation par liens. Voir Session 12.
 
@@ -40,6 +41,16 @@ Thread matériel (pas de code), déclenché par la lecture d'un doc reverse-engi
 **Le vrai blocage n'est pas le dongle CP2102** : le bus est single-wire, un TX push-pull nu y crée un conflit avec les moteurs. Il faut une **interface single-wire** entre le dongle et la broche 4. Options comparées : (a) **diode Schottky + pull-up** (le plus sain, ~0 firmware, 1 composant à sourcer) ; (b) **74HC125** (n'existe pas en breakout prêt façon ADXL — puce DIP à câbler) ; (c) **Nano en répéteur open-drain bit-à-bit** (~15 lignes, 0 commande si Nano dispo, mais déroge à l'ADR « pas d'Arduino »). **Décision en attente** : l'utilisateur arbitre selon les pièces qu'il trouve.
 
 **Impact backend = nul** : le série (baud, port, `PORT_TYPE`, single-wire) est 100 % géré par `indi_celestron_aux` ; `mount_indi_adapter.py` ne pousse ni baud ni `PORT_TYPE` (champ `_serial_device` stocké mais non utilisé pour configurer le driver — petit TODO connexion à prévoir). À noter : `nexstar-protocol-reference.md` + `nexstar-capabilities.md` décrivent encore l'ancien chemin série nexstarpy (9600/RJ-22/pass-through, `nexstar_adapter.py` supprimé) — à marquer historiques ou conserver comme réf du jeu de commandes AUX (non tranché).
+
+### Session 25 — Macro 3 #2 : aide « étoile dans sa constellation » + chaîne de position (software) (2026-06-05)
+
+Plan `docs/superpowers/plans/2026-06-04-constellation-star-aid.md` (15 tasks) exécuté en mode `superpowers:subagent-driven-development` (implémenteur + double revue spec/qualité par task) sur branche `feat/constellation-star-aid`. Spec : `docs/superpowers/specs/2026-06-04-constellation-star-aid-design.md`. Feature complète « aide à la reconnaissance de l'étoile dans sa constellation » pour le wizard d'alignement.
+
+**Backend** : `constellation_of()` (abréviation IAU dérivée du champ `bayer`) + `visible_stars()` (étoiles d'alignement pointables groupées par constellation) ajoutés à `_alignment_catalog.py` ; asset autonome `astro_brain/data/constellation_figures.json` (23 figures couvrant les 32 étoiles d'alignement) généré une fois par `scripts/build_constellation_figures.py` (sources Stellarium constellationship + HYG, csv non commité) ; loader `services/constellation_figures.py` (figure + matching cible par proximité angulaire + projection alt/az) ; `POST /align/location/client` pour recevoir la position GPS du téléphone, garde 409 sur `/align/start` sans aucune position connue ; `GET /align/constellation/{abbr}` + `GET /align/stars/visible`. **Décision clé** : la chaîne de position devient fix GPS Pi → GPS téléphone → sinon le wizard n'est pas proposé — le fallback Paris codé en dur est supprimé (ADR à consigner si jugé structurant).
+
+**Frontend** : DTOs `ConstellationFigure/Node` ; `AlignmentRepository.fetchConstellation/fetchVisibleStars/postClientLocation` ; widget `ConstellationChart` (CustomPaint, schéma au trait orienté ciel/atlas, étoile cible en halo) ; intégration `per_star_screen` (nom constellation dans le hero + bouton « Voir dans la constellation » → bottom sheet) ; `StarNavigatorScreen` (swap : filtre par constellation **visible** + liste + chart) ; repli position téléphone via `geolocator` (abstraction `PhoneLocation`, fallback 409 dans `AlignmentBloc._onStarted`) ; bandeau « Position GPS requise » sur la carte ALIGNER du Hub quand pas de fix Pi ni position téléphone.
+
+**Tests et incident** : backend 342 passed, app 226 passed, `flutter analyze` clean. TDD strict, double revue par task. Incident notable : l'agent de la dernière task (T14) a timeout avant commit ; travail récupéré et finalisé manuellement — 3 tests Hub réparés (provider `AppBloc` manquant + `pump` vs `pumpAndSettle` + scroll). Validation matérielle (wizard sur ciel réel) reportée derrière déblocage dongle CP2102 (Macro 1).
 
 ### Session 24 — Macro 3 #3 GoTo réel + #5 Page Catalogue (software) (2026-06-01)
 
