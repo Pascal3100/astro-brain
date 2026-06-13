@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dédoubleur single-wire sur Nano — Astro-Brain</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --ink:#e6edf3; --muted:#9da7b3;
+    --v5:#ff5c5c; --bus:#ffb02e; --gnd:#8b98a5; --tx:#36c5d0; --rx:#3fb950; --warn:#ff5c5c; --ok:#3fb950;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;padding:32px;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.55;}
+  h1{font-size:1.35rem;margin:0 0 4px;}
+  h2{font-size:1.05rem;margin:22px 0 10px;color:#c8d3df;}
+  .sub{color:var(--muted);margin:0 0 22px;}
+  .card{background:var(--panel);border:1px solid #30363d;border-radius:12px;padding:20px;max-width:1040px;margin:0 auto 20px;}
+  svg{width:100%;height:auto;display:block;}
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:10px;font-size:.9rem;}
+  .legend span{display:inline-flex;align-items:center;gap:8px;}
+  .dot{width:14px;height:14px;border-radius:3px;display:inline-block;}
+  pre{background:#0b0f14;border:1px solid #30363d;border-radius:10px;padding:16px;overflow:auto;
+    font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;font-size:.85rem;line-height:1.5;color:#d7e0ea;}
+  .cmt{color:#7d8a99;} .kw{color:#ff7b9c;} .reg{color:#ffb02e;} .fn{color:#36c5d0;}
+  ul{padding-left:20px;} li{margin:7px 0;}
+  .warn{color:var(--warn);font-weight:600;} .ok{color:var(--ok);font-weight:600;}
+  code{background:#21262d;padding:1px 6px;border-radius:5px;font-size:.88em;}
+  text{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;fill:var(--ink);}
+  .lbl{font-size:15px;} .lbl-sm{font-size:12.5px;fill:var(--muted);} .pin{font-size:13.5px;font-weight:600;}
+  .box{fill:#1c2230;stroke:#3d4757;stroke-width:2;}
+  .w{fill:none;stroke-width:3;}
+</style>
+</head>
+<body>
+  <h1>Interface single-wire « dédoubleur » sur Arduino Nano</h1>
+  <p class="sub">Le Nano fait tout : open-drain propre + séparation TX/RX. Plus de diode, plus de pull-up externe.</p>
+
+  <div class="card">
+    <svg viewBox="0 0 1000 470" role="img" aria-label="Schéma dédoubleur Nano">
+      <defs>
+        <marker id="aTx" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#36c5d0"/></marker>
+        <marker id="aRx" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#3fb950"/></marker>
+        <marker id="aBus" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#ffb02e"/></marker>
+      </defs>
+
+      <!-- DONGLE -->
+      <rect class="box" x="30" y="120" width="150" height="210" rx="8"/>
+      <text class="lbl" x="105" y="108" text-anchor="middle">Dongle CH340</text>
+      <text class="lbl-sm" x="105" y="350" text-anchor="middle">(USB → Pi)</text>
+      <text class="pin" x="118" y="170" text-anchor="end" fill="#36c5d0">TX</text>
+      <text class="pin" x="118" y="220" text-anchor="end" fill="#3fb950">RX</text>
+      <text class="pin" x="118" y="270" text-anchor="end" fill="#ff5c5c">5V</text>
+      <text class="pin" x="118" y="315" text-anchor="end" fill="#8b98a5">GND</text>
+
+      <!-- NANO -->
+      <rect class="box" x="410" y="100" width="180" height="250" rx="8"/>
+      <text class="lbl" x="500" y="88" text-anchor="middle">Arduino Nano (5V)</text>
+      <text class="lbl-sm" x="500" y="335" text-anchor="middle">open-drain + pull-up interne</text>
+      <text class="pin" x="425" y="170">D2</text>
+      <text class="pin" x="425" y="220">D3</text>
+      <text class="pin" x="425" y="270">5V</text>
+      <text class="pin" x="425" y="315">GND</text>
+      <text class="pin" x="575" y="155" text-anchor="end" fill="#ffb02e">D4</text>
+
+      <!-- MOUNT -->
+      <rect class="box" x="820" y="120" width="150" height="210" rx="8"/>
+      <text class="lbl" x="895" y="108" text-anchor="middle">Monture</text>
+      <text class="lbl-sm" x="895" y="350" text-anchor="middle">RJ-12 (AUX)</text>
+      <text class="pin" x="835" y="165" fill="#ff5c5c">br.3 +12V</text>
+      <text class="lbl-sm" x="835" y="182" fill="#ff5c5c">✗ ne pas brancher</text>
+      <text class="pin" x="835" y="205" fill="#ffb02e">br.4 DATA</text>
+      <text class="pin" x="835" y="305" fill="#8b98a5">br.5 GND</text>
+
+      <!-- WIRES -->
+      <!-- TX dongle -> D2 -->
+      <path class="w" stroke="#36c5d0" marker-end="url(#aTx)" d="M180 165 H405"/>
+      <!-- D3 -> RX dongle -->
+      <path class="w" stroke="#3fb950" marker-end="url(#aRx)" d="M410 215 H185"/>
+      <!-- 5V dongle -> Nano 5V -->
+      <path class="w" stroke="#ff5c5c" d="M180 265 H410"/>
+      <!-- D4 <-> DATA mount -->
+      <path class="w" stroke="#ffb02e" marker-end="url(#aBus)" d="M590 150 H705 V200 H815"/>
+      <circle cx="705" cy="150" r="4" fill="#ffb02e"/>
+      <text class="lbl-sm" x="700" y="135" text-anchor="middle" fill="#ffb02e">DATA (bus single-wire)</text>
+
+      <!-- GND rail -->
+      <path class="w" stroke="#8b98a5" d="M180 315 V430 H820 V305"/>
+      <path class="w" stroke="#8b98a5" d="M410 315 V430"/>
+      <circle cx="410" cy="430" r="4" fill="#8b98a5"/>
+      <text class="lbl-sm" x="500" y="450" text-anchor="middle" fill="#8b98a5">GND commun — dongle + Nano + monture (br.5)</text>
+    </svg>
+
+    <div class="legend">
+      <span><span class="dot" style="background:var(--tx)"></span> TX dongle → D2</span>
+      <span><span class="dot" style="background:var(--rx)"></span> D3 → RX dongle</span>
+      <span><span class="dot" style="background:var(--bus)"></span> D4 ↔ DATA (bus)</span>
+      <span><span class="dot" style="background:var(--v5)"></span> +5V (dongle → Nano)</span>
+      <span><span class="dot" style="background:var(--gnd)"></span> GND commun</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Firmware (Nano) — ~15 lignes</h2>
+    <pre><span class="cmt">// Dédoubleur single-wire complet — aucun composant passif</span>
+<span class="cmt">// D2 &lt;- TX dongle | D3 -&gt; RX dongle | D4 &lt;-&gt; DATA monture (open-drain + pull-up interne)</span>
+<span class="kw">void</span> <span class="fn">setup</span>() {
+  <span class="reg">DDRD</span>  &amp;= ~(1 &lt;&lt; 2);                       <span class="cmt">// D2 entrée  (TX dongle)</span>
+  <span class="reg">DDRD</span>  |=  (1 &lt;&lt; 3);                       <span class="cmt">// D3 sortie  (RX dongle)</span>
+  <span class="reg">DDRD</span>  &amp;= ~(1 &lt;&lt; 4);  <span class="reg">PORTD</span> |= (1 &lt;&lt; 4);   <span class="cmt">// D4 input + pull-up interne -&gt; bus haut au repos</span>
+}
+<span class="kw">void</span> <span class="fn">loop</span>() {
+  <span class="kw">if</span> (<span class="reg">PIND</span> &amp; (1 &lt;&lt; 2)) {                    <span class="cmt">// TX haut (repos)</span>
+    <span class="reg">DDRD</span>  &amp;= ~(1 &lt;&lt; 4);  <span class="reg">PORTD</span> |= (1 &lt;&lt; 4); <span class="cmt">//   relâche : input + pull-up</span>
+  } <span class="kw">else</span> {                                  <span class="cmt">// TX bas</span>
+    <span class="reg">PORTD</span> &amp;= ~(1 &lt;&lt; 4);  <span class="reg">DDRD</span>  |= (1 &lt;&lt; 4); <span class="cmt">//   drive 0V franc (open-drain)</span>
+  }
+  <span class="kw">if</span> (<span class="reg">PIND</span> &amp; (1 &lt;&lt; 4))  <span class="reg">PORTD</span> |= (1 &lt;&lt; 3);  <span class="cmt">// bus -&gt; RX dongle</span>
+  <span class="kw">else</span>                  <span class="reg">PORTD</span> &amp;= ~(1 &lt;&lt; 3);
+}</pre>
+    <p style="color:var(--muted);margin:8px 0 0;font-size:.9rem;">Le Nano ne tire le bus bas que quand le TX du dongle est bas (open-drain, 0V franc ~0,1V) ; sinon il relâche (Hi-Z + pull-up). Le bus est recopié vers le RX. L'écho revient toujours — <code>indi_celestron_aux</code> le filtre.</p>
+  </div>
+
+  <div class="card">
+    <h2>Câblage — Nano + 5 fils, rien d'autre</h2>
+    <ul>
+      <li><span style="color:var(--tx)">●</span> dongle <strong>TX → D2</strong></li>
+      <li><span style="color:var(--rx)">●</span> Nano <strong>D3 → RX</strong> dongle</li>
+      <li><span style="color:var(--bus)">●</span> Nano <strong>D4 ↔ DATA</strong> monture (broche 4)</li>
+      <li><span style="color:var(--v5)">●</span> dongle <strong>5V → pin « 5V »</strong> du Nano (l'alimente, pas de 2ᵉ câble USB)</li>
+      <li><span style="color:var(--gnd)">●</span> <strong>GND commun</strong> : dongle + Nano + monture (broche 5)</li>
+    </ul>
+    <p><span class="ok">On retire :</span> la diode 1N4007 <em>et</em> la pull-up 4.7k externe — le Nano fait tout.<br>
+    <span class="warn">⚠️ Tout en 5V · GND commun obligatoire · +12V (br.3) jamais branché.</span></p>
+  </div>
+
+  <div class="card">
+    <h2>Validation</h2>
+    <ul>
+      <li><strong>1.</strong> Câble + flashe le Nano.</li>
+      <li><strong>2. Niveau bas</strong> (break-test) : DATA↔GND doit tomber à <strong>~0,1–0,2V</strong> (contre 0,97V avec la 1N4007). C'est le critère électrique. <span class="ok">✓</span></li>
+      <li><strong>3. GET_VER</strong> : si la monture répond (octets en plus de l'écho) → <span class="ok">gagné</span>.</li>
+      <li><strong>Caveat front montant</strong> : la pull-up interne du Nano est faible (~30–50 kΩ). Si le GET_VER est <span class="warn">flaky/intermittent</span>, le front 0→1 est trop mou sur le câble → ajoute <strong>une seule</strong> résistance pull-up externe (1k–4.7k vers +5V sur DATA). Le niveau bas, lui, restera parfait.</li>
+    </ul>
+  </div>
+</body>
+</html>

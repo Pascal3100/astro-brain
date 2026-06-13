@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astro-Brain — Câblage interface single-wire AUX</title>
+<style>
+  :root {
+    --bg:        #0a0e1a;
+    --panel:     #111a2e;
+    --panel-2:   #0d1424;
+    --line:      #1e2c47;
+    --txt:       #c8d6f0;
+    --txt-dim:   #6f82a8;
+    --accent:    #4fd1ff;   /* signal */
+    --accent-bg: rgba(79,209,255,.10);
+    --power:     #ffb454;   /* +5V */
+    --gnd:       #5a6b8c;    /* masse */
+    --warn:      #ff5d6c;
+    --ok:        #4fe0a0;
+    --glow:      drop-shadow(0 0 3px rgba(79,209,255,.55));
+  }
+  html[data-theme="night"] {
+    --bg:        #160707;
+    --panel:     #240c0c;
+    --panel-2:   #1c0808;
+    --line:      #3a1414;
+    --txt:       #f0cccc;
+    --txt-dim:   #a86f6f;
+    --accent:    #ff5d52;
+    --accent-bg: rgba(255,93,82,.10);
+    --power:     #ff9a54;
+    --gnd:       #8c5a5a;
+    --warn:      #ff8a3d;
+    --ok:        #ff7a6a;
+    --glow:      drop-shadow(0 0 3px rgba(255,93,82,.55));
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:0; background:var(--bg); color:var(--txt);
+    font-family: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size:14px; line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:960px; margin:0 auto; padding:28px 22px 80px; }
+  header {
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; flex-wrap:wrap; margin-bottom:22px;
+    border-bottom:1px solid var(--line); padding-bottom:18px;
+  }
+  h1 { font-size:18px; margin:0; letter-spacing:.5px; }
+  h1 .sub { display:block; font-size:12px; color:var(--txt-dim); font-weight:400; margin-top:4px; letter-spacing:0; }
+  h2 {
+    font-size:13px; text-transform:uppercase; letter-spacing:1.5px;
+    color:var(--accent); margin:36px 0 14px; padding-left:10px;
+    border-left:3px solid var(--accent);
+  }
+  .toggle {
+    background:var(--panel); color:var(--txt); border:1px solid var(--line);
+    border-radius:20px; padding:8px 16px; cursor:pointer; font-family:inherit;
+    font-size:12px; letter-spacing:.5px; transition:.2s;
+  }
+  .toggle:hover { border-color:var(--accent); color:var(--accent); }
+  .panel {
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:18px; overflow-x:auto;
+  }
+  svg { display:block; width:100%; height:auto; min-width:640px; }
+  .wire    { stroke:var(--accent); stroke-width:2.2; fill:none; filter:var(--glow); }
+  .wire-pw { stroke:var(--power);  stroke-width:2.6; fill:none; }
+  .wire-gnd{ stroke:var(--gnd);    stroke-width:2.6; fill:none; }
+  .comp    { stroke:var(--accent); stroke-width:2; fill:none; }
+  .comp-fill { fill:var(--accent-bg); }
+  .dot     { fill:var(--accent); }
+  .lbl     { fill:var(--txt);     font-size:13px; font-family:inherit; }
+  .lbl-dim { fill:var(--txt-dim); font-size:11px; font-family:inherit; }
+  .lbl-pw  { fill:var(--power);   font-size:12px; font-weight:700; font-family:inherit; }
+  .lbl-gnd { fill:var(--gnd);     font-size:12px; font-weight:700; font-family:inherit; }
+  table { width:100%; border-collapse:collapse; margin-top:4px; }
+  th, td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--txt-dim); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.8px; }
+  td code, .net code { color:var(--accent); }
+  .net { list-style:none; padding:0; margin:0; }
+  .net li { padding:8px 0; border-bottom:1px solid var(--line); }
+  .net li:last-child { border-bottom:none; }
+  .pill { display:inline-block; min-width:34px; text-align:center; padding:1px 8px; border-radius:6px;
+          background:var(--accent-bg); color:var(--accent); font-size:12px; margin-right:8px; }
+  .warn { border-left:3px solid var(--warn); background:rgba(255,93,108,.07);
+          padding:12px 16px; border-radius:6px; margin:10px 0; }
+  .warn b { color:var(--warn); }
+  .ok { color:var(--ok); }
+  .muted { color:var(--txt-dim); }
+  footer { margin-top:50px; color:var(--txt-dim); font-size:11px; text-align:center; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  @media (max-width:680px){ .grid2 { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Interface single-wire AUX
+      <span class="sub">Driver open-collector 2× BC547 — Pi/CP2102 ↔ bus AUX Celestron</span>
+    </h1>
+    <button class="toggle" id="themeBtn">◐ Mode nuit</button>
+  </header>
+
+  <h2>Schéma</h2>
+  <div class="panel">
+    <svg viewBox="0 0 860 600" role="img" aria-label="Schéma du driver open-collector à deux transistors NPN">
+      <defs>
+        <g id="npn">
+          <circle cx="47" cy="0" r="40" class="comp comp-fill"/>
+          <!-- base wire + bar -->
+          <line x1="0" y1="0" x2="34" y2="0" class="comp"/>
+          <line x1="34" y1="-20" x2="34" y2="20" class="comp"/>
+          <!-- collector -->
+          <path d="M34,-10 L60,-26 L60,-55" class="comp"/>
+          <!-- emitter + arrow -->
+          <path d="M34,10 L60,26 L60,55" class="comp"/>
+          <polygon points="60,26 49,22 55,15" fill="var(--accent)"/>
+        </g>
+      </defs>
+
+      <!-- ===== Power rails ===== -->
+      <line x1="100" y1="60"  x2="780" y2="60"  class="wire-pw"/>
+      <line x1="100" y1="520" x2="780" y2="520" class="wire-gnd"/>
+      <text x="96" y="55"  text-anchor="end" class="lbl-pw">+5 V</text>
+      <text x="96" y="525" text-anchor="end" class="lbl-gnd">GND</text>
+
+      <!-- ===== TX in + Rb1 ===== -->
+      <text x="62" y="305" text-anchor="end" class="lbl">TX</text>
+      <text x="62" y="320" text-anchor="end" class="lbl-dim">CP2102</text>
+      <line x1="66" y1="310" x2="110" y2="310" class="wire"/>
+      <rect x="110" y="301" width="60" height="18" rx="3" class="comp comp-fill"/>
+      <text x="140" y="294" text-anchor="middle" class="lbl-dim">Rb1 4k7</text>
+      <line x1="170" y1="310" x2="200" y2="310" class="wire"/>
+
+      <!-- ===== Q1 (inverseur) translate(200,310) ===== -->
+      <use href="#npn" x="200" y="310"/>
+      <text x="250" y="372" class="lbl">Q1</text>
+      <text x="250" y="386" class="lbl-dim">inverseur</text>
+
+      <!-- Q1 collector up to node N1 -->
+      <line x1="260" y1="255" x2="260" y2="180" class="wire"/>
+      <!-- Rc to +5V -->
+      <line x1="260" y1="60" x2="260" y2="92" class="wire-pw"/>
+      <rect x="251" y="92" width="18" height="56" rx="3" class="comp comp-fill"/>
+      <text x="246" y="125" text-anchor="end" class="lbl-dim">Rc 4k7</text>
+      <line x1="260" y1="148" x2="260" y2="180" class="wire"/>
+      <!-- node N1 -->
+      <circle cx="260" cy="180" r="4.5" class="dot"/>
+
+      <!-- Rb2 : N1 -> Q2 base -->
+      <line x1="260" y1="180" x2="380" y2="180" class="wire"/>
+      <rect x="380" y="171" width="60" height="18" rx="3" class="comp comp-fill"/>
+      <text x="410" y="164" text-anchor="middle" class="lbl-dim">Rb2 4k7</text>
+      <line x1="440" y1="180" x2="470" y2="180" class="wire"/>
+      <line x1="470" y1="180" x2="470" y2="310" class="wire"/>
+      <line x1="470" y1="310" x2="500" y2="310" class="wire"/>
+
+      <!-- ===== Q2 (driver) translate(500,310) ===== -->
+      <use href="#npn" x="500" y="310"/>
+      <text x="550" y="372" class="lbl">Q2</text>
+      <text x="550" y="386" class="lbl-dim">driver O.C.</text>
+
+      <!-- Q2 collector up to DATA node -->
+      <line x1="560" y1="255" x2="560" y2="180" class="wire"/>
+      <!-- Rpu to +5V -->
+      <line x1="560" y1="60" x2="560" y2="92" class="wire-pw"/>
+      <rect x="551" y="92" width="18" height="56" rx="3" class="comp comp-fill"/>
+      <text x="575" y="125" class="lbl-dim">Rpu 4k7</text>
+      <line x1="560" y1="148" x2="560" y2="180" class="wire"/>
+      <!-- node DATA -->
+      <circle cx="560" cy="180" r="4.5" class="dot"/>
+
+      <!-- DATA out -->
+      <line x1="560" y1="180" x2="700" y2="180" class="wire"/>
+      <rect x="700" y="150" width="135" height="62" rx="8" class="comp comp-fill"/>
+      <text x="767" y="174" text-anchor="middle" class="lbl">DATA</text>
+      <text x="767" y="190" text-anchor="middle" class="lbl-dim">RJ-12 pin 4</text>
+      <text x="767" y="204" text-anchor="middle" class="lbl-dim">+ RX dongle</text>
+
+      <!-- ===== Emitters to GND ===== -->
+      <line x1="260" y1="365" x2="260" y2="520" class="wire-gnd"/>
+      <line x1="560" y1="365" x2="560" y2="520" class="wire-gnd"/>
+
+      <!-- title strip -->
+      <text x="100" y="565" class="lbl-dim">TX haut (idle) → Q1 on → Q2 off → DATA lâché (tenu haut par Rpu)</text>
+      <text x="100" y="583" class="lbl-dim">TX bas (bit 0) → Q1 off → Q2 on → DATA tiré à la masse · RX lit DATA en direct (écho filtré par indi_celestron_aux)</text>
+    </svg>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <h2>Netlist (ordre de câblage)</h2>
+      <ul class="net">
+        <li><span class="pill">1</span><code>TX</code> dongle → <code>Rb1</code> → base <code>Q1</code></li>
+        <li><span class="pill">2</span>collecteur <code>Q1</code> → <code>Rc</code> → <code>+5V</code></li>
+        <li><span class="pill">3</span>collecteur <code>Q1</code> → <code>Rb2</code> → base <code>Q2</code></li>
+        <li><span class="pill">4</span>émetteurs <code>Q1</code> &amp; <code>Q2</code> → <code>GND</code></li>
+        <li><span class="pill">5</span>collecteur <code>Q2</code> → ligne <code>DATA</code></li>
+        <li><span class="pill">6</span><code>DATA</code> → <code>Rpu</code> → <code>+5V</code></li>
+        <li><span class="pill">7</span><code>DATA</code> → <code>RX</code> dongle &amp; RJ-12 broche 4</li>
+        <li><span class="pill">8</span><code>GND</code> commun : dongle, RJ-12 broche 5, émetteurs</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Nomenclature</h2>
+      <table>
+        <tr><th>Réf</th><th>Valeur</th><th>Note</th></tr>
+        <tr><td>Q1, Q2</td><td>BC547A (NPN)</td><td>marqués <code>C547A</code></td></tr>
+        <tr><td>Rb1</td><td>4,7 kΩ</td><td>base Q1</td></tr>
+        <tr><td>Rc</td><td>4,7 kΩ</td><td>charge collecteur Q1</td></tr>
+        <tr><td>Rb2</td><td>4,7 kΩ</td><td>base Q2</td></tr>
+        <tr><td>Rpu</td><td>4,7 kΩ</td><td>pull-up DATA</td></tr>
+      </table>
+      <p class="muted">4,7 kΩ = <span style="color:var(--txt)">Jaune-Violet-Rouge-Or</span>. Valeur non critique (3,3k–10k OK). Tout en logique 5 V.</p>
+    </div>
+  </div>
+
+  <h2>Brochage TO-92 BC547 &nbsp;·&nbsp; ⚠ C-B-E (pas E-B-C)</h2>
+  <div class="panel" style="text-align:center">
+    <svg viewBox="0 0 360 180" style="max-width:340px; min-width:280px;" role="img" aria-label="Brochage BC547 face plate vers soi">
+      <path d="M90,30 A90,90 0 0,1 270,30 L270,40 L90,40 Z" class="comp comp-fill"/>
+      <rect x="90" y="40" width="180" height="70" rx="4" class="comp comp-fill"/>
+      <text x="180" y="82" text-anchor="middle" class="lbl">BC547A</text>
+      <text x="180" y="24" text-anchor="middle" class="lbl-dim">face plate vers soi · pattes en bas</text>
+      <!-- legs -->
+      <line x1="130" y1="110" x2="130" y2="155" class="wire"/>
+      <line x1="180" y1="110" x2="180" y2="155" class="wire"/>
+      <line x1="230" y1="110" x2="230" y2="155" class="wire"/>
+      <text x="130" y="174" text-anchor="middle" class="lbl">C</text>
+      <text x="180" y="174" text-anchor="middle" class="lbl">B</text>
+      <text x="230" y="174" text-anchor="middle" class="lbl">E</text>
+    </svg>
+    <p class="muted" style="margin:6px 0 0">Confirmé au multimètre : rouge sur la patte du milieu → ~0,9 V des deux côtés = base centrale + NPN. <span class="ok">✓</span></p>
+  </div>
+
+  <h2>RJ-12 6P6C (port HAND CONTROL / AUX)</h2>
+  <table>
+    <tr><th>Broche</th><th>Fonction</th><th>Vers le montage</th></tr>
+    <tr><td>3</td><td><b style="color:var(--warn)">+12 V</b></td><td><b style="color:var(--warn)">NE JAMAIS connecter ⚠</b></td></tr>
+    <tr><td>4</td><td>DATA (single-wire)</td><td>ligne DATA (collecteur Q2 + Rpu + RX)</td></tr>
+    <tr><td>5</td><td>GND</td><td>GND commun</td></tr>
+    <tr><td>6</td><td>SELECT (handshake)</td><td>non requis (maître unique)</td></tr>
+  </table>
+
+  <h2>Avant mise sous tension</h2>
+  <div class="warn"><b>Orientation RJ-12 :</b> repérer le <b>+12 V (broche 3)</b> au multimètre, monture allumée, <i>avant</i> tout branchement. Un câble RJ-12 <i>reversed</i> inverse tout l'ordre — un +12 V sur le dongle le grille, voire le port USB du Pi.</div>
+  <div class="warn"><b>Sélecteur dongle CP2102 sur 5 V</b>, pas 3,3 V.</div>
+  <div class="warn"><b>GND commun obligatoire</b> entre le dongle, le montage et la broche 5 du RJ-12, sinon la masse flotte et le bus est erratique.</div>
+
+  <footer>
+    Astro-Brain DIY · réf. <code>docs/technical/hardware.md</code> § Nature du bus AUX · schéma figé session du 2026-06-11
+  </footer>
+
+</div>
+
+<script>
+  const btn = document.getElementById('themeBtn');
+  const html = document.documentElement;
+  btn.addEventListener('click', () => {
+    const night = html.getAttribute('data-theme') === 'night';
+    html.setAttribute('data-theme', night ? 'day' : 'night');
+    btn.textContent = night ? '◐ Mode nuit' : '◑ Mode jour';
+  });
+</script>
+</body>
+</html>
