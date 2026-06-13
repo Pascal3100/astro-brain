@@ -60,9 +60,16 @@ Thread matériel (suite directe S28), **sur la workstation** (le Pi est resté �
 
 **ADR :** le pivot ESP32 déroge à l'ADR « pas d'Arduino » → **ADR à acter au jalon C** (slew continu via INDI), même discipline que le Nano S27.
 
-**Reprise — jalon C (INDI réel) :** prérequis = **IP stables** (réservation DHCP box ou IP statique pour le Pi *et* l'ESP32 — le Pi change d'IP à chaque bail, injoignable en fin de S29 : `.36` muet, absent du scan ARP, aucun OUI `b8:27:eb`) + **ESP32 en mode station** sur le réseau maison (reflash, identifiants WiFi hors repo). Puis `indi_celestron_aux` en **mode Network** (IP ESP32 : 2000) sur le Pi → connexion + slew continu. Jalon D : backend série→réseau, sketch dans `firmware/`, ADR pivot ESP32.
+**Reprise — jalon C (INDI réel) :** prérequis = **IP stables** + **ESP32 en mode station** sur le réseau maison. Puis `indi_celestron_aux` en **mode Network** (IP ESP32 : 2000) sur le Pi → connexion + slew continu. Jalon D : backend série→réseau, sketch dans `firmware/`, ADR pivot ESP32.
 
-**À faire (doc) :** journal en surcapacité (sessions 20→29 visibles) → archiver le milestone Macro 3 software (S20-25) à la prochaine occasion.
+**🟢 Prérequis réseau du jalon C LEVÉS (suite de soirée, 2026-06-13) :**
+- **Firmware ESP32 réécrit en mode station** (`WIFI_STA`, repli AP auto si la station échoue → jamais verrouillé, `WiFi.setSleep(false)` pour la latence). Identifiants dans `secrets.h` séparé (hors repo, à gitignore au jalon D). Flashé : bannière série `mode=STA ip=192.168.1.200 tcp=2000`.
+- **IP de l'ESP32 figée à `192.168.1.200`** (statique dans le firmware, hors plage DHCP, GW `.254`). **Plus de valse WiFi** : l'ESP32 est un nœud permanent du réseau, joignable sans bascule → la session API reste vivante pendant les tests. `TCP 192.168.1.200:2000 → OPEN` confirmé depuis la workstation.
+- **Pi joignable** : il était bien à `192.168.1.36` (MAC `b8:27:eb:11:e7:93`) — le « no route » initial venait d'une entrée ARP périmée, résolue par un ping sweep. SSH OK ; `indiserver.service` + `astro-brain.service` **actifs**. (Pi toujours en DHCP → réservation box recommandée pour figer le `.36`.)
+- **Driver diagnostiqué** : `Celestron AUX` chargé mais `CONNECTION_MODE=SERIAL` pointant sur l'ancien chemin CH340 mort (`/dev/serial/by-id/usb-1a86…`). **Fix connu** = basculer `CONNECTION_TCP=On` + `DEVICE_ADDRESS=192.168.1.200:2000`.
+- **Verrou restant = purement physique** (séance suivante, à l'observation) : câbler l'ESP32 sur le bus AUX (étage BC547 + RX), **monture sous tension**, **raquette débranchée**. Puis sur le Pi : stop `astro-brain.service` (systemctl), flip driver en TCP, **CONNECT** (= 1er ACK `GET_VER` réel attendu) puis slew continu. ADR pivot ESP32 à acter là.
+
+**À faire (doc) :** ~~journal en surcapacité → archiver Macro 3 software (S20-25)~~ **fait** (→ `journal/archive/2026-05-macro3-software.md`, S26→S29 visibles).
 
 ### Session 28 — Single-wire 2× BC547 : niveau résolu (0,05 V), mais le dongle CH340 perturbe le bus (2026-06-11)
 
