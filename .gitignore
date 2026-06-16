@@ -19,3 +19,10 @@ build/
 # Références perso de câblage (images laissées dans docs/ pour consultation locale)
 docs/R-Pi-3-B-Pinout.webp
 docs/introduction-to-raspberry-pi-3-b-plus-2.png
+
+# Config agent locale
+.claude/
+# Scaffolding outil OpenSpec (local)
+openspec/
+# Catalogue d'étoiles brut (33 Mo) — données téléchargées, hors versionnement
+backend/scripts/data/hyg_v3.csv
