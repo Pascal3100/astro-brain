@@ -26,3 +26,7 @@ docs/introduction-to-raspberry-pi-3-b-plus-2.png
 openspec/
 # Catalogue d'étoiles brut (33 Mo) — données téléchargées, hors versionnement
 backend/scripts/data/hyg_v3.csv
+
+# Firmware ESP32 : identifiants WiFi (jamais dans le repo) + dumps de flash
+firmware/**/secrets.h
+firmware/**/*.bin
