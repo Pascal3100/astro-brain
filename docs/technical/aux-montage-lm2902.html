@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atelier — Montage RX comparateur LM2902 (bus AUX)</title>
+<style>
+  :root {
+    --bg:        #0a0e1a;
+    --panel:     #111a2e;
+    --panel-2:   #0d1424;
+    --line:      #1e2c47;
+    --txt:       #c8d6f0;
+    --txt-dim:   #6f82a8;
+    --accent:    #4fd1ff;
+    --accent-bg: rgba(79,209,255,.10);
+    --power:     #ffb454;
+    --gnd:       #7184a8;
+    --sig:       #4fd1ff;
+    --out:       #4fe0a0;
+    --warn:      #ff5d6c;
+    --ok:        #4fe0a0;
+    --done:      #3a4a6a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:0; background:var(--bg); color:var(--txt);
+    font-family: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:960px; margin:0 auto; padding:28px 22px 90px; }
+  header {
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; flex-wrap:wrap; margin-bottom:22px;
+    border-bottom:1px solid var(--line); padding-bottom:18px;
+  }
+  h1 { font-size:18px; margin:0; letter-spacing:.5px; }
+  h1 .sub { display:block; font-size:12px; color:var(--txt-dim); font-weight:400; margin-top:4px; letter-spacing:0; }
+  h2 {
+    font-size:13px; text-transform:uppercase; letter-spacing:1.5px;
+    color:var(--accent); margin:38px 0 14px; padding-left:10px;
+    border-left:3px solid var(--accent);
+  }
+  h3 { font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--txt-dim); margin:20px 0 8px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; }
+
+  .legend { display:flex; flex-wrap:wrap; gap:8px 18px; margin:0 0 12px; font-size:12px; }
+  .legend span { display:inline-flex; align-items:center; gap:7px; color:var(--txt-dim); }
+  .swatch { width:18px; height:4px; border-radius:2px; display:inline-block; flex:0 0 auto; }
+  .s-sig { background:var(--sig); } .s-out { background:var(--out); }
+  .s-pwr { background:var(--power); } .s-gnd { background:var(--gnd); }
+
+  .schwrap { display:flex; justify-content:center; overflow-x:auto; }
+  svg text { font-family:inherit; }
+  .sch-fill { fill:var(--panel-2); stroke:var(--line); stroke-width:2; }
+  .sch-line { stroke:var(--txt-dim); stroke-width:2; fill:none; }
+  .sch-lbl  { fill:var(--txt); font-size:12px; }
+  .sch-dim  { fill:var(--txt-dim); font-size:10.5px; }
+  .w-sig { stroke:var(--sig);   stroke-width:2.5; fill:none; }
+  .w-out { stroke:var(--out);   stroke-width:2.5; fill:none; }
+  .w-pwr { stroke:var(--power); stroke-width:2.5; fill:none; }
+  .w-gnd { stroke:var(--gnd);   stroke-width:2.5; fill:none; }
+  .w-warn{ stroke:var(--warn);  stroke-width:2.5; fill:none; }
+  .w-dash{ stroke:var(--txt-dim); stroke-width:2; fill:none; stroke-dasharray:5 4; }
+  .t-sig { fill:var(--sig); } .t-out { fill:var(--out); }
+  .t-pwr { fill:var(--power); } .t-gnd { fill:var(--gnd); } .t-warn { fill:var(--warn); }
+  .bold  { font-weight:700; }
+  .junction { fill:var(--sig); }
+  .p-sig{fill:var(--sig);} .p-out{fill:var(--out);} .p-pwr{fill:var(--power);} .p-gnd{fill:var(--gnd);} .p-dim{fill:var(--txt-dim);opacity:.5;}
+  .svg-id{fill:var(--txt-dim);font-size:11px;} .svg-dest{font-size:12px;font-weight:600;} .svg-note{fill:var(--txt-dim);font-size:10.5px;}
+
+  .comp { stroke:var(--sig); stroke-width:2; fill:none; }
+  .comp-fill { fill:var(--accent-bg); }
+  .dot { fill:var(--sig); }
+  .lbl { fill:var(--txt); font-size:13px; }
+  .lbl-dim { fill:var(--txt-dim); font-size:11px; }
+  .lbl-pw { fill:var(--power); font-size:12px; font-weight:700; }
+  .lbl-gnd { fill:var(--gnd); font-size:12px; font-weight:700; }
+
+  ul.list { list-style:none; padding:0; margin:0; }
+  .item { display:flex; gap:12px; align-items:flex-start; padding:10px 12px; border-bottom:1px solid var(--line); cursor:pointer; transition:.12s; }
+  .item:last-child { border-bottom:0; }
+  .item:hover { background:var(--accent-bg); }
+  .item input { appearance:none; -webkit-appearance:none; flex:0 0 auto; width:18px; height:18px; margin:2px 0 0; border:1.5px solid var(--txt-dim); border-radius:5px; cursor:pointer; position:relative; background:transparent; }
+  .item input:checked { background:var(--ok); border-color:var(--ok); }
+  .item input:checked::after { content:"✓"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--bg); font-size:13px; font-weight:700; }
+  .item .body { flex:1; }
+  .item input:checked ~ .body { color:var(--done); text-decoration:line-through; text-decoration-color:var(--done); }
+  .item input:checked ~ .body code, .item input:checked ~ .body b { color:var(--done) !important; }
+  .item .pin { display:inline-block; min-width:30px; text-align:center; padding:1px 7px; border-radius:6px; font-size:12px; margin-right:9px; color:var(--bg); font-weight:700; }
+  .pin.sig { background:var(--sig); } .pin.out { background:var(--out); } .pin.pwr { background:var(--power); } .pin.gnd { background:var(--gnd); } .pin.warn { background:var(--warn); }
+
+  .bar { display:flex; align-items:center; gap:12px; margin:14px 0 2px; }
+  .progress { flex:1; height:8px; border-radius:5px; background:var(--panel); overflow:hidden; border:1px solid var(--line); }
+  .progress > i { display:block; height:100%; width:0; background:var(--ok); transition:width .25s; }
+  .progress-txt { font-size:12px; color:var(--txt-dim); min-width:54px; text-align:right; }
+  .reset { background:none; border:1px solid var(--line); color:var(--txt-dim); border-radius:8px; padding:5px 10px; font-family:inherit; font-size:11px; cursor:pointer; }
+  .reset:hover { border-color:var(--warn); color:var(--warn); }
+
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  @media (max-width:760px){ .grid3 { grid-template-columns:1fr; } .grid2 { grid-template-columns:1fr; } }
+
+  .col { border-radius:10px; padding:14px 16px; }
+  .col h4 { margin:0 0 10px; font-size:13px; letter-spacing:.5px; }
+  .col ul { margin:0; padding-left:18px; }
+  .col li { margin:5px 0; font-size:12.5px; }
+  .col-keep   { border:1px solid rgba(79,224,160,.4); background:rgba(79,224,160,.06); }
+  .col-keep h4   { color:var(--ok); }
+  .col-remove { border:1px solid rgba(255,93,108,.4); background:rgba(255,93,108,.06); }
+  .col-remove h4 { color:var(--warn); }
+  .col-add    { border:1px solid rgba(79,209,255,.4); background:rgba(79,209,255,.07); }
+  .col-add h4    { color:var(--accent); }
+
+  .warn { border-left:3px solid var(--warn); background:rgba(255,93,108,.07); padding:12px 16px; border-radius:6px; margin:12px 0; }
+  .warn b { color:var(--warn); }
+  .okbox { border-left:3px solid var(--ok); background:rgba(79,224,160,.07); padding:12px 16px; border-radius:6px; margin:12px 0; }
+  .okbox b { color:var(--ok); }
+  .muted { color:var(--txt-dim); }
+  code { color:var(--accent); }
+  table.netlist { border-collapse:collapse; width:100%; font-size:12.5px; margin-top:4px; }
+  table.netlist th, table.netlist td { border:1px solid var(--line); padding:7px 10px; text-align:left; }
+  table.netlist th { color:var(--accent); font-weight:600; background:var(--panel-2); }
+  table.netlist code { white-space:nowrap; }
+  .band { display:inline-block; width:13px; height:18px; border-radius:2px; vertical-align:middle; margin:0 1px 0 6px; border:1px solid rgba(0,0,0,.4); box-shadow:inset 0 0 0 1px rgba(255,255,255,.12); }
+  footer { margin-top:54px; color:var(--txt-dim); font-size:11px; text-align:center; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Montage RX — comparateur LM2902
+      <span class="sub">On garde le TX BC547 (validé S28) et on remplace le buffer 4093 par un étage de lecture à ampli-op · S33</span>
+    </h1>
+  </header>
+
+  <div class="okbox"><b>Idée directrice :</b> le 4093 <b>chargeait</b> le bus et exigeait un front montant rapide (seuil Schmitt 2,9 V) — d'où l'impasse du pull-up (sur-pilotage → raquette en défaut). Un <b>comparateur</b> fait l'inverse : entrée <b>haute impédance</b> (il renifle DATA sans tirer dessus, <b>zéro sur-pilotage</b>) et il <b>bascule sur un seuil de référence</b>, pas sur la pente — la lenteur du front ne l'aveugle plus. On <b>reste sur la baseline qui marche</b> (DATA tenu à ~4,4 V par le 139 k interne de la monture, <b>aucun pull-up externe</b>), on remplace seulement la lecture.</div>
+
+  <h2>① Ce qu'on garde / enlève / ajoute</h2>
+  <div class="grid3">
+    <div class="col col-keep">
+      <h4>✅ GARDER (inchangé)</h4>
+      <ul>
+        <li><b>ESP32 DevKit</b> + alim USB 5 V</li>
+        <li><b>Étage TX</b> : 2× BC547 open-collector sur <code>GPIO17</code> (validé S28/S29, l'AZM tourne)</li>
+        <li><b>Liaison RJ-12</b> : DATA broche 4, GND broche 5</li>
+        <li><b>Nœud DATA</b> tenu à ~4,4 V par le <b>139 k interne</b> de la monture</li>
+        <li>Rails <b>+5 V</b> et <b>masse</b> communs</li>
+        <li>Suppression d'<b>écho</b> côté firmware v2 (inchangée)</li>
+      </ul>
+    </div>
+    <div class="col col-remove">
+      <h4>❌ ENLEVER</h4>
+      <ul>
+        <li><b>Buffer RX HEF4093BP</b> entier</li>
+        <li>Son diviseur de sortie <b>100k / 200k</b></li>
+        <li><b>Pull-up externe</b> <code>Rpu 4k7</code> au nœud DATA (essais S32)</li>
+        <li>La <b>diode 1N4007</b> de bridage du pull-up</li>
+      </ul>
+      <p class="muted" style="font-size:11.5px;margin:8px 0 0">Toute la branche « +5 V → Rpu → DATA » disparaît. C'est elle qui sur-pilotait le bus (4,96 / 4,65 V → faute raquette).</p>
+    </div>
+    <div class="col col-add">
+      <h4>➕ AJOUTER</h4>
+      <ul>
+        <li><b>LM2902N</b> (1 ampli sur 4) en comparateur</li>
+        <li>Diviseur d'entrée <b>1M / 1M</b> (DATA ÷2)</li>
+        <li>Diviseur de référence <b>10k / 2k2</b> (Vréf ≈ 0,9 V)</li>
+        <li>Diviseur de sortie <b>1k / 4k7</b> (→ ~2,9 V GPIO)</li>
+        <li><b>100 nF</b> de découplage (pin 4 ↔ pin 11)</li>
+        <li>Option : hystérésis <b>10M</b> sortie → entrée +</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>② Schéma complet de la chaîne</h2>
+  <div class="panel">
+    <div class="legend">
+      <span><i class="swatch s-sig"></i> Ligne DATA (bus)</span>
+      <span><i class="swatch s-out"></i> Signal propre ↔ GPIO ESP32</span>
+      <span><i class="swatch s-pwr"></i> +5 V</span>
+      <span><i class="swatch s-gnd"></i> GND</span>
+    </div>
+    <div class="schwrap">
+      <svg viewBox="0 0 960 470" width="100%" style="max-width:920px" role="img" aria-label="Schéma complet de la chaîne avec comparateur LM2902 en réception">
+        <defs>
+          <g id="gnd"><path d="M0,0 V8 M-11,8 H11 M-7,12 H7 M-3,16 H3" class="w-gnd"/></g>
+        </defs>
+
+        <!-- ============ MONTURE (RJ-12) ============ -->
+        <rect class="sch-fill" x="40" y="168" width="152" height="138" rx="10"/>
+        <text x="116" y="194" text-anchor="middle" class="t-sig bold" font-size="13">MONTURE</text>
+        <text x="116" y="212" text-anchor="middle" class="sch-dim">RJ-12 6P6C</text>
+        <text x="116" y="227" text-anchor="middle" class="sch-dim" font-size="10">port HAND CONTROL</text>
+        <text x="182" y="252" text-anchor="end" class="t-warn">3 · +12 V</text>
+        <line x1="192" y1="248" x2="214" y2="248" class="w-warn"/>
+        <text x="220" y="252" class="t-warn">✕</text>
+        <text x="234" y="252" class="sch-dim t-warn" font-size="10">ne jamais câbler</text>
+        <text x="182" y="276" text-anchor="end" class="t-sig">4 · DATA</text>
+        <line x1="192" y1="272" x2="250" y2="272" class="w-sig"/>
+        <circle cx="250" cy="272" r="4" class="junction"/>
+        <text x="182" y="300" text-anchor="end" class="t-gnd">5 · GND</text>
+        <line x1="192" y1="296" x2="214" y2="296" class="w-gnd"/>
+        <line x1="214" y1="296" x2="214" y2="326" class="w-gnd"/>
+        <use href="#gnd" x="214" y="326"/>
+        <text x="60" y="296" class="sch-dim" font-size="10">6 · SELECT n.c.</text>
+
+        <!-- ============ NŒUD DATA (pas de pull-up externe) ============ -->
+        <text x="250" y="120" text-anchor="middle" class="t-sig bold">DATA</text>
+        <text x="250" y="136" text-anchor="middle" class="sch-dim" font-size="10">~4,4 V · tenu par le</text>
+        <text x="250" y="149" text-anchor="middle" class="sch-dim" font-size="10">139 k interne monture</text>
+        <line x1="250" y1="156" x2="250" y2="350" class="w-sig"/>
+        <circle cx="250" cy="190" r="4" class="junction"/>
+        <line x1="250" y1="190" x2="360" y2="190" class="w-sig"/>
+        <circle cx="250" cy="330" r="4" class="junction"/>
+        <line x1="250" y1="330" x2="360" y2="330" class="w-sig"/>
+
+        <!-- ============ COMPARATEUR RX (LM2902) ============ -->
+        <rect class="sch-fill" x="360" y="138" width="196" height="112" rx="10"/>
+        <text x="458" y="164" text-anchor="middle" class="t-out bold">COMPARATEUR RX</text>
+        <text x="458" y="182" text-anchor="middle" class="sch-dim">LM2902N · 1 ampli sur 4</text>
+        <text x="458" y="201" text-anchor="middle" class="sch-dim" font-size="10">DATA ÷2 (1M/1M) → entrée +</text>
+        <text x="458" y="215" text-anchor="middle" class="sch-dim" font-size="10">comparé à Vréf ≈ 0,9 V</text>
+        <text x="458" y="229" text-anchor="middle" class="sch-dim" font-size="10">sortie ÷ (1k/4k7) → GPIO16</text>
+        <text x="366" y="186" class="sch-dim" font-size="10">DATA</text>
+        <line x1="478" y1="138" x2="478" y2="108" class="w-pwr"/>
+        <text x="478" y="100" text-anchor="middle" class="t-pwr">+5 V</text>
+        <text x="494" y="128" class="sch-dim" font-size="10">V+ p4</text>
+        <line x1="438" y1="250" x2="438" y2="278" class="w-gnd"/>
+        <use href="#gnd" x="438" y="278"/>
+        <text x="454" y="268" class="sch-dim" font-size="10">GND p11</text>
+        <!-- sortie vers GPIO16 -->
+        <line x1="556" y1="176" x2="648" y2="176" class="w-out"/>
+        <line x1="648" y1="176" x2="648" y2="230" class="w-out"/>
+        <line x1="648" y1="230" x2="700" y2="230" class="w-out"/>
+        <text x="566" y="168" class="t-out" font-size="10">≈ 2,9 V</text>
+
+        <!-- ============ DRIVER TX (BC547) — inchangé ============ -->
+        <rect class="sch-fill" x="360" y="300" width="196" height="108" rx="10"/>
+        <text x="458" y="326" text-anchor="middle" class="sch-lbl bold">DRIVER TX</text>
+        <text x="458" y="344" text-anchor="middle" class="sch-dim">2× BC547 · open-collector</text>
+        <text x="458" y="364" text-anchor="middle" class="sch-dim" font-size="10">GPIO17 → Rb1 → Q1 → Rb2 → Q2</text>
+        <text x="458" y="379" text-anchor="middle" class="sch-dim" font-size="10">tire DATA à la masse (bit 0)</text>
+        <text x="458" y="394" text-anchor="middle" class="t-out" font-size="10">validé S28/S29 · inchangé</text>
+        <text x="366" y="324" class="sch-dim" font-size="10">Q2 coll.</text>
+        <line x1="478" y1="300" x2="478" y2="272" class="w-pwr"/>
+        <text x="478" y="264" text-anchor="middle" class="t-pwr">+5 V</text>
+        <line x1="438" y1="408" x2="438" y2="436" class="w-gnd"/>
+        <use href="#gnd" x="438" y="436"/>
+        <text x="454" y="426" class="sch-dim" font-size="10">émetteurs</text>
+
+        <!-- ============ ESP32 ============ -->
+        <rect class="sch-fill" x="700" y="178" width="216" height="172" rx="10"/>
+        <text x="808" y="208" text-anchor="middle" class="t-sig bold" font-size="13">ESP32 DevKit</text>
+        <text x="808" y="226" text-anchor="middle" class="sch-dim">pont WiFi ↔ bus AUX</text>
+        <text x="808" y="242" text-anchor="middle" class="sch-dim" font-size="10">(alimenté en USB)</text>
+        <circle cx="700" cy="230" r="3.5" class="p-out"/>
+        <text x="712" y="234" class="sch-lbl">GPIO16 · RX</text>
+        <circle cx="700" cy="290" r="3.5" class="p-out"/>
+        <text x="712" y="294" class="sch-lbl">GPIO17 · TX</text>
+        <line x1="700" y1="290" x2="632" y2="290" class="w-out"/>
+        <line x1="632" y1="290" x2="632" y2="352" class="w-out"/>
+        <line x1="632" y1="352" x2="556" y2="352" class="w-out"/>
+        <line x1="808" y1="178" x2="808" y2="148" class="w-pwr"/>
+        <text x="808" y="140" text-anchor="middle" class="t-pwr">+5 V (VIN)</text>
+        <line x1="808" y1="350" x2="808" y2="378" class="w-gnd"/>
+        <use href="#gnd" x="808" y="378"/>
+        <text x="824" y="370" class="sch-dim">GND</text>
+      </svg>
+    </div>
+    <p class="muted" style="margin:14px 0 0">Plus de branche pull-up au nœud DATA : c'est le <b>139 k interne de la monture</b> qui ramène la ligne à ~4,4 V quand Q2 relâche (état natif, validé sans défaut raquette). Le comparateur ne fait que <b>mesurer</b> ce niveau via un diviseur haute impédance — il ne le tire pas vers le haut.</p>
+  </div>
+
+  <h2>③ Étage RX — comparateur LM2902 (détail composant)</h2>
+  <div class="panel">
+    <div class="legend">
+      <span><i class="swatch s-sig"></i> Ligne DATA (bus)</span>
+      <span><i class="swatch s-out"></i> Signal propre → GPIO16</span>
+      <span><i class="swatch s-pwr"></i> +5 V</span>
+      <span><i class="swatch s-gnd"></i> GND</span>
+    </div>
+    <div class="schwrap">
+      <svg viewBox="0 0 900 440" width="100%" style="max-width:900px" role="img" aria-label="Schéma détaillé de l'étage de réception à comparateur LM2902">
+        <defs>
+          <g id="gnd3"><path d="M0,0 V10 M-11,10 H11 M-7,14 H7 M-3,18 H3" class="w-gnd"/></g>
+        </defs>
+
+        <!-- rail GND bas -->
+        <line x1="80" y1="380" x2="640" y2="380" class="w-gnd"/>
+        <text x="74" y="385" text-anchor="end" class="lbl-gnd">GND</text>
+
+        <!-- ===== diviseur d'entrée DATA ÷2 ===== -->
+        <text x="44" y="146" class="lbl">nœud DATA</text>
+        <text x="44" y="161" class="lbl-dim">RJ-12 p4 · ~4,4 V</text>
+        <line x1="48" y1="175" x2="120" y2="175" class="w-sig"/>
+        <!-- R1 1M horizontal -->
+        <rect x="120" y="166" width="60" height="18" rx="3" class="comp comp-fill"/>
+        <text x="150" y="159" text-anchor="middle" class="lbl-dim">R1 1M</text>
+        <line x1="180" y1="175" x2="250" y2="175" class="w-sig"/>
+        <circle cx="250" cy="175" r="4.5" class="dot"/>
+        <text x="250" y="150" text-anchor="middle" class="t-sig" font-size="11">≈ 2,05 V</text>
+        <!-- R2 1M vertical vers GND -->
+        <line x1="250" y1="175" x2="250" y2="244" class="w-sig"/>
+        <rect x="241" y="244" width="18" height="56" rx="3" class="comp comp-fill"/>
+        <text x="266" y="276" class="lbl-dim">R2 1M</text>
+        <line x1="250" y1="300" x2="250" y2="380" class="w-sig"/>
+        <!-- tap -> entrée + -->
+        <line x1="250" y1="175" x2="360" y2="175" class="w-sig"/>
+
+        <!-- ===== diviseur de référence ===== -->
+        <line x1="360" y1="70" x2="360" y2="58" class="w-pwr"/>
+        <text x="360" y="50" text-anchor="middle" class="lbl-pw">+5 V</text>
+        <rect x="351" y="70" width="18" height="50" rx="3" class="comp comp-fill"/>
+        <text x="376" y="98" class="lbl-dim">R3 10k</text>
+        <line x1="360" y1="120" x2="360" y2="135" class="w-sig"/>
+        <circle cx="360" cy="135" r="4.5" class="dot"/>
+        <text x="312" y="139" class="t-sig" font-size="11">Vréf</text>
+        <text x="306" y="153" class="lbl-dim" font-size="10">≈ 0,9 V</text>
+        <rect x="351" y="150" width="18" height="50" rx="3" class="comp comp-fill"/>
+        <text x="376" y="178" class="lbl-dim">R4 2k2</text>
+        <line x1="360" y1="200" x2="360" y2="248" class="w-sig"/>
+        <!-- ref bypass 100nF -->
+        <line x1="312" y1="135" x2="300" y2="135" class="w-sig"/>
+        <line x1="300" y1="129" x2="300" y2="141" class="comp"/>
+        <line x1="292" y1="129" x2="292" y2="141" class="comp"/>
+        <text x="296" y="120" text-anchor="middle" class="lbl-dim" font-size="10">100nF</text>
+        <line x1="292" y1="135" x2="280" y2="135" class="w-sig"/>
+        <line x1="280" y1="135" x2="280" y2="360" class="w-gnd"/>
+        <use href="#gnd3" x="280" y="360"/>
+        <line x1="360" y1="248" x2="360" y2="248" class="w-sig"/>
+        <!-- ref descend a GND : on rejoint le rail bas a x360 -->
+        <line x1="360" y1="248" x2="320" y2="248" class="w-sig"/>
+        <line x1="320" y1="248" x2="320" y2="380" class="w-gnd"/>
+        <!-- ref -> entrée - -->
+        <line x1="360" y1="135" x2="430" y2="135" class="w-sig"/>
+        <line x1="430" y1="135" x2="430" y2="200" class="w-sig"/>
+        <line x1="430" y1="200" x2="470" y2="200" class="w-sig"/>
+
+        <!-- ===== ampli-op (triangle) ===== -->
+        <line x1="360" y1="175" x2="470" y2="175" class="w-sig"/>
+        <path d="M470,150 L470,250 L560,200 Z" class="comp comp-fill"/>
+        <text x="486" y="205" class="t-sig bold" font-size="15">+</text>
+        <text x="486" y="173" class="t-sig bold" font-size="15">−</text>
+        <text x="505" y="222" class="sch-dim" font-size="10">LM2902 · A</text>
+        <text x="448" y="171" text-anchor="end" class="lbl-dim" font-size="10">p2</text>
+        <text x="448" y="190" text-anchor="end" class="lbl-dim" font-size="10">p3</text>
+        <!-- alim ampli -->
+        <line x1="500" y1="172" x2="500" y2="120" class="w-pwr"/>
+        <text x="500" y="112" text-anchor="middle" class="lbl-pw">+5 V</text>
+        <text x="516" y="140" class="lbl-dim" font-size="10">V+ p4</text>
+        <line x1="515" y1="218" x2="515" y2="330" class="w-gnd"/>
+        <use href="#gnd3" x="515" y="330"/>
+        <text x="531" y="250" class="lbl-dim" font-size="10">GND p11</text>
+        <!-- découplage 100nF alim -->
+        <line x1="560" y1="120" x2="560" y2="135" class="w-pwr"/>
+        <line x1="548" y1="120" x2="548" y2="120" class="w-pwr"/>
+        <line x1="560" y1="112" x2="560" y2="120" class="w-pwr"/>
+        <text x="560" y="104" text-anchor="middle" class="lbl-pw">+5 V</text>
+        <line x1="548" y1="135" x2="572" y2="135" class="comp"/>
+        <line x1="548" y1="143" x2="572" y2="143" class="comp"/>
+        <text x="580" y="144" class="lbl-dim" font-size="10">100 nF</text>
+        <line x1="560" y1="143" x2="560" y2="158" class="w-gnd"/>
+        <use href="#gnd3" x="560" y="158" />
+
+        <!-- ===== sortie -> diviseur -> GPIO16 ===== -->
+        <line x1="560" y1="200" x2="600" y2="200" class="w-out"/>
+        <text x="600" y="192" text-anchor="middle" class="lbl-dim" font-size="10">p1</text>
+        <!-- R5 1k horizontal -->
+        <rect x="600" y="191" width="56" height="18" rx="3" class="comp comp-fill"/>
+        <text x="628" y="184" text-anchor="middle" class="lbl-dim">R5 1k</text>
+        <line x1="656" y1="200" x2="710" y2="200" class="w-out"/>
+        <circle cx="710" cy="200" r="4.5" style="fill:var(--out)"/>
+        <text x="710" y="176" text-anchor="middle" class="t-out bold">nœud RX</text>
+        <text x="710" y="162" text-anchor="middle" class="t-out" font-size="11">≈ 2,9 V</text>
+        <!-- R6 4k7 vers GND -->
+        <line x1="710" y1="200" x2="710" y2="244" class="w-out"/>
+        <rect x="701" y="244" width="18" height="56" rx="3" class="comp comp-fill"/>
+        <text x="726" y="276" class="lbl-dim">R6 4k7</text>
+        <line x1="710" y1="300" x2="710" y2="348" class="w-gnd"/>
+        <use href="#gnd3" x="710" y="348"/>
+        <!-- -> GPIO16 -->
+        <line x1="710" y1="200" x2="760" y2="200" class="w-out"/>
+        <rect class="sch-fill" x="760" y="172" width="120" height="56" rx="8"/>
+        <text x="820" y="196" text-anchor="middle" class="lbl">GPIO16</text>
+        <text x="820" y="213" text-anchor="middle" class="lbl-dim">ESP32 · RX</text>
+
+        <!-- ===== hystérésis option (dashed) ===== -->
+        <line x1="628" y1="209" x2="628" y2="290" class="w-dash"/>
+        <line x1="628" y1="290" x2="220" y2="290" class="w-dash"/>
+        <rect x="300" y="281" width="56" height="18" rx="3" fill="none" stroke="var(--txt-dim)" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="328" y="313" text-anchor="middle" class="lbl-dim" font-size="10">Rfb 10M (option)</text>
+        <line x1="220" y1="290" x2="220" y2="175" class="w-dash"/>
+        <line x1="220" y1="175" x2="250" y2="175" class="w-dash"/>
+
+        <!-- légende fonctionnelle -->
+        <text x="80" y="412" class="lbl-dim">DATA haut (~4,4 V) → entrée + (2,05 V) &gt; Vréf (0,9 V) → sortie HAUTE ≈ 2,9 V → RX au repos</text>
+        <text x="80" y="430" class="lbl-dim">DATA tirée à 0 (bit / notre TX) → entrée + (0 V) &lt; Vréf → sortie BASSE ≈ 0 V</text>
+      </svg>
+    </div>
+    <p class="muted" style="margin:12px 0 0">Le seuil de bascule sur le bus tombe à <b>~1,8 V</b> (Vréf 0,9 V ×2), bien au milieu de 0 et 4,4 V. Le diviseur d'entrée <b>1M/1M</b> ne fait <b>saigner</b> DATA que d'environ <b>0,3 V</b> (vers le bas → aucun risque de défaut raquette, à l'inverse du pull-up). L'<b>hystérésis 10M</b> est optionnelle : à n'ajouter que si la sortie « chatter » sur les fronts lents.</p>
+  </div>
+
+  <h2>③ bis — Vue composants réels &amp; brochage</h2>
+  <p class="muted" style="margin:-4px 0 14px">Le même étage, mais dessiné <b>tel que tu le câbles</b> : le boîtier DIP-14 avec ses 14 broches numérotées, les résistances en composants axiaux et les 100 nF en céramiques. Chaque broche pointe vers ce qu'elle reçoit.</p>
+  <div class="panel">
+    <div class="legend">
+      <span><i class="swatch s-sig"></i> Ligne DATA</span>
+      <span><i class="swatch s-out"></i> Vers GPIO16</span>
+      <span><i class="swatch s-pwr"></i> +5 V</span>
+      <span><i class="swatch s-gnd"></i> GND</span>
+    </div>
+    <div class="schwrap">
+      <svg viewBox="0 0 960 600" width="100%" style="max-width:960px" role="img" aria-label="Vue composants réels du LM2902 avec brochage DIP-14">
+        <defs>
+          <g id="gnd4"><path d="M0,0 V9 M-10,9 H10 M-6,13 H6 M-2,17 H2" class="w-gnd"/></g>
+          <!-- résistances axiales horizontales (origine = patte gauche), longueur 70, bandes 4 anneaux -->
+          <g id="rh-1m">
+            <line x1="0" y1="0" x2="14" y2="0" stroke="#8aa0c8" stroke-width="2.5"/>
+            <rect x="14" y="-8" width="42" height="16" rx="3" fill="#cdb389" stroke="#5c3c14" stroke-width="1.5"/>
+            <rect x="19" y="-8" width="3.5" height="16" fill="#6b3410"/>
+            <rect x="25" y="-8" width="3.5" height="16" fill="#1a1a1a"/>
+            <rect x="31" y="-8" width="3.5" height="16" fill="#1f9d4d"/>
+            <rect x="48" y="-8" width="3.5" height="16" fill="#c9a13b"/>
+            <line x1="56" y1="0" x2="70" y2="0" stroke="#8aa0c8" stroke-width="2.5"/>
+          </g>
+          <g id="rh-1k">
+            <line x1="0" y1="0" x2="14" y2="0" stroke="#8aa0c8" stroke-width="2.5"/>
+            <rect x="14" y="-8" width="42" height="16" rx="3" fill="#cdb389" stroke="#5c3c14" stroke-width="1.5"/>
+            <rect x="19" y="-8" width="3.5" height="16" fill="#6b3410"/>
+            <rect x="25" y="-8" width="3.5" height="16" fill="#1a1a1a"/>
+            <rect x="31" y="-8" width="3.5" height="16" fill="#c0241a"/>
+            <rect x="48" y="-8" width="3.5" height="16" fill="#c9a13b"/>
+            <line x1="56" y1="0" x2="70" y2="0" stroke="#8aa0c8" stroke-width="2.5"/>
+          </g>
+          <!-- résistances axiales verticales (origine = patte haute), longueur 70 -->
+          <g id="rv-1m">
+            <line x1="0" y1="0" x2="0" y2="14" stroke="#8aa0c8" stroke-width="2.5"/>
+            <rect x="-8" y="14" width="16" height="42" rx="3" fill="#cdb389" stroke="#5c3c14" stroke-width="1.5"/>
+            <rect x="-8" y="19" width="16" height="3.5" fill="#6b3410"/>
+            <rect x="-8" y="25" width="16" height="3.5" fill="#1a1a1a"/>
+            <rect x="-8" y="31" width="16" height="3.5" fill="#1f9d4d"/>
+            <rect x="-8" y="48" width="16" height="3.5" fill="#c9a13b"/>
+            <line x1="0" y1="56" x2="0" y2="70" stroke="#8aa0c8" stroke-width="2.5"/>
+          </g>
+          <g id="rv-10k">
+            <line x1="0" y1="0" x2="0" y2="14" stroke="#8aa0c8" stroke-width="2.5"/>
+            <rect x="-8" y="14" width="16" height="42" rx="3" fill="#cdb389" stroke="#5c3c14" stroke-width="1.5"/>
+            <rect x="-8" y="19" width="16" height="3.5" fill="#6b3410"/>
+            <rect x="-8" y="25" width="16" height="3.5" fill="#1a1a1a"/>
+            <rect x="-8" y="31" width="16" height="3.5" fill="#e07b1a"/>
+            <rect x="-8" y="48" width="16" height="3.5" fill="#c9a13b"/>
+            <line x1="0" y1="56" x2="0" y2="70" stroke="#8aa0c8" stroke-width="2.5"/>
+          </g>
+          <g id="rv-2k2">
+            <line x1="0" y1="0" x2="0" y2="14" stroke="#8aa0c8" stroke-width="2.5"/>
+            <rect x="-8" y="14" width="16" height="42" rx="3" fill="#cdb389" stroke="#5c3c14" stroke-width="1.5"/>
+            <rect x="-8" y="19" width="16" height="3.5" fill="#c0241a"/>
+            <rect x="-8" y="25" width="16" height="3.5" fill="#c0241a"/>
+            <rect x="-8" y="31" width="16" height="3.5" fill="#c0241a"/>
+            <rect x="-8" y="48" width="16" height="3.5" fill="#c9a13b"/>
+            <line x1="0" y1="56" x2="0" y2="70" stroke="#8aa0c8" stroke-width="2.5"/>
+          </g>
+          <g id="rv-4k7">
+            <line x1="0" y1="0" x2="0" y2="14" stroke="#8aa0c8" stroke-width="2.5"/>
+            <rect x="-8" y="14" width="16" height="42" rx="3" fill="#cdb389" stroke="#5c3c14" stroke-width="1.5"/>
+            <rect x="-8" y="19" width="16" height="3.5" fill="#e8c100"/>
+            <rect x="-8" y="25" width="16" height="3.5" fill="#8a3fb0"/>
+            <rect x="-8" y="31" width="16" height="3.5" fill="#c0241a"/>
+            <rect x="-8" y="48" width="16" height="3.5" fill="#c9a13b"/>
+            <line x1="0" y1="56" x2="0" y2="70" stroke="#8aa0c8" stroke-width="2.5"/>
+          </g>
+          <!-- condensateur céramique (origine = patte haute) -->
+          <g id="cap">
+            <line x1="0" y1="0" x2="0" y2="10" stroke="#8aa0c8" stroke-width="2.5"/>
+            <ellipse cx="0" cy="24" rx="13" ry="13" fill="#d9923a" stroke="#7a4d16" stroke-width="1.5"/>
+            <line x1="0" y1="37" x2="0" y2="47" stroke="#8aa0c8" stroke-width="2.5"/>
+          </g>
+        </defs>
+
+        <!-- ===================== BOÎTIER LM2902N ===================== -->
+        <rect class="sch-fill" x="650" y="180" width="100" height="300" rx="6"/>
+        <path d="M688 180 a12 12 0 0 0 24 0" fill="none" stroke="var(--line)" stroke-width="2"/>
+        <circle cx="672" cy="202" r="3.5" fill="var(--txt-dim)"/>
+        <text x="700" y="172" text-anchor="middle" class="lbl bold">LM2902N</text>
+        <text x="700" y="500" text-anchor="middle" class="sch-dim" font-size="10">DIP-14 · vu de dessus</text>
+
+        <!-- broches gauche 1..7 -->
+        <g>
+          <rect class="p-out" x="636" y="206" width="14" height="8"/><text x="658" y="214" class="svg-id">1 OUT</text>
+          <rect class="p-sig" x="636" y="248" width="14" height="8"/><text x="658" y="256" class="svg-id">2 IN−</text>
+          <rect class="p-sig" x="636" y="290" width="14" height="8"/><text x="658" y="298" class="svg-id">3 IN+</text>
+          <rect class="p-pwr" x="636" y="332" width="14" height="8"/><text x="658" y="340" class="svg-id">4 V+</text>
+          <rect class="p-gnd" x="636" y="374" width="14" height="8"/><text x="658" y="382" class="svg-id">5 IN+</text>
+          <rect class="p-gnd" x="636" y="416" width="14" height="8"/><text x="658" y="424" class="svg-id">6 IN−</text>
+          <rect class="p-dim" x="636" y="458" width="14" height="8"/><text x="658" y="466" class="svg-id">7 OUT</text>
+        </g>
+        <!-- broches droite 14..8 -->
+        <g>
+          <rect class="p-dim" x="750" y="206" width="14" height="8"/><text x="742" y="214" text-anchor="end" class="svg-id">OUT 14</text>
+          <rect class="p-gnd" x="750" y="248" width="14" height="8"/><text x="742" y="256" text-anchor="end" class="svg-id">IN+ 13</text>
+          <rect class="p-gnd" x="750" y="290" width="14" height="8"/><text x="742" y="298" text-anchor="end" class="svg-id">IN− 12</text>
+          <rect class="p-gnd" x="750" y="332" width="14" height="8"/><text x="742" y="340" text-anchor="end" class="svg-id">GND 11</text>
+          <rect class="p-gnd" x="750" y="374" width="14" height="8"/><text x="742" y="382" text-anchor="end" class="svg-id">IN+ 10</text>
+          <rect class="p-gnd" x="750" y="416" width="14" height="8"/><text x="742" y="424" text-anchor="end" class="svg-id">IN− 9</text>
+          <rect class="p-dim" x="750" y="458" width="14" height="8"/><text x="742" y="466" text-anchor="end" class="svg-id">OUT 8</text>
+        </g>
+
+        <!-- ===================== SORTIE (pin 1) → R5 → RX → GPIO16 ===================== -->
+        <line x1="636" y1="210" x2="636" y2="130" class="w-out"/>
+        <line x1="636" y1="130" x2="360" y2="130" class="w-out"/>
+        <use href="#rh-1k" x="290" y="130"/>
+        <text x="325" y="116" text-anchor="middle" fill="var(--txt)" font-size="12" font-weight="700" stroke="var(--panel)" stroke-width="3.5" style="paint-order:stroke">R5 1k</text>
+        <circle cx="290" cy="130" r="4.5" style="fill:var(--out)"/>
+        <text x="280" y="106" text-anchor="middle" class="bold" fill="var(--out)" font-size="13" stroke="var(--panel)" stroke-width="3.5" style="paint-order:stroke">nœud RX ≈ 2,9 V</text>
+        <!-- R6 vers GND -->
+        <line x1="290" y1="130" x2="290" y2="142" class="w-out"/>
+        <use href="#rv-4k7" x="290" y="142"/>
+        <text x="308" y="186" fill="var(--txt)" font-size="12" font-weight="700" stroke="var(--panel)" stroke-width="3.5" style="paint-order:stroke">R6 4k7</text>
+        <line x1="290" y1="212" x2="290" y2="226" class="w-gnd"/>
+        <use href="#gnd4" x="290" y="226"/>
+        <!-- vers GPIO16 -->
+        <line x1="290" y1="130" x2="212" y2="130" class="w-out"/>
+        <rect class="sch-fill" x="84" y="110" width="128" height="40" rx="8"/>
+        <text x="148" y="127" text-anchor="middle" class="lbl">GPIO16</text>
+        <text x="148" y="142" text-anchor="middle" class="lbl-dim">ESP32 · RX</text>
+
+        <!-- ===================== RÉFÉRENCE (pin 2) ===================== -->
+        <text x="380" y="60" text-anchor="middle" class="lbl-pw">+5 V</text>
+        <line x1="380" y1="64" x2="380" y2="72" class="w-pwr"/>
+        <use href="#rv-10k" x="380" y="72"/>
+        <text x="400" y="112" fill="var(--txt)" font-size="12" font-weight="700" stroke="var(--panel)" stroke-width="3.5" style="paint-order:stroke">R3 10k</text>
+        <line x1="380" y1="142" x2="380" y2="148" class="w-sig"/>
+        <circle cx="380" cy="148" r="4.5" class="dot"/>
+        <text x="380" y="135" text-anchor="middle" fill="var(--sig)" font-size="12" font-weight="700" stroke="var(--panel)" stroke-width="3.5" style="paint-order:stroke">Vréf ≈ 0,9 V</text>
+        <use href="#rv-2k2" x="380" y="156"/>
+        <text x="400" y="196" fill="var(--txt)" font-size="12" font-weight="700" stroke="var(--panel)" stroke-width="3.5" style="paint-order:stroke">R4 2k2</text>
+        <line x1="380" y1="226" x2="380" y2="240" class="w-gnd"/>
+        <use href="#gnd4" x="380" y="240"/>
+        <!-- C2 bypass réf -->
+        <line x1="380" y1="148" x2="330" y2="148" class="w-sig"/>
+        <use href="#cap" x="330" y="154"/>
+        <text x="312" y="180" text-anchor="end" fill="var(--txt)" font-size="12" font-weight="700" stroke="var(--panel)" stroke-width="3.5" style="paint-order:stroke">C2 100nF</text>
+        <line x1="330" y1="201" x2="330" y2="215" class="w-gnd"/>
+        <use href="#gnd4" x="330" y="215"/>
+        <!-- Vréf → pin 2 -->
+        <line x1="380" y1="148" x2="590" y2="148" class="w-sig"/>
+        <line x1="590" y1="148" x2="590" y2="252" class="w-sig"/>
+        <line x1="590" y1="252" x2="636" y2="252" class="w-sig"/>
+
+        <!-- ===================== DATA ÷2 (pin 3) ===================== -->
+        <text x="40" y="288" fill="var(--sig)" font-size="13" font-weight="700">nœud DATA</text>
+        <text x="40" y="304" class="lbl-dim">RJ-12 p4 · ~4,4 V</text>
+        <line x1="60" y1="318" x2="120" y2="318" class="w-sig"/>
+        <line x1="120" y1="318" x2="120" y2="294" class="w-sig"/>
+        <use href="#rh-1m" x="120" y="294"/>
+        <text x="155" y="280" text-anchor="middle" fill="var(--txt)" font-size="12" font-weight="700" stroke="var(--panel)" stroke-width="3.5" style="paint-order:stroke">R1 1M</text>
+        <line x1="190" y1="294" x2="420" y2="294" class="w-sig"/>
+        <circle cx="420" cy="294" r="4.5" class="dot"/>
+        <text x="430" y="278" text-anchor="middle" fill="var(--sig)" font-size="12" font-weight="700" stroke="var(--panel)" stroke-width="3.5" style="paint-order:stroke">nœud S ≈ 2,05 V</text>
+        <!-- R2 vers GND -->
+        <line x1="420" y1="294" x2="420" y2="306" class="w-sig"/>
+        <use href="#rv-1m" x="420" y="306"/>
+        <text x="438" y="350" fill="var(--txt)" font-size="12" font-weight="700" stroke="var(--panel)" stroke-width="3.5" style="paint-order:stroke">R2 1M</text>
+        <line x1="420" y1="376" x2="420" y2="390" class="w-gnd"/>
+        <use href="#gnd4" x="420" y="390"/>
+        <!-- node S → pin 3 -->
+        <line x1="420" y1="294" x2="636" y2="294" class="w-sig"/>
+
+        <!-- ===================== ALIM pin 4 / pin 11 + C1 ===================== -->
+        <line x1="636" y1="336" x2="596" y2="336" class="w-pwr"/>
+        <text x="590" y="340" text-anchor="end" class="lbl-pw">+5 V</text>
+        <!-- broche 5,6 → GND -->
+        <line x1="636" y1="378" x2="606" y2="378" class="w-gnd"/>
+        <use href="#gnd4" x="606" y="378"/>
+        <line x1="636" y1="420" x2="606" y2="420" class="w-gnd"/>
+        <use href="#gnd4" x="606" y="420"/>
+        <!-- broche 7 libre -->
+        <text x="600" y="466" text-anchor="end" class="sch-dim" font-size="10">n.c.</text>
+
+        <!-- broches droite → rail GND -->
+        <line x1="764" y1="252" x2="840" y2="252" class="w-gnd"/>
+        <line x1="764" y1="294" x2="840" y2="294" class="w-gnd"/>
+        <line x1="764" y1="336" x2="840" y2="336" class="w-gnd"/>
+        <line x1="764" y1="378" x2="840" y2="378" class="w-gnd"/>
+        <line x1="764" y1="420" x2="840" y2="420" class="w-gnd"/>
+        <line x1="840" y1="252" x2="840" y2="420" class="w-gnd"/>
+        <line x1="840" y1="420" x2="840" y2="434" class="w-gnd"/>
+        <use href="#gnd4" x="840" y="434"/>
+        <text x="782" y="214" class="sch-dim" font-size="10">n.c.</text>
+        <text x="782" y="466" class="sch-dim" font-size="10">n.c.</text>
+
+        <!-- C1 découplage p4 ↔ p11 -->
+        <text x="890" y="252" text-anchor="middle" class="lbl-pw">+5 V</text>
+        <line x1="890" y1="256" x2="890" y2="264" class="w-pwr"/>
+        <use href="#cap" x="890" y="264"/>
+        <text x="908" y="294" fill="var(--txt)" font-size="12" font-weight="700" stroke="var(--panel)" stroke-width="3.5" style="paint-order:stroke">C1 100nF</text>
+        <line x1="890" y1="311" x2="890" y2="325" class="w-gnd"/>
+        <use href="#gnd4" x="890" y="325"/>
+        <text x="890" y="360" text-anchor="middle" class="sch-dim" font-size="10">au plus près</text>
+        <text x="890" y="373" text-anchor="middle" class="sch-dim" font-size="10">des p4 ↔ p11</text>
+      </svg>
+    </div>
+    <p class="muted" style="margin:12px 0 0">Les 3 amplis inutilisés (B, C, D) ont <b>toutes</b> leurs entrées (pins 5·6·9·10·12·13) tirées à <code>GND</code> — pattes <span class="t-warn">jamais flottantes</span>. Les sorties libres (pins 7·8·14) restent en l'air. Repère la <b>broche 1</b> par le méplat/le point sur le boîtier (en haut à gauche ici, encoche centrale en haut).</p>
+
+    <table class="netlist" style="margin-top:16px">
+      <tr><th>Résistance</th><th>Valeur</th><th>Code couleur (4 bandes, tolérance or 5 %)</th></tr>
+      <tr>
+        <td><code>R1, R2</code></td><td>1 MΩ</td>
+        <td>
+          <span class="band" style="background:#6b3410"></span> marron
+          <span class="band" style="background:#1a1a1a"></span> noir
+          <span class="band" style="background:#1f9d4d"></span> vert
+          <span class="band" style="background:#c9a13b"></span> or
+        </td>
+      </tr>
+      <tr>
+        <td><code>R3</code></td><td>10 kΩ</td>
+        <td>
+          <span class="band" style="background:#6b3410"></span> marron
+          <span class="band" style="background:#1a1a1a"></span> noir
+          <span class="band" style="background:#e07b1a"></span> orange
+          <span class="band" style="background:#c9a13b"></span> or
+        </td>
+      </tr>
+      <tr>
+        <td><code>R4</code></td><td>2,2 kΩ</td>
+        <td>
+          <span class="band" style="background:#c0241a"></span> rouge
+          <span class="band" style="background:#c0241a"></span> rouge
+          <span class="band" style="background:#c0241a"></span> rouge
+          <span class="band" style="background:#c9a13b"></span> or
+        </td>
+      </tr>
+      <tr>
+        <td><code>R5</code></td><td>1 kΩ</td>
+        <td>
+          <span class="band" style="background:#6b3410"></span> marron
+          <span class="band" style="background:#1a1a1a"></span> noir
+          <span class="band" style="background:#c0241a"></span> rouge
+          <span class="band" style="background:#c9a13b"></span> or
+        </td>
+      </tr>
+      <tr>
+        <td><code>R6</code></td><td>4,7 kΩ</td>
+        <td>
+          <span class="band" style="background:#e8c100"></span> jaune
+          <span class="band" style="background:#8a3fb0"></span> violet
+          <span class="band" style="background:#c0241a"></span> rouge
+          <span class="band" style="background:#c9a13b"></span> or
+        </td>
+      </tr>
+      <tr>
+        <td><code>Rfb</code> <span class="muted">(option)</span></td><td>10 MΩ</td>
+        <td>
+          <span class="band" style="background:#6b3410"></span> marron
+          <span class="band" style="background:#1a1a1a"></span> noir
+          <span class="band" style="background:#2456c7"></span> bleu
+          <span class="band" style="background:#c9a13b"></span> or
+        </td>
+      </tr>
+    </table>
+    <p class="muted" style="margin:8px 0 0; font-size:11.5px">Lecture des bandes : tolérance (or) à <b>droite</b>, on lit depuis l'autre bout. <code>2 chiffres + multiplicateur</code> — ex. R6 : jaune(4) violet(7) rouge(×100) = 4700 Ω.</p>
+  </div>
+
+  <h2>④ Câblage fil par fil <span class="muted" style="font-size:11px;text-transform:none;letter-spacing:0">— coche au fur et à mesure</span></h2>
+  <div class="bar">
+    <div class="progress"><i id="bar-montage"></i></div>
+    <span class="progress-txt" id="txt-montage">0 / 0</span>
+    <button class="reset" data-group="montage">remettre à zéro</button>
+  </div>
+
+  <h3>A · Démontage (par rapport au montage 4093)</h3>
+  <div class="panel">
+    <ul class="list" data-group="montage">
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin warn">−</span>Retirer le <b>HEF4093BP</b> et son diviseur <code>100k / 200k</code>.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin warn">−</span>Retirer la branche pull-up au nœud DATA : <code>1N4007</code> + <code>Rpu 4k7</code> + le fil vers <code>+5 V</code>. <b>Le nœud DATA ne reçoit plus rien d'autre que Q2, la monture et l'entrée du comparateur.</b></span></label></li>
+    </ul>
+  </div>
+
+  <h3>B · Diviseur d'entrée (DATA ÷2)</h3>
+  <div class="panel">
+    <ul class="list" data-group="montage">
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin sig">R1</span><b>nœud DATA</b> → <code>R1 1M</code> → <b>nœud S</b>.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin gnd">R2</span><b>nœud S</b> → <code>R2 1M</code> → <code>GND</code>. Au repos, S ≈ <b>2,05 V</b>.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin sig">+</span><b>nœud S</b> → <b>entrée + (pin 3)</b> du LM2902.</span></label></li>
+    </ul>
+  </div>
+
+  <h3>C · Diviseur de référence (Vréf ≈ 0,9 V)</h3>
+  <div class="panel">
+    <ul class="list" data-group="montage">
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin pwr">R3</span><code>+5 V</code> → <code>R3 10k</code> → <b>nœud Vréf</b>.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin gnd">R4</span><b>nœud Vréf</b> → <code>R4 2k2</code> → <code>GND</code>.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin gnd">C</span><code>100 nF</code> entre <b>nœud Vréf</b> et <code>GND</code> (stabilise la référence).</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin sig">−</span><b>nœud Vréf</b> → <b>entrée − (pin 2)</b> du LM2902.</span></label></li>
+    </ul>
+  </div>
+
+  <h3>D · Ampli, alimentation, sortie</h3>
+  <div class="panel">
+    <ul class="list" data-group="montage">
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin pwr">4</span>LM2902 <b>pin 4 (V+)</b> → <code>+5 V</code> · <b>pin 11 (GND)</b> → <code>GND</code>.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin gnd">C</span><code>100 nF</code> de découplage entre <b>pin 4 et pin 11</b>, au plus près du boîtier.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin out">1</span>sortie <b>pin 1</b> → <code>R5 1k</code> → <b>nœud RX</b>.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin gnd">R6</span><b>nœud RX</b> → <code>R6 4k7</code> → <code>GND</code>. Au repos, RX ≈ <b>2,9 V</b>.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin gnd">B/C/D</span>amplis <b>inutilisés</b> (B, C, D) : relier <b>chaque entrée + et −</b> (pins 5·6·9·10·12·13) à <code>GND</code> — jamais flottantes.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin out">16</span><b>nœud RX</b> → <code>GPIO16</code> — <b>en dernier</b>, après avoir mesuré la sortie (voir bring-up).</span></label></li>
+    </ul>
+  </div>
+
+  <h3>E · Alimentation &amp; masse communes (inchangé)</h3>
+  <div class="panel">
+    <ul class="list" data-group="montage">
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin pwr">+5V</span><b>Un seul +5 V</b> = broche <code>5V / VIN</code> de l'ESP32 (alim USB) → alimente le TX, <code>R3</code> et le <code>V+</code> du LM2902.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin gnd">GND</span><b>Une seule masse</b> = GND ESP32 + RJ-12 broche 5 + émetteurs Q1/Q2 + pin 11 LM2902 + bas de R2/R4/R6.</span></label></li>
+    </ul>
+  </div>
+
+  <h2>⑤ Avant mise sous tension — sécurité</h2>
+  <div class="warn"><b>+12 V (RJ-12 broche 3) :</b> repérer au multimètre, monture allumée, <b>avant</b> tout branchement. Jamais connecté nulle part.</div>
+  <div class="warn"><b>Aucune entrée d'ampli flottante :</b> les 3 amplis inutilisés du LM2902 ont <b>toutes</b> leurs entrées à GND. Découplage <code>100 nF</code> obligatoire sur l'alim.</div>
+  <div class="warn"><b>GPIO 3,3 V :</b> on ne branche <code>GPIO16</code> qu'<b>après</b> avoir vérifié que le nœud RX reste ≤ 3,3 V (le diviseur 1k/4k7 cale la sortie 5 V de l'ampli à ~2,9 V).</div>
+  <div class="okbox"><b>Pourquoi ça ne fera plus fauter la raquette :</b> le comparateur ne <b>tire jamais</b> DATA vers le haut. Le diviseur 1M/1M le fait au pire <b>saigner de 0,3 V</b> (DATA repos ~4,1 V, <b>en dessous</b> de 4,4 V) — direction sûre, l'inverse exact du pull-up qui montait à 4,96 / 4,65 V.</div>
+
+  <h2>⑥ Brochage LM2902N — DIP14, vu de dessus</h2>
+  <div class="grid2">
+    <div class="panel">
+      <svg viewBox="0 0 360 320" width="100%" role="img" aria-label="Brochage du LM2902N">
+        <rect class="sch-fill" x="138" y="20" width="84" height="252" rx="6"/>
+        <path d="M168 20 a12 12 0 0 0 24 0" fill="none" stroke="var(--line)" stroke-width="2"/>
+        <!-- gauche 1..7 -->
+        <g>
+          <rect class="p-out" x="120" y="40" width="18" height="7"/><text x="148" y="47" class="svg-id">1·OUT A</text><text x="112" y="47" text-anchor="end" class="svg-dest p-out">→R5</text>
+          <rect class="p-sig" x="120" y="74" width="18" height="7"/><text x="148" y="81" class="svg-id">2·IN− A</text><text x="112" y="81" text-anchor="end" class="svg-dest p-sig">Vréf</text>
+          <rect class="p-sig" x="120" y="108" width="18" height="7"/><text x="148" y="115" class="svg-id">3·IN+ A</text><text x="112" y="115" text-anchor="end" class="svg-dest p-sig">DATA÷2</text>
+          <rect class="p-pwr" x="120" y="142" width="18" height="7"/><text x="148" y="149" class="svg-id">4·V+</text><text x="112" y="149" text-anchor="end" class="svg-dest p-pwr">+5V</text>
+          <rect class="p-gnd" x="120" y="176" width="18" height="7"/><text x="148" y="183" class="svg-id">5·IN+ B</text><text x="112" y="183" text-anchor="end" class="svg-dest p-gnd">GND</text>
+          <rect class="p-gnd" x="120" y="210" width="18" height="7"/><text x="148" y="217" class="svg-id">6·IN− B</text><text x="112" y="217" text-anchor="end" class="svg-dest p-gnd">GND</text>
+          <rect class="p-dim" x="120" y="244" width="18" height="7"/><text x="148" y="251" class="svg-id">7·OUT B</text><text x="112" y="251" text-anchor="end" class="svg-dest p-dim">libre</text>
+        </g>
+        <!-- droite 14..8 -->
+        <g>
+          <rect class="p-dim" x="222" y="40" width="18" height="7"/><text x="212" y="47" text-anchor="end" class="svg-id">14·OUT D</text><text x="248" y="47" class="svg-dest p-dim">libre</text>
+          <rect class="p-gnd" x="222" y="74" width="18" height="7"/><text x="212" y="81" text-anchor="end" class="svg-id">13·IN+ D</text><text x="248" y="81" class="svg-dest p-gnd">GND</text>
+          <rect class="p-gnd" x="222" y="108" width="18" height="7"/><text x="212" y="115" text-anchor="end" class="svg-id">12·IN− D</text><text x="248" y="115" class="svg-dest p-gnd">GND</text>
+          <rect class="p-gnd" x="222" y="142" width="18" height="7"/><text x="212" y="149" text-anchor="end" class="svg-id">11·GND</text><text x="248" y="149" class="svg-dest p-gnd">GND</text>
+          <rect class="p-gnd" x="222" y="176" width="18" height="7"/><text x="212" y="183" text-anchor="end" class="svg-id">10·IN+ C</text><text x="248" y="183" class="svg-dest p-gnd">GND</text>
+          <rect class="p-gnd" x="222" y="210" width="18" height="7"/><text x="212" y="217" text-anchor="end" class="svg-id">9·IN− C</text><text x="248" y="217" class="svg-dest p-gnd">GND</text>
+          <rect class="p-dim" x="222" y="244" width="18" height="7"/><text x="212" y="251" text-anchor="end" class="svg-id">8·OUT C</text><text x="248" y="251" class="svg-dest p-dim">libre</text>
+        </g>
+        <text x="180" y="298" text-anchor="middle" class="svg-note">100 nF entre pin 4 (+5V) et pin 11 (GND)</text>
+      </svg>
+    </div>
+    <div class="panel">
+      <h3 style="margin-top:0">Nomenclature</h3>
+      <table class="netlist">
+        <tr><th>Réf</th><th>Valeur</th><th>Rôle</th></tr>
+        <tr><td><code>LM2902N</code></td><td>DIP-14</td><td>ampli-op quad (1 utilisé en comparateur)</td></tr>
+        <tr><td><code>R1, R2</code></td><td>1 MΩ</td><td>diviseur d'entrée DATA ÷2</td></tr>
+        <tr><td><code>R3</code></td><td>10 kΩ</td><td>réf · haut</td></tr>
+        <tr><td><code>R4</code></td><td>2,2 kΩ</td><td>réf · bas → Vréf ≈ 0,9 V</td></tr>
+        <tr><td><code>R5</code></td><td>1 kΩ</td><td>sortie · série</td></tr>
+        <tr><td><code>R6</code></td><td>4,7 kΩ</td><td>sortie · bas → ~2,9 V GPIO</td></tr>
+        <tr><td><code>Rfb</code></td><td>10 MΩ</td><td>hystérésis (optionnel)</td></tr>
+        <tr><td><code>C1</code></td><td>100 nF</td><td>découplage alim (p4↔p11)</td></tr>
+        <tr><td><code>C2</code></td><td>100 nF</td><td>bypass référence</td></tr>
+      </table>
+      <p class="muted" style="margin:10px 0 0;font-size:12px">Plage d'entrée du LM2902 sous 5 V : 0 → 3,5 V → c'est pourquoi DATA (4,4 V) est <b>divisé par 2</b> avant l'entrée. Sa sortie haute plafonne à ~3,5 V → ramenée à ~2,9 V par <code>R5/R6</code>.</p>
+    </div>
+  </div>
+
+  <h2>⑦ Bring-up (ordre conseillé)</h2>
+  <div class="panel">
+    <ul class="list" data-group="bringup">
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin gnd">1</span>Câbler l'étage comparateur <b>sans</b> relier <code>GPIO16</code>. Alim 5 V + GND uniquement.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin gnd">2</span><b>Vérifier Vréf</b> ≈ 0,9 V (pin 2) et, raquette branchée, <b>nœud S</b> ≈ 2,0 V (pin 3). <b>DATA repos ≈ 4,1–4,3 V</b> (saigne légèrement, normal).</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin gnd">3</span><b>Mesurer la sortie (pin 1)</b> : ~3,5 V au repos, et appuie sur une flèche → elle doit basculer 0 ↔ 3,5 V. Au nœud RX : ~2,9 V / 0 V.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin warn">4</span><b>Raquette PAS en défaut ?</b> Si « No Response », augmenter R1/R2 (2,2M) pour charger moins le bus.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin out">16</span>Relier le nœud RX à <code>GPIO16</code> → <code>sniff.py</code> (appui flèche) doit afficher des octets, puis <code>get_ver.py</code>.</span></label></li>
+      <li><label class="item"><input type="checkbox"><span class="body"><span class="pin sig">5</span>Si la sortie « chatter » sur les fronts → ajouter l'hystérésis <code>Rfb 10M</code> (pin 1 → pin 3).</span></label></li>
+    </ul>
+  </div>
+  <div class="warn"><b>Écho local (firmware) :</b> single-wire → le comparateur voit aussi notre propre TX. La suppression d'écho du firmware v2 (comptage/memcmp) gère déjà ça, rien à changer côté code.</div>
+
+  <footer>
+    Astro-Brain DIY · réf. <code>docs/technical/hardware.md</code> · voir aussi <a href="aux-montage-complet.html">montage complet (4093)</a> · <a href="aux-rx-buffer-4093.html">buffer RX 4093</a> · <a href="esp32-aux-bridge.html">pont ESP32</a> · S33 (2026-06-21) — étage RX comparateur LM2902 (proto), 74HC125 visé pour la solution définitive
+  </footer>
+
+</div>
+
+<script>
+  const KEY = 'astro-montage-lm2902';
+  const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+
+  function refresh(group) {
+    const boxes = [...document.querySelectorAll(`[data-group="${group}"] input[type=checkbox]`)];
+    const done = boxes.filter(b => b.checked).length;
+    const bar = document.getElementById('bar-' + group);
+    const txt = document.getElementById('txt-' + group);
+    if (bar) bar.style.width = boxes.length ? (100 * done / boxes.length) + '%' : '0';
+    if (txt) txt.textContent = `${done} / ${boxes.length}`;
+  }
+
+  ['montage', 'bringup'].forEach(group => {
+    const boxes = [...document.querySelectorAll(`[data-group="${group}"] input[type=checkbox]`)];
+    boxes.forEach((b, i) => {
+      const id = group + ':' + i;
+      b.checked = !!saved[id];
+      b.addEventListener('change', () => {
+        saved[id] = b.checked;
+        localStorage.setItem(KEY, JSON.stringify(saved));
+        refresh(group);
+      });
+    });
+    refresh(group);
+  });
+
+  document.querySelectorAll('.reset').forEach(rb => {
+    rb.addEventListener('click', () => {
+      const group = rb.dataset.group;
+      document.querySelectorAll(`[data-group="${group}"] input[type=checkbox]`).forEach((b, i) => {
+        b.checked = false; delete saved[group + ':' + i];
+      });
+      localStorage.setItem(KEY, JSON.stringify(saved));
+      refresh(group);
+    });
+  });
+</script>
+</body>
+</html>

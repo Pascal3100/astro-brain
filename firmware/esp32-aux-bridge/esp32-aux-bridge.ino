@@ -22,6 +22,12 @@
 #include <WiFi.h>
 #include "secrets.h"   // WIFI_SSID, WIFI_PASS — fichier hors repo (gitignore)
 
+// ---- Drapeau diagnostic (cf. S33) ----
+// 1 = normal : suppression d'écho half-duplex par comptage.
+// 0 = relaie TOUT (écho + réponse) — utilisé S33 pour prouver que le moteur
+//     ne répond pas (écho octet-parfait, mais aucune réponse derrière).
+#define ECHO_SUPPRESS 1
+
 // ---- Bus AUX ----
 constexpr int      AUX_RX_PIN = 16;     // lit DATA via buffer 4093
 constexpr int      AUX_TX_PIN = 17;     // attaque DATA via étage BC547
@@ -47,6 +53,9 @@ constexpr uint32_t TURNAROUND_MS       = 50;     // si l'écho ne revient pas ->
 WiFiServer server(TCP_PORT);
 WiFiClient client;
 
+uint8_t  txFrame[32];         // réassemblage d'une trame AUX avant émission contiguë
+uint8_t  txLen         = 0;   // octets accumulés dans txFrame
+uint16_t txNeed        = 0;   // longueur totale attendue de la trame courante
 uint32_t echoPending   = 0;   // octets émis dont l'écho reste à avaler
 uint32_t lastTxMs      = 0;   // dernier octet poussé sur le bus
 uint32_t lastClientMs  = 0;   // dernière activité du client TCP
@@ -134,24 +143,38 @@ void loop() {
     client.stop();
   }
 
-  // --- TCP -> bus AUX (chaque octet émis devra voir son écho avalé) ---
+  // --- TCP -> bus AUX : on RÉASSEMBLE la trame AUX complète puis on l'émet
+  //     d'un seul bloc, pour que les octets sortent CONTIGUS sur le bus.
+  //     La fragmentation TCP/WiFi créait des trous inter-octets -> le moteur
+  //     jetait la trame (timeout), alors qu'un UART lit quand même -> écho
+  //     parfait mais réponse absente (blocage tranché S33). ---
   while (client && client.available()) {
     uint8_t b = client.read();
-    Serial2.write(b);
-    echoPending++;
-    lastTxMs     = now;
     lastClientMs = now;
+    if (txLen == 0 && b != 0x3b) continue;             // attend le préambule 0x3b
+    txFrame[txLen++] = b;
+    if (txLen == 2) txNeed = (uint16_t)txFrame[1] + 3; // 0x3b + len + (len octets) + cksum
+    if (txLen >= 2 && txLen == txNeed) {               // trame complète -> bus, contiguë
+      Serial2.write(txFrame, txLen);
+      echoPending += txLen;
+      lastTxMs = now;
+      txLen = 0; txNeed = 0;
+    } else if (txLen >= sizeof(txFrame)) {             // garde-fou (len corrompue)
+      txLen = 0; txNeed = 0;
+    }
   }
 
   // --- bus AUX -> TCP, en avalant notre propre écho half-duplex ---
   while (Serial2.available()) {
     uint8_t b = Serial2.read();
     lastClientMs = now;
+#if ECHO_SUPPRESS
     if (echoPending > 0) {
       echoPending--;               // c'est l'écho de ce qu'on vient d'émettre -> jeté
       continue;
     }
-    if (client && client.connected()) client.write(b);   // vraie réponse moteur -> driver
+#endif
+    if (client && client.connected()) client.write(b);   // tout (écho + réponse) -> driver
   }
 
   // --- garde-fou turnaround : si un octet d'écho s'est perdu, on ne reste pas
