@@ -7,14 +7,14 @@ Référence pratique pour le matériel et les branchements physiques.
 | Composant | Rôle | Connexion |
 |---|---|---|
 | **Raspberry Pi 3 B+** | Backend FastAPI, GPS, calculs astro, plate solving (Macro 5+) | — |
-| **Monture Celestron NexStar SLT** | GoTo + suivi sidéral | USB-série sur bus AUX (port HAND CONTROL RJ-12, interface single-wire 2× BC547 → dongle USB-TTL **CH340** 5V → `/dev/ttyUSB0`, driver INDI `indi_celestron_aux`) |
+| **Monture Celestron NexStar SLT** | GoTo + suivi sidéral | Bus AUX (port HAND CONTROL RJ-12) via **pont ESP32 WiFi** : interface single-wire **RX comparateur LM2902 + TX buffer 74AHCT125** → ESP32 (`192.168.1.200:2000`) → driver INDI `indi_celestron_aux` en mode Network. Schémas : [cablage-interface-aux.html](cablage-interface-aux.html) + [cablage-pont-esp32.html](cablage-pont-esp32.html) |
 | **GPS DroTek Ublox M8N + compass XL** | Géolocalisation, heure UTC, cap magnétique | UART0 GPIO (GPS) + I2C1 GPIO (compass LIS3MDL) |
 | **ADXL345 tube** (`0x53`) | Zéro ALT + détection butées d'inclinaison | I2C1 GPIO |
 | **ADXL345 monture** (`0x1D`) | Mise à niveau pré-session (bulle virtuelle) | I2C1 GPIO |
 | **Caméras astrophoto** (Macro 5+) | T7C, StarShoot Autoguider, lunette guide SV165 | USB |
-| **Alimentation** | 12 V batterie → buck 5 V/3 A vers Pi | — |
+| **Alimentation** | 3 sources : (1) secteur 220 V → 5 V/2,5 A pour le **Pi seul** ; (2) **rail 5 V** (12 V → 5 V) pour **tout le reste du 5 V** (ESP32, interface AUX, pull-ups, VCC capteurs) ; (3) **3,3 V fourni par le Pi** (logique). Masses communes. | [cablage-alimentation.html](cablage-alimentation.html) |
 
-Les 4 ports USB du Pi sont réservés pour la monture + caméras. **Tous les capteurs passent par les GPIO.**
+La monture passe désormais par le **WiFi** (pont ESP32 sur le bus AUX), plus par l'USB → les ports USB du Pi sont réservés aux **caméras** (Macro 5+). **Tous les capteurs passent par les GPIO** ; leur **VCC vient du rail 5 V externe** (12 V → 5 V), pas des broches 5 V du Pi — seul le 3,3 V vient du Pi.
 
 ## Bus I2C1
 
@@ -40,8 +40,8 @@ Broches utilisées :
 
 | Pin | BCM | Fonction | Usage |
 |-----|-----|----------|-------|
-| 2   | —   | 5V       | VCC GPS / capteurs |
-| 1   | —   | 3V3      | VCC alternative |
+| 2   | —   | 5V       | **non utilisé** (VCC capteurs ← rail 5 V externe) |
+| 1   | —   | 3V3      | logique 3,3 V (référence) |
 | 6   | —   | GND      | GND commun |
 | 8   | GPIO14 | TXD0  | Pi TX → GPS RX |
 | 10  | GPIO15 | RXD0  | Pi RX ← GPS TX |
@@ -54,12 +54,12 @@ Broches utilisées :
 
 | GPS | Pi header | Sens |
 |---|---|---|
-| VCC | Pin 2 (5V)\* | alimentation |
-| GND | Pin 6 (GND) | masse |
+| VCC | **rail 5 V externe**\* | alimentation |
+| GND | Pin 6 (GND) | masse commune |
 | TX | Pin 10 (RXD0) | GPS → Pi |
 | RX | Pin 8 (TXD0) | Pi → GPS (config) |
 
-*\*La plupart des DroTek M8N acceptent 5V (LDO intégré). En cas de doute, utiliser Pin 1 (3V3).*
+*\*VCC depuis le **rail 5 V** (12 V → 5 V), pas les broches 5 V du Pi. La plupart des DroTek M8N acceptent 5V (LDO intégré, logique I2C/UART en 3,3 V). Masse commune Pi ↔ rail obligatoire.*
 
 ### Config Pi OS
 
@@ -166,85 +166,48 @@ Pour éviter un conflit UART avec le GPS (qui occupe `ttyAMA0`), on passe par un
 
 - **5V TTL**, série asynchrone **19200 baud, 8N2**, tri-state au repos, multi-maître avec ligne de handshake.
 - **DATA = une seule ligne bidirectionnelle (half-duplex)** : TX *et* RX partagent le même fil (broche 4). Pas de RX/TX croisés comme un UART classique.
-- Conséquence : le TX *push-pull* d'un dongle nu posé direct sur DATA entre en conflit avec les réponses des moteurs → bus bloqué. Il faut une **interface single-wire**. Options envisagées :
-  - **driver open-collector 2× NPN (BC547)** ← **montage retenu, validé électriquement le 2026-06-11** (tire DATA à **0,05 V** mesuré ; voir ci-dessous). ⚠️ E2E encore bloqué par un couplage **dongle CH340 ↔ bus** (S28), indépendant de ce montage.
-  - ~~diode + pull-up (anode côté DATA, cathode/anneau côté TX)~~ — **essayé Session 27, ÉCHEC** : une 1N4007 (silicium) laisse le niveau bas à **0,97 V** (= `Vol(TX) + Vf`), **au-dessus du `VIL` des PIC moteurs** (~0,8–1,0 V) → les contrôleurs ne décodent jamais nos trames (le RX du CH340, plus permissif, lit l'écho → « écho parfait, monture muette »). Une Schottky (Vf ~0,3 V) passerait mais aucune n'était dispo.
-  - un **buffer tri-state 74HC125** (non testé, alternative valable).
-  - ~~Nano open-drain dédoubleur~~ — envisagé Session 27 faute de transistor, **rendu inutile** par le montage 2× BC547 (qui obtient le même niveau bas franc sans Arduino → l'ADR « pas d'Arduino » est préservé).
+- Conséquence : un TX *push-pull* posé direct sur DATA entre en conflit avec les réponses des moteurs → il faut une **interface single-wire**. La voie a été tranchée par une longue investigation (S26→S33) ; les essais écartés (diode 1N4007, Nano, 2× BC547, buffer Schmitt 4093) sont tracés dans le [journal](../project/journal.md) et son [archive S26→S30](../project/journal/archive/2026-06-bus-aux.md).
 
-  On reçoit alors son propre écho ; `indi_celestron_aux` le filtre.
+### Interface single-wire — montage courant (RX LM2902 + TX 74AHCT125, via pont ESP32)
 
-### Interface single-wire — montage retenu (driver open-collector 2× BC547)
+Un **pont ESP32** se pose sur le bus AUX et l'expose au driver `indi_celestron_aux` en **TCP** (mode Network, `192.168.1.200:2000`) — l'ESP32 lit le bus avec un vrai GPIO haute-Z, supprime l'écho half-duplex par firmware, et gère le turnaround. L'interface analogique entre l'ESP32 et la ligne DATA combine deux composants aux rôles complémentaires :
 
-DATA doit idle **haut** (pull-up 5 V), un « 0 » = ligne tirée à la masse, et **personne ne doit jamais forcer la ligne à 5 V en push-pull** (sinon conflit de bus). C'est exactement un **open-collector** : le driver ne sait que *tirer vers le bas* ou *lâcher*. On le réalise avec un étage inverseur (Q1) + un étage driver (Q2).
+- **RX — comparateur LM2902** (✓ prouvé S33) : lecture **haute impédance** à seuil bas (~0,9 V), insensible aux **fronts montants lents** du bus (pull-up monture faible, ~139 kΩ) qui aveuglaient un buffer logique à seuil figé. `DATA → 1M/1M → entrée+`, `Vréf 0,9 V (10k/2k2) → entrée−`, `sortie → 1k/4k7 → ~2,9 V → GPIO16`.
+- **TX — buffer tri-state 74AHCT125** (🔬 à valider, schéma éprouvé g7ltt/Mark Lord) : drive **actif push-pull** (HIGH *et* LOW) pendant l'émission → fronts rapides (corrige le TX round-trip négatif S33). `GPIO17 → 1A`, `GPIO32 → /OE (actif bas)`, `1Y → 470 Ω → DATA`. La ligne BUSY (broche 6) n'est pas câblée (mono-maître).
 
-```
-        +5V                         +5V
-         │                           │
-       [Rc 4k7]                   [Rpu 4k7]
-         │                           │
- TX ─[Rb1 4k7]──┤ B  Q1        ┌─────┴────────── DATA (RJ-12 broche 4)
-                │  C ──────────┤                  │
-                │  E           [Rb2 4k7]──┤ B  Q2  └──── RX dongle (lecture directe)
-                │              │          │  C
-               GND             │          │  E
-                               └──────────┤
-                                         GND
-```
+Tout est en logique 5 V (rail externe), masses communes. **Schémas détaillés (netlist, brochages, valeurs)** : [cablage-interface-aux.html](cablage-interface-aux.html) (étages RX/TX) + [cablage-pont-esp32.html](cablage-pont-esp32.html) (GPIO, réseau, rôles firmware).
 
-Logique :
-- **TX = haut (idle)** → Q1 saturé → collecteur Q1 bas → Q2 bloqué → DATA **lâché**, tenu haut par Rpu. ✓
-- **TX = bas (bit 0)** → Q1 bloqué → collecteur Q1 haut → Q2 saturé → DATA **tiré à la masse**. ✓
-- La monture peut tirer DATA à la masse au repos → RX la lit directement. ✓ En émission, RX reçoit notre propre écho → filtré par `indi_celestron_aux`. ✓
-
-Net : DATA recopie TX en open-collector. Tout est en logique **5 V** (dongle 5V ↔ bus AUX 5V), pas de level-shift. Retard de propagation négligeable à 19200 baud.
-
-> ⏳ **Validé électriquement le 2026-06-11 (S28), pas encore E2E.** Niveau bas mesuré **0,05 V** (vs 0,97 V avec la diode en S27) → le seuil `VIL` qui faisait échouer la diode est levé, le montage transistor est bon. **Mais la monture reste muette** : nouveau blocage isolé = **le dongle CH340 perturbe le bus** dès le simple tap `RX + GND` (broche RX non haute-Z / masse), **indépendamment du montage transistor**. RX prouvé fonctionnel (sniffer capte le trafic réel du HC).
->
-> 🔀 **Pivot ESP32 (2026-06-13, S29).** Le RX du CH340 s'est avéré **non découplable passivement** (masse seule propre, mais R série 4,7 k insuffisant). Décision : remplacer le dongle par un **pont ESP32 WiFi ↔ bus AUX** — le driver `indi_celestron_aux` se connecte alors en **TCP (mode « Celestron WiFi », port 2000)** au lieu de la série, et l'ESP32 lit le bus avec un **vrai GPIO haute-Z** (supprime le défaut CH340). **L'étage BC547 ci-dessus est conservé**, désormais piloté par le **GPIO17** de l'ESP32 ; le **RX se fait sur le GPIO16 via une R série ~3,3 k** (protège le GPIO 3,3 V du ~4,4 V idle bus). **Jalons A+B validés (2026-06-13)** : flash → WiFi → TCP:2000 OPEN, puis **rejeu des octets de slew → l'AZM tourne dans les deux sens sur commande** (raquette débranchée) → **blocage S26→S28 levé**. (`GET_VER` reste écho seul ; slew continu via le turnaround half-duplex géré par le driver INDI → jalon C.) Câblage + firmware : [`esp32-aux-bridge.html`](esp32-aux-bridge.html). Anciennes pistes (autre dongle, buffer, opto) abandonnées. Page étage : [`aux-single-wire-cablage.html`](aux-single-wire-cablage.html).
->
-> ⚠️ Le « smoke test INDI réussi » initial était un **faux positif** : `CONNECTION.CONNECT=On` = port ouvert + écho, et les positions (AZ=360/ALT=0) sont des **défauts driver**, pas une vraie réponse monture. Le test série brut `GET_VER` (méthode S27) le confirme : **écho seul**.
-
-**Nomenclature :**
-
-| Réf | Composant | Détail |
-|---|---|---|
-| Q1, Q2 | 2× NPN **BC547A** (marqués `C547A`) | TO-92, brochage **C-B-E** (face plate vers soi, pattes en bas : collecteur à gauche, émetteur à droite) — ⚠️ *pas* le E-B-C des 2N3904/2N2222 |
-| Rb1, Rc, Rb2, Rpu | 4× **4,7 kΩ** | Jaune-Violet-Rouge-Or (±5 %). Valeur non critique (3,3k–10k OK) |
-
-Connexions : `TX dongle → Rb1 → base Q1` · `collecteur Q1 → Rc → +5V` et `→ Rb2 → base Q2` · `émetteurs Q1/Q2 → GND` · `collecteur Q2 → DATA` · `DATA → Rpu → +5V` · `DATA → RX dongle`.
-- Alternative sans soudure : un **ESP32 « SkyPortal clone »** sur le port AUX, driver connecté en TCP (le firmware gère le bus single-wire). Change le câblage — à arbitrer dans le backlog si on bascule.
+> ⚠️ Pièges historiques à connaître : le « smoke test INDI réussi » initial était un **faux positif** (`CONNECT=On` = port ouvert + écho ; positions AZ=360/ALT=0 = défauts driver). Et le **dongle USB-TTL CH340** posé direct perturbait le bus (broche RX non haute-Z) — c'est ce qui a motivé le pivot ESP32. Détails : journal S26→S29.
 
 ### Brochage RJ-12 6P6C du port AUX/HAND CONTROL
 
-| Broche | Couleur typique | Fonction | Côté dongle |
+| Broche | Couleur typique | Fonction | Côté interface |
 |---|---|---|---|
 | 1 | — | non utilisé | — |
 | 2 | — | non utilisé | — |
 | 3 | vert | **+12V** (alim raquette) | **ne JAMAIS connecter** ⚠️ |
-| 4 | jaune | **DATA** (single-wire bidirectionnel) | TX **et** RX via interface single-wire |
-| 5 | rose/blanc | **GND** | GND du dongle |
-| 6 | gris/noir | SELECT (handshake bus) | non requis pour un maître unique |
+| 4 | jaune | **DATA** (single-wire bidirectionnel) | RX (LM2902) **et** TX (74AHCT125) |
+| 5 | rose/blanc | **GND** | masse commune |
+| 6 | gris/noir | SELECT / BUSY (handshake bus) | non câblée (maître unique) |
 
-⚠️ **Orientation à confirmer au multimètre avant mise sous tension.** Le n° de broche dépend du sens de vue, et un câble RJ-12 *reversed* inverse tout. Repère d'abord le **+12V (broche 3)** monture allumée → ça cale l'orientation. Un contact +12V → dongle grille le dongle voire le port USB du Pi.
+⚠️ **Orientation à confirmer au multimètre avant mise sous tension.** Le n° de broche dépend du sens de vue, et un câble RJ-12 *reversed* inverse tout. Repère d'abord le **+12V (broche 3)** monture allumée → ça cale l'orientation. Un contact +12V → grille l'interface voire le port USB du Pi.
 
-⚠️ **Sélecteur du dongle sur 5V**, pas 3.3V.
+⚠️ Toute la logique d'interface est en **5 V** (rail externe ↔ bus AUX 5 V), masses communes obligatoires.
 
 ### Vérification
 
 ```bash
-# Dongle branché côté Pi (via interface single-wire), monture ALIMENTÉE, raquette débranchée :
-ls -l /dev/ttyUSB0                        # doit exister, owner dialout
-dmesg | grep -i cp2102                    # vu côté kernel
+# Pont ESP32 alimenté (rail 5 V), sur le réseau, monture ALIMENTÉE, raquette débranchée :
+nc -vz 192.168.1.200 2000                 # le port TCP du pont doit être OPEN
 # Le protocole AUX est binaire (préambule 0x3b) et single-wire : NE PAS tester
 # avec un echo brut (le test 'K' NexStar n'a de sens que sur le port PC de la raquette).
-# Valider via la stack INDI :
+# Valider via la stack INDI (driver en mode Network) :
 indiserver -v indi_celestron_aux          # doit énumérer le device "Celestron AUX"
-# puis connexion INDI (DEVICE_PORT=/dev/ttyUSB0, baud 19200, PORT_TYPE AUX direct) :
+# puis connexion INDI (CONNECTION_TCP=On, DEVICE_ADDRESS=192.168.1.200:2000) :
 # un GET_VER vers le contrôleur AZM (0x10) doit répondre.
 ```
 
-L'utilisateur Pi (`pascal3100`) doit être dans le groupe `dialout` (`groups | grep dialout`, sinon `sudo usermod -aG dialout pascal3100` + re-login).
+Le pont ESP32 se flashe en USB sur la workstation (`/dev/ttyUSB0`, FQBN `esp32:esp32:esp32`), pas sur le Pi. Tests réseau **depuis le Pi** (vrai client du driver).
 
 ## ADXL345 ×2 — I2C1
 
@@ -258,17 +221,18 @@ Justification du choix accéléromètres simples vs IMU 9DOF : usage statique pu
 ## Récap fils
 
 ```
-GPS  VCC  ──── Pin 2  (5V)     [ou Pin 1 si 3V3]
-GPS  GND  ──── Pin 6  (GND)
+GPS  VCC  ──── rail 5 V externe   (PAS le Pi)
+GPS  GND  ──── Pin 6  (GND)        (masse commune)
 GPS  TX   ──── Pin 10 (RXD0)
 GPS  RX   ──── Pin 8  (TXD0)
-Mag  SDA  ──── Pin 3  (SDA1)
+Mag  SDA  ──── Pin 3  (SDA1)       VCC ── rail 5 V
 Mag  SCL  ──── Pin 5  (SCL1)
-ADXL ×2   ──── Pin 3 + Pin 5 (parallèle sur I2C1)
-Mount    HAND CONTROL/AUX (RJ-12) — bus AUX :
+ADXL ×2   ──── Pin 3 + Pin 5 (parallèle sur I2C1)   VCC ── rail 5 V
+Mount    HAND CONTROL/AUX (RJ-12) — bus AUX, via pont ESP32 WiFi :
   Pin 3 (+12V) ──── NE PAS connecter
-  Pin 4 (DATA single-wire) ──┬── interface single-wire (driver open-collector 2× BC547) ──── dongle CH340 (5V) ──── USB Pi (→ /dev/ttyUSB0)
-  Pin 5 (GND)  ──────────────┴── GND dongle
+  Pin 4 (DATA single-wire) ──┬── RX LM2902 ──► GPIO16 ┐
+                             ├── TX 74AHCT125 ◄── GPIO17/GPIO32 ┤ ESP32 ─WiFi→ Pi (TCP .200:2000)
+  Pin 5 (GND)  ──────────────┴── GND commun (Pi ↔ rail 5 V ↔ bus)
 ```
 
 ## Dépannage rapide

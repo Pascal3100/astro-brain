@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alimentation — Astro-Brain</title>
+<style>
+  :root {
+    --bg:        #0a0e1a;
+    --panel:     #111a2e;
+    --panel-2:   #0d1424;
+    --line:      #1e2c47;
+    --txt:       #c8d6f0;
+    --txt-dim:   #6f82a8;
+    --accent:    #4fd1ff;
+    --accent-bg: rgba(79,209,255,.10);
+    --power:     #ffb454;
+    --gnd:       #7184a8;
+    --sig:       #4fd1ff;
+    --out:       #4fe0a0;
+    --warn:      #ff5d6c;
+    --ok:        #4fe0a0;
+    --wip:       #ffb454;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:0; background:var(--bg); color:var(--txt);
+    font-family: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:980px; margin:0 auto; padding:28px 22px 90px; }
+  header {
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap:16px; flex-wrap:wrap; margin-bottom:22px;
+    border-bottom:1px solid var(--line); padding-bottom:18px;
+  }
+  h1 { font-size:18px; margin:0; letter-spacing:.5px; }
+  h1 .sub { display:block; font-size:12px; color:var(--txt-dim); font-weight:400; margin-top:4px; letter-spacing:0; }
+  h2 {
+    font-size:13px; text-transform:uppercase; letter-spacing:1.5px;
+    color:var(--accent); margin:38px 0 14px; padding-left:10px;
+    border-left:3px solid var(--accent);
+  }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; }
+
+  .badge { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700;
+           padding:4px 10px; border-radius:20px; letter-spacing:.5px; white-space:nowrap; }
+  .badge.ok  { color:var(--ok);   background:rgba(79,224,160,.10); border:1px solid rgba(79,224,160,.4); }
+  .badge.wip { color:var(--wip);  background:rgba(255,180,84,.10); border:1px solid rgba(255,180,84,.4); }
+  .badge.mix { color:var(--accent); background:var(--accent-bg); border:1px solid rgba(79,209,255,.4); }
+
+  .legend { display:flex; flex-wrap:wrap; gap:8px 18px; margin:0 0 16px; font-size:12px; }
+  .legend span { display:inline-flex; align-items:center; gap:7px; color:var(--txt-dim); }
+  .swatch { width:18px; height:4px; border-radius:2px; display:inline-block; flex:0 0 auto; }
+  .s-sig { background:var(--sig); } .s-out { background:var(--out); }
+  .s-pwr { background:var(--power); } .s-gnd { background:var(--gnd); }
+
+  .schwrap { display:flex; justify-content:center; overflow-x:auto; }
+  svg text { font-family:inherit; }
+  .blk        { fill:var(--panel-2); stroke:var(--line); stroke-width:2; rx:10; transition:.12s; }
+  a:hover .blk { stroke:var(--accent); fill:var(--accent-bg); }
+  .blk-title  { fill:var(--txt); font-size:13px; font-weight:700; }
+  .blk-sub    { fill:var(--txt-dim); font-size:10.5px; }
+  .blk-tag    { font-size:10px; font-weight:700; letter-spacing:.5px; }
+  .w-sig { stroke:var(--sig);   stroke-width:2.5; fill:none; }
+  .w-out { stroke:var(--out);   stroke-width:2.5; fill:none; }
+  .w-pwr { stroke:var(--power); stroke-width:2.5; fill:none; }
+  .w-gnd { stroke:var(--gnd);   stroke-width:2.5; fill:none; }
+  .t-sig { fill:var(--sig); font-size:11px; } .t-pwr { fill:var(--power); font-size:11px; }
+  .t-gnd { fill:var(--gnd); font-size:11px; } .t-dim { fill:var(--txt-dim); font-size:10.5px; }
+  .arrow { fill:var(--txt-dim); }
+
+  table.netlist { width:100%; border-collapse:collapse; font-size:12px; margin:0; }
+  table.netlist th, table.netlist td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+  table.netlist th { color:var(--accent); font-weight:700; text-transform:uppercase; letter-spacing:.5px; font-size:10.5px; background:var(--panel-2); }
+  table.netlist td { color:var(--txt); }
+  table.netlist td .muted { color:var(--txt-dim); }
+  table.netlist tr:nth-child(even) td { background:rgba(255,255,255,.012); }
+
+  .warn { border-left:3px solid var(--warn); background:rgba(255,93,108,.07); padding:12px 16px; border-radius:6px; margin:12px 0; }
+  .warn b { color:var(--warn); }
+  .muted { color:var(--txt-dim); }
+  code { color:var(--accent); }
+  .back { display:inline-block; margin:0 0 8px; font-size:12px; }
+  footer { margin-top:54px; color:var(--txt-dim); font-size:11px; text-align:center; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Alimentation
+      <span class="sub">3 sources distinctes · masses communes · 2026-06-29</span>
+    </h1>
+    <span class="badge ok">✓ validé</span>
+  </header>
+
+  <a class="back" href="cablage-global.html">← Câblage global</a>
+
+  <div class="legend">
+    <span><i class="swatch s-pwr"></i> 5 V / alim</span>
+    <span><i class="swatch s-sig"></i> 3,3 V logique Pi</span>
+    <span><i class="swatch s-gnd"></i> masse commune</span>
+  </div>
+
+  <h2>Les 3 sources</h2>
+  <div class="panel">
+  <div class="schwrap">
+  <svg viewBox="0 0 920 600" width="920" style="max-width:100%; height:auto;" role="img" aria-label="Arbre d'alimentation : 3 sources distinctes et masse commune">
+    <defs>
+      <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 Z" class="arrow"/>
+      </marker>
+    </defs>
+
+    <!-- ===== SOURCE 1 : 220 V -> Alim Pi -> Pi ===== -->
+    <text x="40" y="32" class="t-pwr" style="font-weight:700">① ALIM PI — secteur</text>
+
+    <rect x="40" y="44" width="130" height="44" class="blk"/>
+    <text x="105" y="66" text-anchor="middle" class="blk-title">Secteur 220 V</text>
+    <text x="105" y="80" text-anchor="middle" class="blk-sub">prise murale</text>
+
+    <rect x="40" y="108" width="130" height="56" class="blk"/>
+    <text x="105" y="130" text-anchor="middle" class="blk-title">Adaptateur Pi</text>
+    <text x="105" y="146" text-anchor="middle" class="blk-sub">220 V → 5 V / 2,5 A</text>
+    <text x="105" y="158" text-anchor="middle" class="blk-sub">micro-USB</text>
+    <line x1="105" y1="88" x2="105" y2="108" class="w-pwr" marker-end="url(#ah)"/>
+
+    <rect x="40" y="190" width="130" height="62" class="blk"/>
+    <text x="105" y="214" text-anchor="middle" class="blk-title">Raspberry Pi 3 B+</text>
+    <text x="105" y="230" text-anchor="middle" class="blk-sub">backend FastAPI</text>
+    <text x="105" y="244" text-anchor="middle" class="blk-tag" fill="var(--ok)">✓ Pi seul</text>
+    <line x1="105" y1="164" x2="105" y2="190" class="w-pwr" marker-end="url(#ah)"/>
+
+    <!-- 3,3 V issu du Pi -->
+    <rect x="40" y="296" width="130" height="56" class="blk"/>
+    <text x="105" y="318" text-anchor="middle" class="blk-title">3,3 V</text>
+    <text x="105" y="334" text-anchor="middle" class="blk-sub">header pin 1 (3V3)</text>
+    <text x="105" y="346" text-anchor="middle" class="blk-tag" fill="var(--sig)">logique Pi</text>
+    <line x1="105" y1="252" x2="105" y2="296" class="w-sig" marker-end="url(#ah)"/>
+    <text x="115" y="278" class="t-sig">③ fournit le 3,3 V</text>
+
+    <!-- ===== SOURCE 2 : Batterie 12 V -> Buck -> Rail 5 V ===== -->
+    <text x="320" y="32" class="t-pwr" style="font-weight:700">② RAIL 5 V — batterie</text>
+
+    <rect x="320" y="44" width="140" height="44" class="blk"/>
+    <text x="390" y="66" text-anchor="middle" class="blk-title">Batterie 12 V</text>
+    <text x="390" y="80" text-anchor="middle" class="blk-sub">terrain</text>
+
+    <rect x="320" y="108" width="140" height="56" class="blk"/>
+    <text x="390" y="130" text-anchor="middle" class="blk-title">Convertisseur buck</text>
+    <text x="390" y="146" text-anchor="middle" class="blk-sub">12 V → 5 V (DC-DC)</text>
+    <text x="390" y="158" text-anchor="middle" class="blk-sub">dédié</text>
+    <line x1="390" y1="88" x2="390" y2="108" class="w-pwr" marker-end="url(#ah)"/>
+
+    <rect x="320" y="190" width="140" height="62" class="blk"/>
+    <text x="390" y="214" text-anchor="middle" class="blk-title">Rail 5 V</text>
+    <text x="390" y="230" text-anchor="middle" class="blk-sub">distribution</text>
+    <text x="390" y="244" text-anchor="middle" class="blk-tag" fill="var(--power)">tout le 5 V</text>
+    <line x1="390" y1="164" x2="390" y2="190" class="w-pwr" marker-end="url(#ah)"/>
+
+    <!-- Éventail des destinations du rail 5 V -->
+    <a href="cablage-pont-esp32.html">
+      <rect x="560" y="120" width="300" height="48" class="blk"/>
+      <text x="710" y="141" text-anchor="middle" class="blk-title">ESP32 (broche VIN)</text>
+      <text x="710" y="157" text-anchor="middle" class="blk-sub">pont WiFi ↔ bus AUX</text>
+    </a>
+    <a href="cablage-interface-aux.html">
+      <rect x="560" y="186" width="300" height="58" class="blk"/>
+      <text x="710" y="207" text-anchor="middle" class="blk-title">Interface AUX</text>
+      <text x="710" y="223" text-anchor="middle" class="blk-sub">VCC LM2902 · VCC 74AHCT125 (pin 14)</text>
+      <text x="710" y="237" text-anchor="middle" class="blk-sub">+ pull-ups éventuels</text>
+    </a>
+    <a href="cablage-capteurs-pi.html">
+      <rect x="560" y="262" width="300" height="58" class="blk"/>
+      <text x="710" y="283" text-anchor="middle" class="blk-title">VCC capteurs</text>
+      <text x="710" y="299" text-anchor="middle" class="blk-sub">GPS M8N · LIS3MDL</text>
+      <text x="710" y="313" text-anchor="middle" class="blk-sub">2× ADXL345</text>
+    </a>
+
+    <!-- Fils rail 5 V -> destinations (éventail) -->
+    <path d="M460 210 L510 210 L510 144 L560 144" class="w-pwr" marker-end="url(#ah)"/>
+    <path d="M460 218 L530 218 L530 212 L560 212" class="w-pwr" marker-end="url(#ah)"/>
+    <path d="M460 226 L510 226 L510 290 L560 290" class="w-pwr" marker-end="url(#ah)"/>
+    <text x="468" y="120" class="t-pwr">rail 5 V → destinations</text>
+
+    <!-- ===== MASSE COMMUNE ===== -->
+    <line x1="40" y1="500" x2="880" y2="500" class="w-gnd"/>
+    <text x="40" y="490" class="t-gnd" style="font-weight:700">MASSE COMMUNE — GND Pi ↔ GND rail 5 V ↔ GND bus AUX (broche 5 du RJ-12)</text>
+
+    <!-- liaisons des blocs vers la barre de masse -->
+    <line x1="105" y1="252" x2="105" y2="500" class="w-gnd"/>
+    <line x1="390" y1="252" x2="390" y2="500" class="w-gnd"/>
+    <line x1="710" y1="168" x2="710" y2="500" class="w-gnd"/>
+    <line x1="710" y1="244" x2="710" y2="500" class="w-gnd"/>
+    <line x1="710" y1="320" x2="710" y2="500" class="w-gnd"/>
+
+    <circle cx="105" cy="500" r="3.5" fill="var(--gnd)"/>
+    <circle cx="390" cy="500" r="3.5" fill="var(--gnd)"/>
+    <circle cx="710" cy="500" r="3.5" fill="var(--gnd)"/>
+
+    <text x="40" y="525" class="t-dim">Découplage : 100 nF céramique VCC↔GND au plus près de chaque CI (LM2902, 74AHCT125).</text>
+  </svg>
+  </div>
+  </div>
+
+  <h2>Détail</h2>
+  <div class="panel">
+  <table class="netlist">
+    <thead>
+      <tr>
+        <th>Source</th>
+        <th>Chaîne</th>
+        <th>Alimente</th>
+        <th>Note</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>① Alim Pi</td>
+        <td>Secteur 220 V → adaptateur dédié → 5 V / 2,5 A → micro-USB</td>
+        <td>Raspberry Pi 3 B+ <b>seul</b></td>
+        <td><span class="muted">Aucun autre composant sur cette source.</span></td>
+      </tr>
+      <tr>
+        <td>② Rail 5 V</td>
+        <td>Batterie 12 V → convertisseur buck dédié 12 V → 5 V</td>
+        <td>ESP32 (VIN) · interface AUX (VCC LM2902 + VCC 74AHCT125 pin 14 + pull-ups) · VCC capteurs (GPS M8N, LIS3MDL, 2× ADXL345)</td>
+        <td><b style="color:var(--power)">Tout le reste du 5 V.</b> <span class="muted">Aucun 5 V ne sort du Pi — les broches 5 V du header Pi ne sont pas utilisées.</span></td>
+      </tr>
+      <tr>
+        <td>③ 3,3 V</td>
+        <td>Fourni par le Pi — header broche 1 (3V3)</td>
+        <td>Logique côté Pi uniquement (niveaux GPIO / I2C / UART du Pi)</td>
+        <td><span class="muted">Ne sort pas de la zone Pi.</span></td>
+      </tr>
+      <tr>
+        <td>Masse</td>
+        <td>GND Pi ↔ GND rail 5 V ↔ GND bus AUX (broche 5 du RJ-12)</td>
+        <td>Tous les domaines</td>
+        <td><span class="muted">À câbler explicitement — voir encadré.</span></td>
+      </tr>
+      <tr>
+        <td>Découplage</td>
+        <td>100 nF céramique entre VCC et GND</td>
+        <td>Chaque CI (LM2902, 74AHCT125)</td>
+        <td><span class="muted">Au plus près des broches d'alim du circuit.</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="warn">
+    <b>⚠️ Masse commune — critique.</b> Les masses des 3 domaines doivent être reliées : <code>GND Pi ↔ GND rail 5 V ↔ GND bus AUX (broche 5 du RJ-12)</code>. Un domaine de masse séparé était l'un des suspects du blocage de la liaison monture (session S28). À câbler <b>explicitement</b>, ne pas se reposer sur une masse implicite.
+  </div>
+
+  <footer>
+    Astro-Brain DIY — alimentation du système · fil matériel Macro 1 (liaison monture).
+    Référence markdown : <code>docs/technical/hardware.md</code>. Historique : journal S26→S33.
+  </footer>
+</div>
+</body>
+</html>

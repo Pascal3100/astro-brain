@@ -13,4 +13,14 @@ Comment Astro-Brain est construit : architecture, matériel, modèle d'état, AP
 - [nexstar-capabilities.md](nexstar-capabilities.md) — historique : ce que la lib `nexstarpy` 0.1.0 (utilisée dans Macro 0 Socle / livré v0.1) wrappait. Conservé pour mémoire ; remplacé par INDI à partir de Macro 1.
 - [nexstar-protocol-reference.md](nexstar-protocol-reference.md) — référence complète du protocole NexStar (HC + AUX). Toujours utile : le driver `indi_celestron_aux` parle ce protocole en pass-through, et les opcodes manquants (backlash mount-axis) seront ajoutés via patch upstream sur cette base.
 
+## Schémas de câblage (HTML)
+
+Pages autonomes (SVG inline, thème sombre) décrivant le **câblage fonctionnel** du système, par sous-ensemble. Chaque page porte un badge de statut (✓ validé / 🔬 à valider). Point d'entrée = la page globale. Historique de l'investigation matérielle (voies mortes) : [journal](../project/journal.md) + [archive S26→S30](../project/journal/archive/2026-06-bus-aux.md).
+
+- [cablage-global.html](cablage-global.html) — **schéma bloc du système complet** : 3 alimentations, Pi ↔ capteurs, Pi ↔ WiFi ↔ ESP32 ↔ bus AUX ↔ monture, masses communes. Chaque bloc pointe vers sa page de détail.
+- [cablage-alimentation.html](cablage-alimentation.html) — les 3 sources (Pi 220→5 V/2,5 A ; rail 12→5 V ; 3,3 V du Pi), ce que chacune alimente, masses communes. ✓ validé.
+- [cablage-capteurs-pi.html](cablage-capteurs-pi.html) — header GPIO, GPS UART0, I2C1 (compass LIS3MDL `0x1E` + 2× ADXL345 `0x53`/`0x1D`), VCC depuis le rail 5 V. ✓ validé.
+- [cablage-pont-esp32.html](cablage-pont-esp32.html) — pont ESP32 STA WiFi / TCP:2000, `Serial2` GPIO16/17 + GPIO32 (/OE), rôles firmware (relais, écho, turnaround). ✓ pont · 🔬 OE.
+- [cablage-interface-aux.html](cablage-interface-aux.html) — interface single-wire : RX comparateur LM2902 (✓ prouvé S33) + TX buffer tri-state 74AHCT125 (🔬 à valider), brochage RJ-12. **Référence de câblage du bus AUX.**
+
 Voir aussi : [project/decisions.md](../project/decisions.md) pour le rationale derrière les choix techniques importants.

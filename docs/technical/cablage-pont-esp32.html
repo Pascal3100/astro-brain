@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pont ESP32 ↔ bus AUX — Astro-Brain</title>
+<style>
+  :root {
+    --bg:        #0a0e1a;
+    --panel:     #111a2e;
+    --panel-2:   #0d1424;
+    --line:      #1e2c47;
+    --txt:       #c8d6f0;
+    --txt-dim:   #6f82a8;
+    --accent:    #4fd1ff;
+    --accent-bg: rgba(79,209,255,.10);
+    --power:     #ffb454;
+    --gnd:       #7184a8;
+    --sig:       #4fd1ff;
+    --out:       #4fe0a0;
+    --warn:      #ff5d6c;
+    --ok:        #4fe0a0;
+    --wip:       #ffb454;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:0; background:var(--bg); color:var(--txt);
+    font-family: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:980px; margin:0 auto; padding:28px 22px 90px; }
+  header {
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap:16px; flex-wrap:wrap; margin-bottom:22px;
+    border-bottom:1px solid var(--line); padding-bottom:18px;
+  }
+  h1 { font-size:18px; margin:0; letter-spacing:.5px; }
+  h1 .sub { display:block; font-size:12px; color:var(--txt-dim); font-weight:400; margin-top:4px; letter-spacing:0; }
+  h2 {
+    font-size:13px; text-transform:uppercase; letter-spacing:1.5px;
+    color:var(--accent); margin:38px 0 14px; padding-left:10px;
+    border-left:3px solid var(--accent);
+  }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; }
+
+  .badge { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700;
+           padding:4px 10px; border-radius:20px; letter-spacing:.5px; white-space:nowrap; }
+  .badge.ok  { color:var(--ok);   background:rgba(79,224,160,.10); border:1px solid rgba(79,224,160,.4); }
+  .badge.wip { color:var(--wip);  background:rgba(255,180,84,.10); border:1px solid rgba(255,180,84,.4); }
+  .badge.mix { color:var(--accent); background:var(--accent-bg); border:1px solid rgba(79,209,255,.4); }
+
+  .legend { display:flex; flex-wrap:wrap; gap:8px 18px; margin:0 0 16px; font-size:12px; }
+  .legend span { display:inline-flex; align-items:center; gap:7px; color:var(--txt-dim); }
+  .swatch { width:18px; height:4px; border-radius:2px; display:inline-block; flex:0 0 auto; }
+  .s-sig { background:var(--sig); } .s-out { background:var(--out); }
+  .s-pwr { background:var(--power); } .s-gnd { background:var(--gnd); }
+  .s-wifi { background:var(--sig); height:0; border-top:2px dashed var(--sig); }
+
+  .schwrap { display:flex; justify-content:center; overflow-x:auto; }
+  svg text { font-family:inherit; }
+  .blk        { fill:var(--panel-2); stroke:var(--line); stroke-width:2; rx:10; transition:.12s; }
+  a:hover .blk { stroke:var(--accent); fill:var(--accent-bg); }
+  .blk-title  { fill:var(--txt); font-size:13px; font-weight:700; }
+  .blk-sub    { fill:var(--txt-dim); font-size:10.5px; }
+  .blk-tag    { font-size:10px; font-weight:700; letter-spacing:.5px; }
+  .w-sig { stroke:var(--sig);   stroke-width:2.5; fill:none; }
+  .w-out { stroke:var(--out);   stroke-width:2.5; fill:none; }
+  .w-pwr { stroke:var(--power); stroke-width:2.5; fill:none; }
+  .w-gnd { stroke:var(--gnd);   stroke-width:2.5; fill:none; }
+  .w-wifi{ stroke:var(--sig);   stroke-width:2; fill:none; stroke-dasharray:6 4; }
+  .t-sig { fill:var(--sig); font-size:11px; } .t-pwr { fill:var(--power); font-size:11px; }
+  .t-gnd { fill:var(--gnd); font-size:11px; } .t-dim { fill:var(--txt-dim); font-size:10.5px; }
+  .arrow { fill:var(--txt-dim); }
+
+  table { width:100%; border-collapse:collapse; margin:6px 0; font-size:12.5px; }
+  th, td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--accent); font-weight:700; text-transform:uppercase; letter-spacing:.5px; font-size:11px; }
+  tbody tr:last-child td { border-bottom:none; }
+  td code { color:var(--accent); }
+  .pin { color:var(--sig); font-weight:700; }
+
+  ol { margin:6px 0; padding-left:22px; }
+  ol li { margin:8px 0; }
+  ol li b { color:var(--txt); }
+
+  .warn { border-left:3px solid var(--warn); background:rgba(255,93,108,.07); padding:12px 16px; border-radius:6px; margin:12px 0; }
+  .warn b { color:var(--warn); }
+  .note { border-left:3px solid var(--wip); background:rgba(255,180,84,.07); padding:12px 16px; border-radius:6px; margin:12px 0; }
+  .note b { color:var(--wip); }
+  .muted { color:var(--txt-dim); }
+  code { color:var(--accent); }
+  footer { margin-top:54px; color:var(--txt-dim); font-size:11px; text-align:center; }
+  a { color:var(--accent); }
+  .back { display:inline-block; margin-bottom:18px; font-size:12px; text-decoration:none; }
+  .back:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Pont ESP32 ↔ bus AUX
+      <span class="sub">WiFi STA · TCP:2000 · Serial2 + output-enable · 2026-06-29</span>
+    </h1>
+    <span class="badge mix">◆ mixte</span>
+  </header>
+
+  <a class="back" href="cablage-global.html">← Câblage global</a>
+
+  <div class="legend">
+    <span><i class="swatch s-pwr"></i> 5 V / alim (VIN)</span>
+    <span><i class="swatch s-sig"></i> signal / Serial2</span>
+    <span><i class="swatch s-wifi"></i> liaison WiFi</span>
+    <span><i class="swatch s-gnd"></i> masse commune</span>
+  </div>
+
+  <h2>Brochage ESP32</h2>
+  <div class="panel">
+  <div class="schwrap">
+  <svg viewBox="0 0 900 470" width="900" style="max-width:100%; height:auto;" role="img" aria-label="Brochage du pont ESP32">
+    <defs>
+      <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 Z" class="arrow"/>
+      </marker>
+    </defs>
+
+    <!-- ===== PI (gauche, liaison WiFi) ===== -->
+    <rect x="40" y="150" width="170" height="92" class="blk"/>
+    <text x="125" y="182" text-anchor="middle" class="blk-title">Raspberry Pi</text>
+    <text x="125" y="200" text-anchor="middle" class="blk-sub">driver INDI</text>
+    <text x="125" y="216" text-anchor="middle" class="blk-sub">indi_celestron_aux</text>
+    <text x="125" y="232" text-anchor="middle" class="blk-tag" fill="var(--sig)">mode Network · TCP:2000</text>
+
+    <!-- WiFi link Pi <-> ESP32 -->
+    <path d="M210 184 L370 184" class="w-wifi" marker-end="url(#ah)"/>
+    <path d="M370 208 L210 208" class="w-wifi" marker-end="url(#ah)"/>
+    <text x="222" y="172" class="t-sig">WiFi STA · 192.168.1.200:2000</text>
+    <text x="222" y="228" class="t-dim">octets driver ↔ bus AUX</text>
+
+    <!-- ===== ESP32 (centre) ===== -->
+    <rect x="370" y="120" width="190" height="150" class="blk"/>
+    <text x="465" y="150" text-anchor="middle" class="blk-title">ESP32 DevKit</text>
+    <text x="465" y="167" text-anchor="middle" class="blk-sub">CP2102 · WiFi STA</text>
+    <text x="465" y="183" text-anchor="middle" class="blk-sub">Serial2 19200 8N2</text>
+    <text x="465" y="252" text-anchor="middle" class="blk-tag" fill="var(--ok)">✓ pont · <tspan fill="var(--wip)">🔬 /OE</tspan></text>
+
+    <!-- VIN power in (top) -->
+    <line x1="465" y1="60" x2="465" y2="120" class="w-pwr" marker-end="url(#ah)"/>
+    <text x="475" y="84" class="t-pwr">VIN ← rail 5 V</text>
+
+    <!-- ===== INTERFACE AUX (droite) ===== -->
+    <a href="cablage-interface-aux.html">
+      <rect x="690" y="100" width="170" height="190" class="blk"/>
+      <text x="775" y="132" text-anchor="middle" class="blk-title">Interface AUX</text>
+      <text x="775" y="172" text-anchor="middle" class="blk-sub">LM2902</text>
+      <text x="775" y="186" text-anchor="middle" class="blk-sub">comparateur (RX)</text>
+      <text x="775" y="224" text-anchor="middle" class="blk-sub">74AHCT125</text>
+      <text x="775" y="238" text-anchor="middle" class="blk-sub">buffer tri-state (TX)</text>
+    </a>
+
+    <!-- G16 RX <- LM2902 -->
+    <path d="M690 160 L560 160" class="w-sig" marker-end="url(#ah)"/>
+    <text x="566" y="150" class="t-sig">G16 RX ← LM2902</text>
+    <text x="566" y="138" class="t-dim">~2,9 V</text>
+
+    <!-- G17 TX -> 74AHCT125 (1A) -->
+    <path d="M560 200 L690 200" class="w-sig" marker-end="url(#ah)"/>
+    <text x="566" y="194" class="t-sig">G17 TX → 1A</text>
+
+    <!-- G32 /OE -> 74AHCT125 (pin 1) -->
+    <path d="M560 232 L690 232" class="w-out" marker-end="url(#ah)"/>
+    <text x="566" y="226" class="t-dim" style="fill:var(--out)">G32 /OE → pin 1</text>
+    <text x="566" y="248" class="t-dim">LOW = émet</text>
+
+    <!-- ===== MASSE ===== -->
+    <line x1="40" y1="400" x2="860" y2="400" class="w-gnd"/>
+    <text x="40" y="390" class="t-gnd" style="font-weight:700">MASSE COMMUNE — ESP32 GND ↔ rail 5 V ↔ interface AUX ↔ Pi</text>
+    <line x1="125" y1="242" x2="125" y2="400" class="w-gnd"/>
+    <line x1="465" y1="270" x2="465" y2="400" class="w-gnd"/>
+    <line x1="775" y1="290" x2="775" y2="400" class="w-gnd"/>
+    <circle cx="125" cy="400" r="3.5" fill="var(--gnd)"/>
+    <circle cx="465" cy="400" r="3.5" fill="var(--gnd)"/>
+    <circle cx="775" cy="400" r="3.5" fill="var(--gnd)"/>
+  </svg>
+  </div>
+  </div>
+
+  <div class="panel" style="margin-top:14px;">
+  <table>
+    <thead>
+      <tr><th>GPIO</th><th>Rôle</th><th>Vers</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="pin">GPIO16</td>
+        <td>RX (UART)</td>
+        <td>← sortie du comparateur <b>LM2902</b> (étage RX de l'interface AUX, niveau ~2,9 V)</td>
+      </tr>
+      <tr>
+        <td class="pin">GPIO17</td>
+        <td>TX (UART)</td>
+        <td>→ entrée <b>1A</b> du buffer <b>74AHCT125</b> (étage TX)</td>
+      </tr>
+      <tr>
+        <td class="pin">GPIO32</td>
+        <td>TX-enable</td>
+        <td>→ <b>/OE (pin 1)</b> du 74AHCT125 — <b>LOW</b> pendant l'émission (buffer actif), <b>HIGH</b> au repos (buffer en Hi-Z → le LM2902 lit le bus)</td>
+      </tr>
+      <tr>
+        <td class="pin">VIN</td>
+        <td>Alimentation</td>
+        <td>← <b>rail 5 V</b> (en exploitation ; <span class="muted">PAS l'USB</span>)</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="muted" style="margin:10px 0 0; font-size:12px;">
+    Serial2 initialisé par <code>Serial2.begin(19200, SERIAL_8N2, 16, 17)</code>.
+    <code>pinMode(32, OUTPUT)</code> avec <code>digitalWrite(32, HIGH)</code> par défaut (buffer désactivé = Hi-Z).
+  </p>
+  <p class="muted" style="margin:8px 0 0; font-size:12px;">
+    GPIO32 reproduit le timing du signal <code>BUSYOUT</code> du firmware de référence g7ltt / Mark Lord
+    (<code>esp32_wifi-V3.8.ino</code>, pins AUXBUS_RX=16 / TX=17 / BUSYOUT=32), mais ici en <b>output-enable LOCAL pur</b> :
+    on ne câble PAS la ligne BUSY du bus (broche 6 du RJ-12), inutile en mono-maître (raquette débranchée).
+  </p>
+  </div>
+
+  <h2>Liaison réseau</h2>
+  <div class="panel">
+    <table>
+      <tbody>
+        <tr><td style="width:160px;"><b>Mode WiFi</b></td><td>Station (<b>STA</b>), repli AP au boot si la station ne se connecte pas.</td></tr>
+        <tr><td><b>IP fixe</b></td><td><code>192.168.1.200</code></td></tr>
+        <tr><td><b>Serveur</b></td><td>TCP, port <code>2000</code>.</td></tr>
+        <tr><td><b>Client</b></td><td>Driver <code>indi_celestron_aux</code> (sur le Pi) en <b>mode Network</b> → <code>192.168.1.200:2000</code>, au lieu d'une liaison série.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Rôles firmware</h2>
+  <div class="panel">
+    <ol>
+      <li><b>Relais bidirectionnel</b> TCP ↔ UART : les octets du driver INDI transitent vers le bus AUX, et inversement.</li>
+      <li><b>Suppression d'écho half-duplex</b> : le bus single-wire renvoie notre propre émission ; le firmware mémorise le dernier paquet émis et <b>jette l'écho</b> (comparaison), de sorte que seule la vraie réponse moteur remonte au driver.</li>
+      <li><b>Fenêtre de turnaround</b> : <code>digitalWrite(GPIO32, LOW)</code> AVANT d'émettre (active le buffer), puis <code>HIGH</code> APRÈS (relâche en Hi-Z pour écouter). C'est le point <b>à valider</b> matériellement.</li>
+      <li><b>Robustesse WiFi</b> : reconnexion sur événement <code>STA_DISCONNECTED</code>, watchdog <code>ESP.restart()</code> si station down &gt; 30 s, fermeture des sockets morts, <code>setNoDelay</code>.</li>
+    </ol>
+  </div>
+
+  <div class="note">
+    <b>🔬 À valider — /OE sur GPIO32 + fenêtre de turnaround.</b>
+    Le pont WiFi/TCP, le RX (GPIO16 depuis le LM2902) et la robustesse WiFi sont <b>validés</b> (prouvés sessions S29/S32/S33 : la monture bouge via le pont, RX prouvé de bout en bout).
+    En revanche, le contrôle <b>/OE sur GPIO32</b> et la fenêtre de turnaround pilotant le TX via le 74AHCT125 restent <b>à valider</b> matériellement : il faut vérifier que le buffer s'active LOW juste avant l'émission et relâche en Hi-Z juste après, sans rogner ni traîner sur les octets du bus.
+  </div>
+
+  <footer>
+    Astro-Brain DIY — ③ Pont ESP32 · fil matériel Macro 1 (liaison monture).
+    Référence markdown : <code>docs/technical/hardware.md</code>. Firmware réf. : g7ltt / Mark Lord <code>esp32_wifi-V3.8.ino</code>. Historique : journal S29 → S33.
+  </footer>
+</div>
+</body>
+</html>

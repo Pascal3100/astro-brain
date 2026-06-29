@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capteurs Pi (GPIO) — Astro-Brain</title>
+<style>
+  :root {
+    --bg:        #0a0e1a;
+    --panel:     #111a2e;
+    --panel-2:   #0d1424;
+    --line:      #1e2c47;
+    --txt:       #c8d6f0;
+    --txt-dim:   #6f82a8;
+    --accent:    #4fd1ff;
+    --accent-bg: rgba(79,209,255,.10);
+    --power:     #ffb454;
+    --gnd:       #7184a8;
+    --sig:       #4fd1ff;
+    --out:       #4fe0a0;
+    --warn:      #ff5d6c;
+    --ok:        #4fe0a0;
+    --wip:       #ffb454;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:0; background:var(--bg); color:var(--txt);
+    font-family: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:980px; margin:0 auto; padding:28px 22px 90px; }
+  header {
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap:16px; flex-wrap:wrap; margin-bottom:22px;
+    border-bottom:1px solid var(--line); padding-bottom:18px;
+  }
+  h1 { font-size:18px; margin:0; letter-spacing:.5px; }
+  h1 .sub { display:block; font-size:12px; color:var(--txt-dim); font-weight:400; margin-top:4px; letter-spacing:0; }
+  h2 {
+    font-size:13px; text-transform:uppercase; letter-spacing:1.5px;
+    color:var(--accent); margin:38px 0 14px; padding-left:10px;
+    border-left:3px solid var(--accent);
+  }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; }
+
+  .badge { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700;
+           padding:4px 10px; border-radius:20px; letter-spacing:.5px; white-space:nowrap; }
+  .badge.ok  { color:var(--ok);   background:rgba(79,224,160,.10); border:1px solid rgba(79,224,160,.4); }
+  .badge.wip { color:var(--wip);  background:rgba(255,180,84,.10); border:1px solid rgba(255,180,84,.4); }
+  .badge.mix { color:var(--accent); background:var(--accent-bg); border:1px solid rgba(79,209,255,.4); }
+
+  .legend { display:flex; flex-wrap:wrap; gap:8px 18px; margin:0 0 16px; font-size:12px; }
+  .legend span { display:inline-flex; align-items:center; gap:7px; color:var(--txt-dim); }
+  .swatch { width:18px; height:4px; border-radius:2px; display:inline-block; flex:0 0 auto; }
+  .s-sig { background:var(--sig); } .s-out { background:var(--out); }
+  .s-pwr { background:var(--power); } .s-gnd { background:var(--gnd); }
+  .s-wifi { background:var(--sig); height:0; border-top:2px dashed var(--sig); }
+
+  .schwrap { display:flex; justify-content:center; overflow-x:auto; }
+  svg text { font-family:inherit; }
+  .blk        { fill:var(--panel-2); stroke:var(--line); stroke-width:2; rx:10; transition:.12s; }
+  a:hover .blk { stroke:var(--accent); fill:var(--accent-bg); }
+  .blk-title  { fill:var(--txt); font-size:13px; font-weight:700; }
+  .blk-sub    { fill:var(--txt-dim); font-size:10.5px; }
+  .blk-tag    { font-size:10px; font-weight:700; letter-spacing:.5px; }
+  .w-sig { stroke:var(--sig);   stroke-width:2.5; fill:none; }
+  .w-out { stroke:var(--out);   stroke-width:2.5; fill:none; }
+  .w-pwr { stroke:var(--power); stroke-width:2.5; fill:none; }
+  .w-gnd { stroke:var(--gnd);   stroke-width:2.5; fill:none; }
+  .w-wifi{ stroke:var(--sig);   stroke-width:2; fill:none; stroke-dasharray:6 4; }
+  .t-sig { fill:var(--sig); font-size:11px; } .t-pwr { fill:var(--power); font-size:11px; }
+  .t-gnd { fill:var(--gnd); font-size:11px; } .t-dim { fill:var(--txt-dim); font-size:10.5px; }
+  .arrow { fill:var(--txt-dim); }
+
+  .cards { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:760px){ .cards { grid-template-columns:1fr; } }
+  .card { display:block; text-decoration:none; color:inherit; border:1px solid var(--line);
+          border-radius:10px; padding:14px 16px; background:var(--panel); transition:.12s; }
+  .card:hover { border-color:var(--accent); background:var(--accent-bg); }
+  .card .ct { font-size:13px; font-weight:700; color:var(--txt); margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .card .cd { font-size:12px; color:var(--txt-dim); }
+
+  .warn { border-left:3px solid var(--warn); background:rgba(255,93,108,.07); padding:12px 16px; border-radius:6px; margin:12px 0; }
+  .warn b { color:var(--warn); }
+  .muted { color:var(--txt-dim); }
+  code { color:var(--accent); }
+  footer { margin-top:54px; color:var(--txt-dim); font-size:11px; text-align:center; }
+  a { color:var(--accent); }
+
+  table { width:100%; border-collapse:collapse; font-size:12.5px; margin:4px 0; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--accent); text-transform:uppercase; font-size:10.5px; letter-spacing:1px; font-weight:700; }
+  td.mono, th.mono { white-space:nowrap; }
+  tr:last-child td { border-bottom:none; }
+  .back { display:inline-block; margin-bottom:18px; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Capteurs Pi (GPIO)
+      <span class="sub">GPS UART0 + I2C1 (compass + 2× ADXL345) · 2026-06-29</span>
+    </h1>
+    <span class="badge ok">✓ validé</span>
+  </header>
+
+  <a class="back" href="cablage-global.html">← Câblage global</a>
+
+  <div class="legend">
+    <span><i class="swatch s-pwr"></i> VCC ← rail 5 V</span>
+    <span><i class="swatch s-sig"></i> signal / data (3,3 V)</span>
+    <span><i class="swatch s-gnd"></i> masse commune</span>
+  </div>
+
+  <h2>Brochage du header GPIO</h2>
+  <div class="panel">
+  <div class="schwrap">
+  <svg viewBox="0 0 880 380" width="880" style="max-width:100%; height:auto;" role="img" aria-label="Header GPIO du Raspberry Pi, broches 1 à 10">
+    <defs>
+      <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 Z" class="arrow"/>
+      </marker>
+    </defs>
+
+    <!-- ===== HEADER GPIO 2x5 (broches 1-10) ===== -->
+    <text x="70" y="34" class="blk-title">Header GPIO — broches 1 à 10</text>
+    <rect x="70" y="48" width="250" height="118" class="blk" rx="8"/>
+
+    <!-- rangée impaire (1,3,5,7,9) - colonne gauche -->
+    <!-- pin 1 : 3V3 (sig) -->
+    <circle cx="110" cy="78" r="9" fill="var(--sig)"/>
+    <text x="110" y="82" text-anchor="middle" class="t-dim" style="fill:var(--bg);font-weight:700">1</text>
+    <text x="96" y="68" text-anchor="end" class="t-sig" style="font-size:10px">3V3</text>
+
+    <!-- pin 3 : SDA1 (sig) -->
+    <circle cx="110" cy="98" r="9" fill="var(--sig)"/>
+    <text x="110" y="102" text-anchor="middle" style="font-size:9px;fill:var(--bg);font-weight:700">3</text>
+    <text x="96" y="101" text-anchor="end" class="t-sig" style="font-size:10px">SDA1</text>
+
+    <!-- pin 5 : SCL1 (sig) -->
+    <circle cx="110" cy="118" r="9" fill="var(--sig)"/>
+    <text x="110" y="122" text-anchor="middle" style="font-size:9px;fill:var(--bg);font-weight:700">5</text>
+    <text x="96" y="121" text-anchor="end" class="t-sig" style="font-size:10px">SCL1</text>
+
+    <!-- pin 7 : non utilisé -->
+    <circle cx="110" cy="138" r="9" fill="none" stroke="var(--line)" stroke-width="2"/>
+    <text x="110" y="142" text-anchor="middle" style="font-size:9px;fill:var(--txt-dim)">7</text>
+
+    <!-- pin 9 : GND -->
+    <circle cx="110" cy="158" r="9" fill="var(--gnd)"/>
+    <text x="110" y="162" text-anchor="middle" style="font-size:9px;fill:var(--bg);font-weight:700">9</text>
+    <text x="96" y="161" text-anchor="end" class="t-gnd" style="font-size:10px">GND</text>
+
+    <!-- rangée paire (2,4,6,8,10) - colonne droite -->
+    <!-- pin 2 : 5V non utilisé -->
+    <circle cx="280" cy="78" r="9" fill="none" stroke="var(--line)" stroke-width="2"/>
+    <text x="280" y="82" text-anchor="middle" style="font-size:9px;fill:var(--txt-dim)">2</text>
+    <text x="294" y="68" text-anchor="start" class="t-dim" style="font-size:10px">5V (n/c)</text>
+
+    <!-- pin 4 : non utilisé -->
+    <circle cx="280" cy="98" r="9" fill="none" stroke="var(--line)" stroke-width="2"/>
+    <text x="280" y="102" text-anchor="middle" style="font-size:9px;fill:var(--txt-dim)">4</text>
+
+    <!-- pin 6 : GND -->
+    <circle cx="280" cy="118" r="9" fill="var(--gnd)"/>
+    <text x="280" y="122" text-anchor="middle" style="font-size:9px;fill:var(--bg);font-weight:700">6</text>
+    <text x="294" y="121" text-anchor="start" class="t-gnd" style="font-size:10px">GND</text>
+
+    <!-- pin 8 : TXD0 (sig) -->
+    <circle cx="280" cy="138" r="9" fill="var(--sig)"/>
+    <text x="280" y="142" text-anchor="middle" style="font-size:9px;fill:var(--bg);font-weight:700">8</text>
+    <text x="294" y="141" text-anchor="start" class="t-sig" style="font-size:10px">TXD0</text>
+
+    <!-- pin 10 : RXD0 (sig) -->
+    <circle cx="280" cy="158" r="9" fill="var(--sig)"/>
+    <text x="280" y="162" text-anchor="middle" style="font-size:9px;fill:var(--bg);font-weight:700">10</text>
+    <text x="294" y="161" text-anchor="start" class="t-sig" style="font-size:10px">RXD0</text>
+
+    <text x="195" y="184" text-anchor="middle" class="t-dim">Pi 3 B+ · vue broches 1–10</text>
+
+    <!-- ===== BLOC GPS (UART0) ===== -->
+    <rect x="560" y="56" width="250" height="80" class="blk"/>
+    <text x="685" y="84" text-anchor="middle" class="blk-title">GPS M8N</text>
+    <text x="685" y="102" text-anchor="middle" class="blk-sub">UART0 · DroTek Ublox</text>
+    <text x="685" y="120" text-anchor="middle" class="blk-tag" fill="var(--ok)">✓ validé</text>
+
+    <!-- TXD0 (pin 8) -> GPS RX -->
+    <path d="M320 138 L440 138 L440 96 L560 96" class="w-sig" marker-end="url(#ah)"/>
+    <text x="448" y="130" class="t-sig">TXD0 → GPS RX</text>
+    <!-- GPS TX -> RXD0 (pin 10) -->
+    <path d="M560 116 L440 116 L440 158 L320 158" class="w-sig" marker-end="url(#ah)"/>
+    <text x="448" y="174" class="t-sig">GPS TX → RXD0</text>
+
+    <!-- ===== BLOC I2C1 ===== -->
+    <rect x="560" y="220" width="250" height="92" class="blk"/>
+    <text x="685" y="248" text-anchor="middle" class="blk-title">I2C1</text>
+    <text x="685" y="266" text-anchor="middle" class="blk-sub">LIS3MDL · 2× ADXL345</text>
+    <text x="685" y="282" text-anchor="middle" class="blk-sub">0x1E · 0x53 · 0x1D</text>
+    <text x="685" y="300" text-anchor="middle" class="blk-tag" fill="var(--ok)">✓ validé</text>
+
+    <!-- SDA1 (pin 3) + SCL1 (pin 5) -> I2C1 -->
+    <path d="M320 98 L400 98 L400 250 L560 250" class="w-sig" marker-end="url(#ah)"/>
+    <path d="M320 118 L420 118 L420 270 L560 270" class="w-sig" marker-end="url(#ah)"/>
+    <text x="408" y="338" class="t-sig">SDA1 / SCL1 (bus partagé)</text>
+
+    <!-- ===== RAIL 5V (VCC capteurs) ===== -->
+    <rect x="70" y="280" width="180" height="56" class="blk"/>
+    <text x="160" y="304" text-anchor="middle" class="blk-title" style="fill:var(--power)">Rail 5 V</text>
+    <text x="160" y="322" text-anchor="middle" class="blk-sub">12 V → 5 V (externe)</text>
+    <!-- rail 5V -> GPS VCC -->
+    <path d="M250 296 L520 296 L520 130 L560 130" class="w-pwr" marker-end="url(#ah)"/>
+    <text x="300" y="288" class="t-pwr">VCC GPS ← rail 5 V</text>
+    <!-- rail 5V -> I2C VCC -->
+    <path d="M250 312 L500 312 L500 300 L560 300" class="w-pwr" marker-end="url(#ah)"/>
+    <text x="300" y="328" class="t-pwr">VCC capteurs I2C ← rail 5 V</text>
+  </svg>
+  </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th class="mono">Pin</th><th class="mono">BCM</th><th>Fonction</th><th>Usage</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="mono">1</td><td class="mono">—</td><td>3V3</td><td>logique 3,3 V du Pi</td></tr>
+      <tr><td class="mono">2</td><td class="mono">—</td><td>5V</td><td><span class="muted">NON utilisé — le 5 V vient du rail externe, pas du Pi</span></td></tr>
+      <tr><td class="mono">3</td><td class="mono">GPIO2</td><td>SDA1</td><td>I2C data (compass + 2× ADXL345)</td></tr>
+      <tr><td class="mono">5</td><td class="mono">GPIO3</td><td>SCL1</td><td>I2C clock</td></tr>
+      <tr><td class="mono">6</td><td class="mono">—</td><td>GND</td><td>masse commune</td></tr>
+      <tr><td class="mono">8</td><td class="mono">GPIO14</td><td>TXD0</td><td>Pi TX → GPS RX</td></tr>
+      <tr><td class="mono">9</td><td class="mono">—</td><td>GND</td><td>masse</td></tr>
+      <tr><td class="mono">10</td><td class="mono">GPIO15</td><td>RXD0</td><td>Pi RX ← GPS TX</td></tr>
+    </tbody>
+  </table>
+
+  <div class="warn">
+    <b>⚠️ VCC des capteurs : depuis le rail 5 V, pas le Pi.</b> Le <b>VCC de tous les capteurs vient du rail 5 V</b> (convertisseur 12 V → 5 V), <b>pas des broches 5 V du Pi</b>. Seul le <b>3,3 V</b> vient du Pi. Les modules ont des régulateurs intégrés et une logique I2C/UART compatible 3,3 V — les niveaux <code>SDA</code>/<code>SCL</code>/<code>UART</code> vers le Pi restent en 3,3 V. Vérifier que chaque breakout accepte bien 5 V en VCC avant de brancher. <b>Masse commune Pi ↔ rail 5 V obligatoire.</b>
+  </div>
+
+  <h2>GPS — UART0</h2>
+  <div class="panel">
+  <div class="schwrap">
+  <svg viewBox="0 0 760 220" width="760" style="max-width:100%; height:auto;" role="img" aria-label="Connexions GPS M8N sur UART0">
+    <defs>
+      <marker id="ah2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 Z" class="arrow"/>
+      </marker>
+    </defs>
+    <!-- Pi -->
+    <rect x="40" y="50" width="200" height="120" class="blk"/>
+    <text x="140" y="78" text-anchor="middle" class="blk-title">Raspberry Pi 3 B+</text>
+    <text x="140" y="96" text-anchor="middle" class="blk-sub">UART0 (GPIO)</text>
+    <text x="48" y="124" class="t-sig">pin 8 · TXD0 (GPIO14)</text>
+    <text x="48" y="144" class="t-sig">pin 10 · RXD0 (GPIO15)</text>
+    <text x="48" y="162" class="t-gnd">pin 9 · GND</text>
+
+    <!-- GPS -->
+    <rect x="520" y="50" width="200" height="120" class="blk"/>
+    <text x="620" y="78" text-anchor="middle" class="blk-title">GPS DroTek M8N</text>
+    <text x="620" y="96" text-anchor="middle" class="blk-sub">Ublox · LDO intégré</text>
+    <text x="712" y="124" text-anchor="end" class="t-sig">RX</text>
+    <text x="712" y="144" text-anchor="end" class="t-sig">TX</text>
+    <text x="712" y="162" class="t-gnd" text-anchor="end">VCC · GND</text>
+
+    <!-- TXD0 -> GPS RX -->
+    <line x1="240" y1="120" x2="520" y2="120" class="w-sig" marker-end="url(#ah2)"/>
+    <text x="290" y="112" class="t-sig">TXD0 → GPS RX</text>
+    <!-- GPS TX -> RXD0 -->
+    <line x1="520" y1="140" x2="240" y2="140" class="w-sig" marker-end="url(#ah2)"/>
+    <text x="290" y="156" class="t-sig">GPS TX → RXD0</text>
+
+    <!-- Rail 5V -> GPS VCC -->
+    <rect x="320" y="20" width="140" height="22" class="blk" rx="6"/>
+    <text x="390" y="35" text-anchor="middle" class="t-pwr" style="font-weight:700">Rail 5 V</text>
+    <path d="M460 31 L640 31 L640 50" class="w-pwr" marker-end="url(#ah2)"/>
+    <text x="500" y="48" class="t-pwr">VCC ← 5 V</text>
+
+    <!-- masse commune -->
+    <line x1="140" y1="170" x2="140" y2="200" class="w-gnd"/>
+    <line x1="620" y1="170" x2="620" y2="200" class="w-gnd"/>
+    <line x1="140" y1="200" x2="620" y2="200" class="w-gnd"/>
+    <circle cx="140" cy="200" r="3.5" fill="var(--gnd)"/>
+    <circle cx="620" cy="200" r="3.5" fill="var(--gnd)"/>
+    <text x="280" y="216" class="t-gnd">masse commune Pi ↔ rail 5 V ↔ GPS</text>
+  </svg>
+  </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>Signal GPS</th><th>Sens</th><th>Vers le Pi</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>VCC</td><td class="mono">←</td><td><span class="t-pwr">rail 5 V</span> (PAS le Pi ; LDO intégré, accepte 5 V)</td></tr>
+      <tr><td>GND</td><td class="mono">—</td><td>masse commune</td></tr>
+      <tr><td>TX</td><td class="mono">→</td><td>Pi <b>RXD0</b> (GPIO15, pin 10)</td></tr>
+      <tr><td>RX</td><td class="mono">←</td><td>Pi <b>TXD0</b> (GPIO14, pin 8)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Bus I2C1</h2>
+  <div class="panel">
+  <div class="schwrap">
+  <svg viewBox="0 0 800 280" width="800" style="max-width:100%; height:auto;" role="img" aria-label="Bus I2C1 avec trois devices">
+    <defs>
+      <marker id="ah3" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 Z" class="arrow"/>
+      </marker>
+    </defs>
+    <!-- Pi -->
+    <rect x="40" y="100" width="160" height="80" class="blk"/>
+    <text x="120" y="128" text-anchor="middle" class="blk-title">Pi · I2C1</text>
+    <text x="120" y="146" text-anchor="middle" class="t-sig" style="font-size:10.5px">SDA1 GPIO2 · pin 3</text>
+    <text x="120" y="162" text-anchor="middle" class="t-sig" style="font-size:10.5px">SCL1 GPIO3 · pin 5</text>
+
+    <!-- bus lines -->
+    <line x1="200" y1="130" x2="620" y2="130" class="w-sig"/>
+    <line x1="200" y1="150" x2="620" y2="150" class="w-sig"/>
+    <text x="300" y="122" class="t-sig">SDA</text>
+    <text x="300" y="168" class="t-sig">SCL</text>
+
+    <!-- device 1 : LIS3MDL -->
+    <rect x="280" y="30" width="150" height="58" class="blk"/>
+    <text x="355" y="54" text-anchor="middle" class="blk-title">LIS3MDL</text>
+    <text x="355" y="72" text-anchor="middle" class="blk-sub">compass · 0x1E</text>
+    <line x1="320" y1="88" x2="320" y2="130" class="w-sig"/>
+    <line x1="390" y1="88" x2="390" y2="150" class="w-sig"/>
+
+    <!-- device 2 : ADXL tube -->
+    <rect x="280" y="200" width="150" height="58" class="blk"/>
+    <text x="355" y="224" text-anchor="middle" class="blk-title">ADXL345 tube</text>
+    <text x="355" y="242" text-anchor="middle" class="blk-sub">0x53 · SDO=VCC</text>
+    <line x1="320" y1="200" x2="320" y2="130" class="w-sig"/>
+    <line x1="390" y1="200" x2="390" y2="150" class="w-sig"/>
+
+    <!-- device 3 : ADXL monture -->
+    <rect x="490" y="200" width="150" height="58" class="blk"/>
+    <text x="565" y="224" text-anchor="middle" class="blk-title">ADXL345 monture</text>
+    <text x="565" y="242" text-anchor="middle" class="blk-sub">0x1D · SDO=GND</text>
+    <line x1="530" y1="200" x2="530" y2="130" class="w-sig"/>
+    <line x1="600" y1="200" x2="600" y2="150" class="w-sig"/>
+
+    <!-- Rail 5V -> VCC -->
+    <rect x="490" y="30" width="150" height="40" class="blk" rx="6"/>
+    <text x="565" y="48" text-anchor="middle" class="t-pwr" style="font-weight:700">Rail 5 V</text>
+    <text x="565" y="63" text-anchor="middle" class="blk-sub">VCC des 3 devices</text>
+
+    <text x="380" y="276" text-anchor="middle" class="t-dim">2 ADXL345 sur le même bus via la broche SDO — pas de multiplexeur</text>
+  </svg>
+  </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>Device</th><th class="mono">Adresse</th><th>Sélection</th><th>Usage</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>LIS3MDL (compass)</td><td class="mono">0x1E</td><td>— (WHO_AM_I 0x0F = 0x3D)</td><td>cap magnétique</td></tr>
+      <tr><td>ADXL345 tube</td><td class="mono">0x53</td><td>SDO = VCC</td><td>zéro ALT, butées</td></tr>
+      <tr><td>ADXL345 monture</td><td class="mono">0x1D</td><td>SDO = GND</td><td>niveau trépied</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">Bus I2C1 : SDA = GPIO2 (pin 3), SCL = GPIO3 (pin 5). VCC des 3 devices ← rail 5 V. Les 2 ADXL345 cohabitent sur le même bus grâce à la broche SDO (pas de multiplexeur).</p>
+
+  <footer>
+    Astro-Brain DIY — capteurs Pi (GPIO) · fil matériel.
+    Référence markdown : <code>docs/technical/hardware.md</code>. Voir aussi : <a href="cablage-global.html">câblage global</a>.
+  </footer>
+</div>
+</body>
+</html>
