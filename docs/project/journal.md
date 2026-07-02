@@ -54,7 +54,9 @@ Thread matériel + firmware (suite S35). Édition workstation, **flash ESP32 en 
 
 **Ops :** utilisateur désormais **dans le groupe `dialout`** → plus de `sudo chmod` sur `/dev/ttyUSB0` (note S33 caduque). Cycle de flash : conflit 5 V → USB workstation pour flasher, bench pour tester ; le passage bench→USB→bench fait un power-cycle propre (l'ouverture du port par arduino-cli laisse parfois l'ESP32 figé par DTR/RTS — un reboot le lève). Sonde `aux_probe.py` (validante) + `aux_probe_raw.py` (dump brut) dans le scratchpad.
 
-**🔜 Reprise prochaine session (ordonnée) :** (1) **jalon C INDI** : `indiserver -v indi_celestron_aux` en mode Network (`.200:2000`) sur le Pi, voir si le driver dialogue (GET_VER, positions, slew réel) ; (2) **ADR pivot ESP32** (déroge à « pas d'Arduino ») ; (3) fix backend `set_time`/`set_location` (S27). Pense à **committer le firmware** (reconstruit, non committé à ce stade).
+**OTA ajouté (compilé, pas encore flashé).** `ArduinoOTA` intégré au firmware (hostname `astro-brain-aux`, port 3232, mot de passe `astrobrain`) pour flasher **par WiFi** et ne plus subir le cycle USB↔bench (conflit 5 V). Compile (73 % flash, rentre dans la partition OTA du FQBN par défaut). Le build **actuellement flashé** reste la version prod S36 **sans OTA** — l'OTA exige **un dernier flash USB de bootstrap** avant d'être opérationnel (reporté à la prochaine session). Outil de flash WiFi : `espota.py` (`~/.arduino15/packages/esp32/hardware/esp32/3.3.10/tools/`).
+
+**🔜 Reprise prochaine session (ordonnée) :** (0) **bootstrap OTA** : 1 dernier flash USB de la version OTA, puis tester un flash par WiFi (`espota.py -i 192.168.1.200 -p 3232 -a astrobrain -f <bin>`) → ensuite plus jamais de débranchage ; (1) **jalon C INDI** : `indiserver -v indi_celestron_aux` en mode Network (`.200:2000`) sur le Pi, voir si le driver dialogue (GET_VER, positions, slew réel) ; (2) **ADR pivot ESP32** (déroge à « pas d'Arduino ») ; (3) fix backend `set_time`/`set_location` (S27).
 
 ### Session 35 — Hardware AUX validé : le moteur répond (round-trip TX) (2026-07-01)
 

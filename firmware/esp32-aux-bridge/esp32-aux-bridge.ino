@@ -31,6 +31,7 @@
 //   GND -> br.5   |   +12V (br.3) : NE JAMAIS connecter
 
 #include <WiFi.h>
+#include <ArduinoOTA.h>   // flash par WiFi (OTA) : plus besoin de débrancher pour reflasher
 #include "secrets.h"   // WIFI_SSID, WIFI_PASS — fichier hors repo (gitignore)
 
 // ---- Drapeau diagnostic (cf. S33) ----
@@ -63,6 +64,10 @@ IPAddress staDNS (192, 168, 1, 254);
 // ---- Repli AP si la station échoue (jamais verrouillé / toujours joignable) ----
 const char* AP_SSID = "AstroBrain-AUX";
 const char* AP_PASS = "astrobrain";     // WPA2 : 8 caractères mini
+
+// ---- OTA (flash par WiFi, port 3232) ----
+const char* OTA_HOSTNAME = "astro-brain-aux";
+const char* OTA_PASS     = "astrobrain";   // mot de passe du flash OTA
 
 // ---- Garde-temps ----
 constexpr uint32_t STA_JOIN_MS         = 10000;  // délai d'attente STA au boot avant repli AP
@@ -149,6 +154,15 @@ void setup() {
     Serial.printf("[wifi] repli AP=%s ip=%s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
   }
 
+  // --- OTA : flash par WiFi (port 3232), plus besoin de débrancher pour reflasher ---
+  ArduinoOTA.setHostname(OTA_HOSTNAME);
+  ArduinoOTA.setPassword(OTA_PASS);
+  ArduinoOTA.onStart([]() { Serial.println("[ota] début maj"); });
+  ArduinoOTA.onEnd([]()   { Serial.println("[ota] fin -> reboot"); });
+  ArduinoOTA.onError([](ota_error_t e) { Serial.printf("[ota] erreur %u\n", e); });
+  ArduinoOTA.begin();
+  Serial.printf("[ota] prêt host=%s.local port=3232\n", OTA_HOSTNAME);
+
   server.begin();
   server.setNoDelay(true);
   Serial.printf("[bridge] tcp=%u baud=%lu 8N2 — prêt\n", TCP_PORT, (unsigned long)AUX_BAUD);
@@ -156,6 +170,8 @@ void setup() {
 
 void loop() {
   uint32_t now = millis();
+
+  ArduinoOTA.handle();   // écoute une éventuelle maj WiFi (quasi gratuit hors flash)
 
   // --- watchdog connectivité (station uniquement) : sort du zombie en rebootant ---
   if (!apFallback) {
