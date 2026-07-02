@@ -3,35 +3,55 @@
 // Le driver indi_celestron_aux parle le protocole AUX binaire à travers une
 // socket TCP (mode "Celestron WiFi", port 2000). Ce pont transporte les octets
 // dans les deux sens entre TCP et le bus AUX (Serial2), avec DEUX rôles actifs
-// que la version transparente n'avait pas (cf. journal S29->S31) :
+// que la version transparente n'avait pas (cf. journal S29->S35) :
 //
-//   1. SUPPRESSION D'ÉCHO half-duplex — le bus est single-wire : chaque octet
-//      qu'on émet via l'étage BC547 nous revient sur le RX (4093). On l'avale
-//      par comptage pour ne relayer au driver QUE la vraie réponse moteur.
+//   1. TURNAROUND HALF-DUPLEX PILOTÉ (/OE) — le bus est single-wire : on ne peut
+//      pas piloter et écouter en même temps. Le buffer tri-state 74AHCT125 est
+//      activé (/OE=LOW) le temps STRICT de l'émission, puis relâché en Hi-Z
+//      (/OE=HIGH) pour laisser le moteur répondre. On sépare ainsi nettement TX
+//      et RX au lieu de laisser le buffer piloter en permanence (blocage S35 :
+//      en-tête de réponse écrasé faute de fenêtre de retournement propre).
+//
+//   2. SUPPRESSION D'ÉCHO half-duplex — chaque octet qu'on émet nous revient sur
+//      le RX (comparateur LM2902 qui renifle DATA). On l'avale en DRAINANT
+//      exactement N octets juste après l'émission (N = taille de la trame émise),
+//      de façon synchrone et bornée : le driver ne voit QUE la vraie réponse.
 //      (Sinon : GET_VER "écho seul", la monture semble muette — blocage S27->S31.)
 //
-//   2. ROBUSTESSE WiFi — reconnexion événementielle + watchdog reboot (sort de
+//   3. ROBUSTESSE WiFi — reconnexion événementielle + watchdog reboot (sort de
 //      l'état "zombie jusqu'au power-cycle" observé S29/S30) + fermeture des
 //      sockets morts pour que le driver puisse toujours se reconnecter.
 //
-// Câblage (cf. docs/technical/esp32-aux-bridge.html) :
-//   GPIO17 (TX) -> étage BC547 open-collector -> DATA (RJ-12 br.4)
-//   GPIO16 (RX) <- buffer HEF4093BP @5V + diviseur -> DATA
+// Câblage (cf. docs/technical/cablage-interface-aux.html) :
+//   TX — buffer tri-state 74AHCT125 @5V, drive push-pull :
+//     GPIO17 -> 1A (pin 2, entrée gate)   |   GPIO32 -> /OE (pin 1, actif bas)
+//     1Y (pin 3) -> 470 Ω -> DATA (RJ-12 br.4)
+//   RX — comparateur LM2902 @5V (haute-Z, renifle DATA sans le charger) :
+//     sortie ramenée à ~2,9 V -> GPIO16
 //   GND -> br.5   |   +12V (br.3) : NE JAMAIS connecter
 
 #include <WiFi.h>
 #include "secrets.h"   // WIFI_SSID, WIFI_PASS — fichier hors repo (gitignore)
 
 // ---- Drapeau diagnostic (cf. S33) ----
-// 1 = normal : suppression d'écho half-duplex par comptage.
-// 0 = relaie TOUT (écho + réponse) — utilisé S33 pour prouver que le moteur
-//     ne répond pas (écho octet-parfait, mais aucune réponse derrière).
+// 1 = normal : suppression d'écho half-duplex (drain de N octets après émission).
+// 0 = relaie TOUT (écho + réponse) — utilisé S33/S36 pour VOIR le flux brut :
+//     combien d'octets d'écho reviennent, s'il y a un octet-glitch de turnaround,
+//     et si le préambule 0x3b de la réponse est présent (→ drain fautif) ou
+//     absent/corrompu (→ glitch de framing au retournement TX->RX).
 #define ECHO_SUPPRESS 1
 
 // ---- Bus AUX ----
-constexpr int      AUX_RX_PIN = 16;     // lit DATA via buffer 4093
-constexpr int      AUX_TX_PIN = 17;     // attaque DATA via étage BC547
+constexpr int      AUX_RX_PIN = 16;     // lit DATA via comparateur LM2902
+constexpr int      AUX_TX_PIN = 17;     // attaque 1A du 74AHCT125
+constexpr int      AUX_OE_PIN = 32;     // /OE du 74AHCT125 (actif bas)
 constexpr uint32_t AUX_BAUD   = 19200;  // bus Celestron : 19200 8N2
+
+// /OE est actif bas : LOW = le buffer pilote le bus (TX) ; HIGH = Hi-Z (RX).
+constexpr int OE_DRIVE = LOW;
+constexpr int OE_HIZ   = HIGH;
+
+constexpr uint32_t ECHO_DRAIN_MS = 5;   // garde : au-delà, on cesse d'attendre l'écho
 
 // ---- Réseau (station, IP fixe hors plage DHCP) ----
 constexpr uint16_t TCP_PORT = 2000;     // port attendu par le mode "Celestron WiFi"
@@ -48,7 +68,6 @@ const char* AP_PASS = "astrobrain";     // WPA2 : 8 caractères mini
 constexpr uint32_t STA_JOIN_MS         = 10000;  // délai d'attente STA au boot avant repli AP
 constexpr uint32_t WIFI_DOWN_REBOOT_MS = 30000;  // STA down > 30s -> ESP.restart() (tue le zombie)
 constexpr uint32_t CLIENT_IDLE_MS      = 60000;  // socket muet > 60s -> close (libère le port)
-constexpr uint32_t TURNAROUND_MS       = 50;     // si l'écho ne revient pas -> on déverrouille le compteur
 
 WiFiServer server(TCP_PORT);
 WiFiClient client;
@@ -56,8 +75,6 @@ WiFiClient client;
 uint8_t  txFrame[32];         // réassemblage d'une trame AUX avant émission contiguë
 uint8_t  txLen         = 0;   // octets accumulés dans txFrame
 uint16_t txNeed        = 0;   // longueur totale attendue de la trame courante
-uint32_t echoPending   = 0;   // octets émis dont l'écho reste à avaler
-uint32_t lastTxMs      = 0;   // dernier octet poussé sur le bus
 uint32_t lastClientMs  = 0;   // dernière activité du client TCP
 uint32_t wifiDownSince = 0;   // 0 = connecté ; sinon date du décrochage
 bool     apFallback    = false;
@@ -86,10 +103,38 @@ void startSTA() {
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 }
 
+// Émission d'une trame AUX complète avec turnaround half-duplex piloté par /OE.
+// On pilote le bus le temps STRICT de l'émission, on repasse en Hi-Z dès que le
+// dernier octet est sorti (avant que le moteur réponde), puis on avale notre écho.
+void busSend(const uint8_t* buf, uint8_t n) {
+  while (Serial2.available()) Serial2.read();    // repartir d'un RX propre
+
+  digitalWrite(AUX_OE_PIN, OE_DRIVE);            // 74AHCT125 pilote le bus (push-pull)
+  Serial2.write(buf, n);
+  Serial2.flush();                               // bloque jusqu'à TX terminé (shift register vidé)
+  digitalWrite(AUX_OE_PIN, OE_HIZ);              // Hi-Z IMMÉDIAT : le moteur répond dès qu'il a reçu
+  // PAS de garde ici : le moteur commence à répondre dès la fin du flush ; tout délai
+  // supplémentaire garderait le bus piloté HIGH pendant son start-bit LOW -> collision
+  // qui détruit le 1er octet de réponse (0x3b) -> en-tête perdu (diagnostic S36).
+
+#if ECHO_SUPPRESS
+  // Notre trame push-pull nous est revenue via le LM2902 : on draine exactement
+  // n octets d'écho (borné dans le temps). Le moteur ne répond qu'après avoir
+  // traité la trame (latence ms) -> pas de risque d'avaler la réponse.
+  int      left     = n;
+  uint32_t deadline = millis() + ECHO_DRAIN_MS;
+  while (left > 0 && (int32_t)(millis() - deadline) < 0) {
+    if (Serial2.available()) { Serial2.read(); left--; }
+  }
+#endif
+}
+
 void setup() {
   Serial.begin(115200);
   delay(200);
 
+  pinMode(AUX_OE_PIN, OUTPUT);
+  digitalWrite(AUX_OE_PIN, OE_HIZ);              // au repos : Hi-Z, on écoute le bus
   Serial2.begin(AUX_BAUD, SERIAL_8N2, AUX_RX_PIN, AUX_TX_PIN);
 
   startSTA();
@@ -132,7 +177,7 @@ void loop() {
       client = c;
       client.setNoDelay(true);     // trames AUX minuscules : envoi immédiat (pas de Nagle)
       lastClientMs = now;
-      echoPending  = 0;            // nouveau dialogue -> on repart propre
+      txLen = 0; txNeed = 0;        // nouveau dialogue -> on repart propre
       Serial.println("[tcp] client connecté");
     }
   }
@@ -143,8 +188,8 @@ void loop() {
     client.stop();
   }
 
-  // --- TCP -> bus AUX : on RÉASSEMBLE la trame AUX complète puis on l'émet
-  //     d'un seul bloc, pour que les octets sortent CONTIGUS sur le bus.
+  // --- TCP -> bus AUX : on RÉASSEMBLE la trame AUX complète puis on l'émet via
+  //     busSend() (émission contiguë + turnaround /OE + drain d'écho).
   //     La fragmentation TCP/WiFi créait des trous inter-octets -> le moteur
   //     jetait la trame (timeout), alors qu'un UART lit quand même -> écho
   //     parfait mais réponse absente (blocage tranché S33). ---
@@ -154,32 +199,19 @@ void loop() {
     if (txLen == 0 && b != 0x3b) continue;             // attend le préambule 0x3b
     txFrame[txLen++] = b;
     if (txLen == 2) txNeed = (uint16_t)txFrame[1] + 3; // 0x3b + len + (len octets) + cksum
-    if (txLen >= 2 && txLen == txNeed) {               // trame complète -> bus, contiguë
-      Serial2.write(txFrame, txLen);
-      echoPending += txLen;
-      lastTxMs = now;
+    if (txLen >= 2 && txLen == txNeed) {               // trame complète -> bus
+      busSend(txFrame, txLen);
       txLen = 0; txNeed = 0;
     } else if (txLen >= sizeof(txFrame)) {             // garde-fou (len corrompue)
       txLen = 0; txNeed = 0;
     }
   }
 
-  // --- bus AUX -> TCP, en avalant notre propre écho half-duplex ---
+  // --- bus AUX -> TCP : après le turnaround, l'écho est déjà avalé par busSend()
+  //     -> tout ce qui arrive ici est la vraie réponse moteur, on la relaie. ---
   while (Serial2.available()) {
     uint8_t b = Serial2.read();
     lastClientMs = now;
-#if ECHO_SUPPRESS
-    if (echoPending > 0) {
-      echoPending--;               // c'est l'écho de ce qu'on vient d'émettre -> jeté
-      continue;
-    }
-#endif
-    if (client && client.connected()) client.write(b);   // tout (écho + réponse) -> driver
-  }
-
-  // --- garde-fou turnaround : si un octet d'écho s'est perdu, on ne reste pas
-  //     bloqué à avaler la réponse réelle (resync passé le temps de turnaround) ---
-  if (echoPending > 0 && now - lastTxMs > TURNAROUND_MS) {
-    echoPending = 0;
+    if (client && client.connected()) client.write(b);
   }
 }
