@@ -26,11 +26,11 @@ async def test_goto_radec_arms_track_and_pushes_coords():
     await adapter.goto_radec(101.287, -16.716, target_name="Sirius")
 
     coord_set = client.getDevice("Celestron AUX").getSwitch("ON_COORD_SET")
-    assert coord_set["TRACK"].getState() == "ON"
-    assert coord_set["SYNC"].getState() == "OFF"
+    assert coord_set.findWidgetByName("TRACK").getStateAsString() == "On"
+    assert coord_set.findWidgetByName("SYNC").getStateAsString() == "Off"
     coord = client.getDevice("Celestron AUX").getNumber("EQUATORIAL_EOD_COORD")
-    assert coord["RA"].getValue() == pytest.approx(101.287 / 15.0)
-    assert coord["DEC"].getValue() == pytest.approx(-16.716)
+    assert coord.findWidgetByName("RA").getValue() == pytest.approx(101.287 / 15.0)
+    assert coord.findWidgetByName("DEC").getValue() == pytest.approx(-16.716)
 
 
 @pytest.mark.asyncio
@@ -104,7 +104,7 @@ async def test_abort_clears_goto_latch_no_spurious_completion():
     dev = client.add_device("Celestron AUX")
     dev.add_switch("ON_COORD_SET", {"SLEW": "OFF", "TRACK": "OFF", "SYNC": "OFF"})
     dev.add_number("EQUATORIAL_EOD_COORD", {"RA": 0.0, "DEC": 0.0})
-    dev.add_switch("TELESCOPE_ABORT_MOTION", {"ABORT_MOTION": "OFF"})
+    dev.add_switch("TELESCOPE_ABORT_MOTION", {"ABORT": "OFF"})
     adapter = MountIndiAdapter(StateBus(), client=client)
     await adapter.start()
     await adapter.goto_radec(101.0, -16.0, target_name="Sirius")

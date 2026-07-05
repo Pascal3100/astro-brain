@@ -1,4 +1,9 @@
-"""Unit tests for the pure property helpers."""
+"""Unit tests for the pure property helpers.
+
+The local fakes mirror the real pyindi-client API: elements are reached
+via ``findWidgetByName`` (not ``vector[name]``) and switch state is an
+integer (``1`` = ON, ``0`` = OFF), read back with ``getStateAsString``.
+"""
 
 from __future__ import annotations
 
@@ -24,15 +29,16 @@ class _FakeNumElement:
     def getValue(self) -> float:  # noqa: N802
         return self.value
 
+    def getName(self) -> str:  # noqa: N802
+        return self.name
+
 
 class _FakeNumberVector:
     def __init__(self, elements: list[_FakeNumElement]) -> None:
         self._elements = {e.name: e for e in elements}
 
-    def __getitem__(self, key: str | int) -> _FakeNumElement:
-        if isinstance(key, int):
-            return list(self._elements.values())[key]
-        return self._elements[key]
+    def findWidgetByName(self, name: str) -> _FakeNumElement | None:  # noqa: N802,E501
+        return self._elements.get(name)
 
 
 def test_set_number_values_writes_each_named_element() -> None:
@@ -40,8 +46,8 @@ def test_set_number_values_writes_each_named_element() -> None:
         [_FakeNumElement("RA"), _FakeNumElement("DEC")]
     )
     set_number_values(vec, {"RA": 12.5, "DEC": -34.0})
-    assert vec["RA"].getValue() == 12.5
-    assert vec["DEC"].getValue() == -34.0
+    assert vec.findWidgetByName("RA").getValue() == 12.5
+    assert vec.findWidgetByName("DEC").getValue() == -34.0
 
 
 def test_set_number_values_raises_on_unknown_element() -> None:
@@ -53,13 +59,18 @@ def test_set_number_values_raises_on_unknown_element() -> None:
 @dataclass
 class _FakeSwitchElement:
     name: str
-    state: str = "OFF"  # "ON" | "OFF"
+    state: int = 0  # 1 = ON, 0 = OFF (ISState semantics)
 
-    def setState(self, s: str) -> None:  # noqa: N802
+    def setState(self, s: int) -> None:  # noqa: N802
+        if not isinstance(s, int):
+            raise TypeError("switch setState expects int")
         self.state = s
 
-    def getState(self) -> str:  # noqa: N802
-        return self.state
+    def getStateAsString(self) -> str:  # noqa: N802
+        return "On" if self.state == 1 else "Off"
+
+    def getName(self) -> str:  # noqa: N802
+        return self.name
 
 
 class _FakeSwitchVector:
@@ -69,22 +80,28 @@ class _FakeSwitchVector:
     def __iter__(self):
         return iter(self._elements.values())
 
-    def __getitem__(self, key: str) -> _FakeSwitchElement:
-        return self._elements[key]
+    def findWidgetByName(self, name: str) -> _FakeSwitchElement | None:  # noqa: N802,E501
+        return self._elements.get(name)
 
 
 def test_set_switch_one_of_many_turns_target_on_others_off() -> None:
     vec = _FakeSwitchVector(
         [
-            _FakeSwitchElement("SLEW", state="ON"),
+            _FakeSwitchElement("SLEW", state=1),
             _FakeSwitchElement("TRACK"),
             _FakeSwitchElement("SYNC"),
         ]
     )
     set_switch_one_of_many(vec, "SYNC")
-    assert vec["SLEW"].getState() == "OFF"
-    assert vec["TRACK"].getState() == "OFF"
-    assert vec["SYNC"].getState() == "ON"
+    assert vec.findWidgetByName("SLEW").getStateAsString() == "Off"
+    assert vec.findWidgetByName("TRACK").getStateAsString() == "Off"
+    assert vec.findWidgetByName("SYNC").getStateAsString() == "On"
+
+
+def test_set_switch_one_of_many_raises_on_unknown_element() -> None:
+    vec = _FakeSwitchVector([_FakeSwitchElement("SLEW")])
+    with pytest.raises(KeyError):
+        set_switch_one_of_many(vec, "NOPE")
 
 
 class _FakeVecWithState:

@@ -1,19 +1,26 @@
 """Programmable fake of ``PyIndi.BaseClient`` for adapter tests.
 
-Reproduces just enough of the API used by ``MountIndiAdapter``:
+Reproduces just enough of the API used by ``MountIndiAdapter`` — and,
+crucially, reproduces it **faithfully**. The real pyindi-client (SWIG
+bindings) has three sharp edges that a naive fake hides, letting broken
+adapter code pass tests while failing on hardware (see journal S37):
+
+* Property vectors index by **int only**. ``vector["NAME"]`` raises
+  ``TypeError`` — you must use ``vector.findWidgetByName("NAME")``.
+* Switch widgets take an **integer state** (``ISS_ON == 1`` /
+  ``ISS_OFF == 0``). ``setState("ON")`` is silently wrong (leaves it Off).
+  Read back with ``getStateAsString()`` → ``"On"`` / ``"Off"``.
+* Element names are the driver's real names (``1x``…``8x``, ``ABORT``, …).
+
+This fake mirrors those edges so the test suite reflects reality.
 
 * ``setServer(host, port)``, ``connectServer()`` (records the call,
   invokes ``serverConnected``).
 * ``getDevice(name)`` (returns a ``FakeDevice`` from the pre-loaded set).
-* ``sendNewProperty(prop)`` (records the call, optionally triggers a
-  state transition queued by the test author).
+* ``sendNewProperty(prop)`` (records the call).
 * ``watchDevice(name)`` (no-op).
 * Subclasses override ``newDevice``, ``updateProperty``,
   ``serverConnected``, ``serverDisconnected`` — same as PyIndi.
-
-Tests pre-load fake devices/properties via :meth:`add_device` and
-:meth:`FakeDevice.add_number`/:meth:`add_switch`, then drive transitions
-via :meth:`FakeIndiClient.simulate_disconnect` etc.
 """
 
 from __future__ import annotations
@@ -21,6 +28,21 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
+
+ISS_ON = 1
+ISS_OFF = 0
+
+_INT_ONLY = "PyIndi property vectors index by int only — use findWidgetByName"
+
+
+def _as_int_state(value: str | int) -> int:
+    """Normalise an initial-state literal (``"ON"``/``"OFF"`` or int)."""
+    if isinstance(value, str):
+        return ISS_ON if value.upper() == "ON" else ISS_OFF
+    return int(value)
+
+
+# --- numbers -------------------------------------------------------------
 
 
 @dataclass
@@ -34,6 +56,9 @@ class FakeNumberElement:
     def getValue(self) -> float:  # noqa: N802
         return self.value
 
+    def getName(self) -> str:  # noqa: N802
+        return self.name
+
 
 @dataclass
 class FakeNumberVector:
@@ -41,10 +66,16 @@ class FakeNumberVector:
     elements: dict[str, FakeNumberElement] = field(default_factory=dict)
     state: str = "OK"
 
-    def __getitem__(self, key: str | int) -> FakeNumberElement:
-        if isinstance(key, int):
-            return list(self.elements.values())[key]
-        return self.elements[key]
+    def __iter__(self) -> Iterator[FakeNumberElement]:
+        return iter(self.elements.values())
+
+    def __getitem__(self, key: int) -> FakeNumberElement:
+        if not isinstance(key, int):
+            raise TypeError(_INT_ONLY)
+        return list(self.elements.values())[key]
+
+    def findWidgetByName(self, name: str) -> FakeNumberElement | None:  # noqa: N802,E501
+        return self.elements.get(name)
 
     def getName(self) -> str:  # noqa: N802
         return self.name
@@ -53,16 +84,29 @@ class FakeNumberVector:
         return self.state
 
 
+# --- switches ------------------------------------------------------------
+
+
 @dataclass
 class FakeSwitchElement:
     name: str
-    state: str = "OFF"  # "ON" | "OFF"
+    state: int = ISS_OFF  # ISS_ON (1) | ISS_OFF (0)
 
-    def setState(self, s: str) -> None:  # noqa: N802
+    def setState(self, s: int) -> None:  # noqa: N802
+        if not isinstance(s, int):
+            # Real SWIG binding silently ignores a str here (leaves it Off);
+            # we raise so the mistake is caught loudly in tests.
+            raise TypeError("switch setState expects int (ISS_ON/ISS_OFF)")
         self.state = s
 
-    def getState(self) -> str:  # noqa: N802
+    def getState(self) -> int:  # noqa: N802
         return self.state
+
+    def getStateAsString(self) -> str:  # noqa: N802
+        return "On" if self.state == ISS_ON else "Off"
+
+    def getName(self) -> str:  # noqa: N802
+        return self.name
 
 
 @dataclass
@@ -74,14 +118,22 @@ class FakeSwitchVector:
     def __iter__(self) -> Iterator[FakeSwitchElement]:
         return iter(self.elements.values())
 
-    def __getitem__(self, key: str) -> FakeSwitchElement:
-        return self.elements[key]
+    def __getitem__(self, key: int) -> FakeSwitchElement:
+        if not isinstance(key, int):
+            raise TypeError(_INT_ONLY)
+        return list(self.elements.values())[key]
+
+    def findWidgetByName(self, name: str) -> FakeSwitchElement | None:  # noqa: N802,E501
+        return self.elements.get(name)
 
     def getName(self) -> str:  # noqa: N802
         return self.name
 
     def getStateAsString(self) -> str:  # noqa: N802
         return self.state
+
+
+# --- text ----------------------------------------------------------------
 
 
 @dataclass
@@ -95,6 +147,9 @@ class FakeTextElement:
     def getText(self) -> str:  # noqa: N802
         return self.text
 
+    def getName(self) -> str:  # noqa: N802
+        return self.name
+
 
 @dataclass
 class FakeTextVector:
@@ -102,11 +157,22 @@ class FakeTextVector:
     elements: dict[str, FakeTextElement] = field(default_factory=dict)
     state: str = "OK"
 
-    def __getitem__(self, key: str) -> FakeTextElement:
-        return self.elements[key]
+    def __iter__(self) -> Iterator[FakeTextElement]:
+        return iter(self.elements.values())
+
+    def __getitem__(self, key: int) -> FakeTextElement:
+        if not isinstance(key, int):
+            raise TypeError(_INT_ONLY)
+        return list(self.elements.values())[key]
+
+    def findWidgetByName(self, name: str) -> FakeTextElement | None:  # noqa: N802,E501
+        return self.elements.get(name)
 
     def getName(self) -> str:  # noqa: N802
         return self.name
+
+
+# --- device / client -----------------------------------------------------
 
 
 class FakeDevice:
@@ -133,17 +199,23 @@ class FakeDevice:
     ) -> FakeNumberVector:
         vec = FakeNumberVector(
             name=name,
-            elements={k: FakeNumberElement(name=k, value=v) for k, v in elements.items()},
+            elements={
+                k: FakeNumberElement(name=k, value=v)
+                for k, v in elements.items()
+            },
         )
         self._numbers[name] = vec
         return vec
 
     def add_switch(
-        self, name: str, elements: dict[str, str]
+        self, name: str, elements: dict[str, str | int]
     ) -> FakeSwitchVector:
         vec = FakeSwitchVector(
             name=name,
-            elements={k: FakeSwitchElement(name=k, state=v) for k, v in elements.items()},
+            elements={
+                k: FakeSwitchElement(name=k, state=_as_int_state(v))
+                for k, v in elements.items()
+            },
         )
         self._switches[name] = vec
         return vec
@@ -153,7 +225,9 @@ class FakeDevice:
     ) -> FakeTextVector:
         vec = FakeTextVector(
             name=name,
-            elements={k: FakeTextElement(name=k, text=v) for k, v in elements.items()},
+            elements={
+                k: FakeTextElement(name=k, text=v) for k, v in elements.items()
+            },
         )
         self._texts[name] = vec
         return vec

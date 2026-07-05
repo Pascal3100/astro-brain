@@ -78,10 +78,10 @@ def _seed_motion_properties(client: FakeIndiClient) -> None:
     )
     dev.add_switch(
         "TELESCOPE_SLEW_RATE",
-        {f"SLEW_RATE_{i}": ("ON" if i == 1 else "OFF") for i in range(1, 9)},
+        {f"{i}x": ("ON" if i == 1 else "OFF") for i in range(1, 9)},
     )
     dev.add_switch(
-        "TELESCOPE_ABORT_MOTION", {"ABORT_MOTION": "OFF"}
+        "TELESCOPE_ABORT_MOTION", {"ABORT": "OFF"}
     )
 
 
@@ -99,10 +99,10 @@ async def test_slew_alt_plus_rate4_pushes_slew_rate_then_motion_north() -> None:
     dev = client.getDevice(INDI_DEVICE_NAME)
     rate_vec = dev.getSwitch("TELESCOPE_SLEW_RATE")
     motion_ns = dev.getSwitch("TELESCOPE_MOTION_NS")
-    assert rate_vec["SLEW_RATE_4"].getState() == "ON"
-    assert rate_vec["SLEW_RATE_1"].getState() == "OFF"
-    assert motion_ns["MOTION_NORTH"].getState() == "ON"
-    assert motion_ns["MOTION_SOUTH"].getState() == "OFF"
+    assert rate_vec.findWidgetByName("4x").getStateAsString() == "On"
+    assert rate_vec.findWidgetByName("1x").getStateAsString() == "Off"
+    assert motion_ns.findWidgetByName("MOTION_NORTH").getStateAsString() == "On"
+    assert motion_ns.findWidgetByName("MOTION_SOUTH").getStateAsString() == "Off"
     sent_names = [p.getName() for p in client.sent_properties]
     assert sent_names == ["TELESCOPE_SLEW_RATE", "TELESCOPE_MOTION_NS"]
     assert bus.get_full_state().subsystems["mount"].state == "moving"
@@ -120,8 +120,8 @@ async def test_slew_az_minus_pushes_motion_east() -> None:
     await adapter.slew("az", "-", 2)
 
     motion_we = client.getDevice(INDI_DEVICE_NAME).getSwitch("TELESCOPE_MOTION_WE")
-    assert motion_we["MOTION_EAST"].getState() == "ON"
-    assert motion_we["MOTION_WEST"].getState() == "OFF"
+    assert motion_we.findWidgetByName("MOTION_EAST").getStateAsString() == "On"
+    assert motion_we.findWidgetByName("MOTION_WEST").getStateAsString() == "Off"
 
 
 @pytest.mark.asyncio
@@ -137,8 +137,8 @@ async def test_stop_slew_axis_alt_only_turns_motion_ns_off() -> None:
     await adapter.stop_slew("alt")
 
     motion_ns = client.getDevice(INDI_DEVICE_NAME).getSwitch("TELESCOPE_MOTION_NS")
-    assert motion_ns["MOTION_NORTH"].getState() == "OFF"
-    assert motion_ns["MOTION_SOUTH"].getState() == "OFF"
+    assert motion_ns.findWidgetByName("MOTION_NORTH").getStateAsString() == "Off"
+    assert motion_ns.findWidgetByName("MOTION_SOUTH").getStateAsString() == "Off"
     assert bus.get_full_state().subsystems["mount"].state == "ready"
 
 
@@ -156,7 +156,7 @@ async def test_stop_slew_no_axis_uses_abort_motion() -> None:
     await adapter.stop_slew(None)
 
     abort = client.getDevice(INDI_DEVICE_NAME).getSwitch("TELESCOPE_ABORT_MOTION")
-    assert abort["ABORT_MOTION"].getState() == "ON"
+    assert abort.findWidgetByName("ABORT").getStateAsString() == "On"
     assert bus.get_full_state().subsystems["mount"].state == "ready"
 
 
@@ -182,8 +182,8 @@ async def test_set_time_pushes_utc_text() -> None:
 
     dev = client.getDevice(INDI_DEVICE_NAME)
     time_vec = dev.getText("TIME_UTC")
-    assert time_vec["UTC"].getText() == "2026-05-01T18:30:00"
-    assert time_vec["OFFSET"].getText() == "0"
+    assert time_vec.findWidgetByName("UTC").getText() == "2026-05-01T18:30:00"
+    assert time_vec.findWidgetByName("OFFSET").getText() == "0"
 
 
 @pytest.mark.asyncio
@@ -199,8 +199,8 @@ async def test_set_location_pushes_geographic_coord() -> None:
 
     dev = client.getDevice(INDI_DEVICE_NAME)
     geo = dev.getNumber("GEOGRAPHIC_COORD")
-    assert geo["LAT"].getValue() == pytest.approx(43.6043)
-    assert geo["LONG"].getValue() == pytest.approx(1.4437)
+    assert geo.findWidgetByName("LAT").getValue() == pytest.approx(43.6043)
+    assert geo.findWidgetByName("LONG").getValue() == pytest.approx(1.4437)
 
 
 def _seed_sync_properties(client: FakeIndiClient) -> None:
@@ -226,13 +226,13 @@ async def test_sync_radec_arms_sync_then_pushes_eod_coord_in_hours() -> None:
 
     dev = client.getDevice(INDI_DEVICE_NAME)
     mode = dev.getSwitch("ON_COORD_SET")
-    assert mode["SYNC"].getState() == "ON"
-    assert mode["SLEW"].getState() == "OFF"
-    assert mode["TRACK"].getState() == "OFF"
+    assert mode.findWidgetByName("SYNC").getStateAsString() == "On"
+    assert mode.findWidgetByName("SLEW").getStateAsString() == "Off"
+    assert mode.findWidgetByName("TRACK").getStateAsString() == "Off"
 
     coord = dev.getNumber("EQUATORIAL_EOD_COORD")
-    assert coord["RA"].getValue() == pytest.approx(101.287 / 15.0)
-    assert coord["DEC"].getValue() == pytest.approx(-16.716)
+    assert coord.findWidgetByName("RA").getValue() == pytest.approx(101.287 / 15.0)
+    assert coord.findWidgetByName("DEC").getValue() == pytest.approx(-16.716)
 
 
 @pytest.mark.asyncio
@@ -280,8 +280,8 @@ async def test_set_tracking_true_pushes_track_on_and_publishes_sidereal() -> Non
     await adapter.set_tracking(True)
 
     track = client.getDevice(INDI_DEVICE_NAME).getSwitch("TELESCOPE_TRACK_STATE")
-    assert track["TRACK_ON"].getState() == "ON"
-    assert track["TRACK_OFF"].getState() == "OFF"
+    assert track.findWidgetByName("TRACK_ON").getStateAsString() == "On"
+    assert track.findWidgetByName("TRACK_OFF").getStateAsString() == "Off"
     assert bus.get_full_state().subsystems["tracking"].state == "sidereal"
 
 
@@ -298,8 +298,8 @@ async def test_set_tracking_false_pushes_track_off_and_publishes_off() -> None:
     await adapter.set_tracking(False)
 
     track = client.getDevice(INDI_DEVICE_NAME).getSwitch("TELESCOPE_TRACK_STATE")
-    assert track["TRACK_OFF"].getState() == "ON"
-    assert track["TRACK_ON"].getState() == "OFF"
+    assert track.findWidgetByName("TRACK_OFF").getStateAsString() == "On"
+    assert track.findWidgetByName("TRACK_ON").getStateAsString() == "Off"
     assert bus.get_full_state().subsystems["tracking"].state == "off"
 
 
@@ -327,8 +327,8 @@ async def test_cordwrap_set_enabled_true_toggles_indi_enabled_on() -> None:
     await adapter.cordwrap_set_enabled(True)
 
     cw = client.getDevice(INDI_DEVICE_NAME).getSwitch("CORDWRAP")
-    assert cw["INDI_ENABLED"].getState() == "ON"
-    assert cw["INDI_DISABLED"].getState() == "OFF"
+    assert cw.findWidgetByName("INDI_ENABLED").getStateAsString() == "On"
+    assert cw.findWidgetByName("INDI_DISABLED").getStateAsString() == "Off"
 
 
 @pytest.mark.asyncio
@@ -356,8 +356,8 @@ async def test_cordwrap_set_position_east() -> None:
     await adapter.cordwrap_set_position("E")
 
     cw_pos = client.getDevice(INDI_DEVICE_NAME).getSwitch("CORDWRAP_POS")
-    assert cw_pos["CORDWRAP_E"].getState() == "ON"
-    assert cw_pos["CORDWRAP_N"].getState() == "OFF"
+    assert cw_pos.findWidgetByName("CORDWRAP_E").getStateAsString() == "On"
+    assert cw_pos.findWidgetByName("CORDWRAP_N").getStateAsString() == "Off"
 
 
 @pytest.mark.asyncio
@@ -402,7 +402,7 @@ async def test_get_backlash_reads_property_element() -> None:
     adapter = MountIndiAdapter(bus, client=client)
     await adapter.start()
     bl = client.getDevice(INDI_DEVICE_NAME).getNumber("MOUNT_AXIS_BACKLASH")
-    bl["ALT_POS"].setValue(12.0)
+    bl.findWidgetByName("ALT_POS").setValue(12.0)
 
     assert await adapter.get_backlash("alt", "+") == 12
 
@@ -419,7 +419,7 @@ async def test_set_backlash_writes_property_element() -> None:
     await adapter.set_backlash("az", "-", 25)
 
     bl = client.getDevice(INDI_DEVICE_NAME).getNumber("MOUNT_AXIS_BACKLASH")
-    assert bl["AZ_NEG"].getValue() == 25.0
+    assert bl.findWidgetByName("AZ_NEG").getValue() == 25.0
 
 
 @pytest.mark.asyncio

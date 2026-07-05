@@ -18,7 +18,12 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 
-from astro_brain.adapters._indi_property_helpers import set_switch_one_of_many
+from astro_brain.adapters._indi_property_helpers import (
+    SWITCH_OFF,
+    SWITCH_ON,
+    find_widget,
+    set_switch_one_of_many,
+)
 from astro_brain.bus import StateBus
 from astro_brain.services.interfaces import Axis, Direction
 from astro_brain.subsystems import SubsystemState
@@ -172,7 +177,7 @@ class MountIndiAdapter:
             rate_vec = self._device.getSwitch("TELESCOPE_SLEW_RATE")
             if rate_vec is None:
                 raise RuntimeError("TELESCOPE_SLEW_RATE property not found")
-            set_switch_one_of_many(rate_vec, f"SLEW_RATE_{rate}")
+            set_switch_one_of_many(rate_vec, f"{rate}x")
             await asyncio.to_thread(self._client.sendNewProperty, rate_vec)
 
             # 2. Start motion on the correct axis.
@@ -181,8 +186,8 @@ class MountIndiAdapter:
             motion_vec = self._device.getSwitch(motion_name)
             if motion_vec is None:
                 raise RuntimeError(f"{motion_name} property not found")
-            motion_vec[on_elem].setState("ON")
-            motion_vec[off_elem].setState("OFF")
+            find_widget(motion_vec, on_elem).setState(SWITCH_ON)
+            find_widget(motion_vec, off_elem).setState(SWITCH_OFF)
             await asyncio.to_thread(self._client.sendNewProperty, motion_vec)
         except Exception as exc:
             logger.exception("indi: slew failed")
@@ -219,7 +224,7 @@ class MountIndiAdapter:
                     raise RuntimeError(
                         "TELESCOPE_ABORT_MOTION property not found"
                     )
-                abort_vec["ABORT_MOTION"].setState("ON")
+                find_widget(abort_vec, "ABORT").setState(SWITCH_ON)
                 await asyncio.to_thread(self._client.sendNewProperty, abort_vec)
                 self._active_slews = []
                 self._goto_in_progress = False
@@ -230,7 +235,7 @@ class MountIndiAdapter:
                 if motion_vec is None:
                     raise RuntimeError(f"{motion_name} property not found")
                 for elem in motion_vec:
-                    elem.setState("OFF")
+                    elem.setState(SWITCH_OFF)
                 await asyncio.to_thread(self._client.sendNewProperty, motion_vec)
                 self._active_slews = [
                     s for s in self._active_slews if s["axis"] != axis
@@ -277,8 +282,8 @@ class MountIndiAdapter:
             time_vec = self._device.getText("TIME_UTC")
             if time_vec is None:
                 raise RuntimeError("TIME_UTC property not found")
-            time_vec["UTC"].setText(utc_naive.isoformat())
-            time_vec["OFFSET"].setText("0")
+            find_widget(time_vec, "UTC").setText(utc_naive.isoformat())
+            find_widget(time_vec, "OFFSET").setText("0")
             await asyncio.to_thread(self._client.sendNewProperty, time_vec)
         except Exception as exc:
             logger.exception("indi: set_time failed")
@@ -294,8 +299,8 @@ class MountIndiAdapter:
             geo = self._device.getNumber("GEOGRAPHIC_COORD")
             if geo is None:
                 raise RuntimeError("GEOGRAPHIC_COORD property not found")
-            geo["LAT"].setValue(float(lat))
-            geo["LONG"].setValue(float(lon))
+            find_widget(geo, "LAT").setValue(float(lat))
+            find_widget(geo, "LONG").setValue(float(lon))
             # ELEV left at its current value (set by user/setup later).
             await asyncio.to_thread(self._client.sendNewProperty, geo)
         except Exception as exc:
@@ -326,8 +331,8 @@ class MountIndiAdapter:
             coord = self._device.getNumber("EQUATORIAL_EOD_COORD")
             if coord is None:
                 raise RuntimeError("EQUATORIAL_EOD_COORD property not found")
-            coord["RA"].setValue(float(ra_deg) / 15.0)
-            coord["DEC"].setValue(float(dec_deg))
+            find_widget(coord, "RA").setValue(float(ra_deg) / 15.0)
+            find_widget(coord, "DEC").setValue(float(dec_deg))
             await asyncio.to_thread(self._client.sendNewProperty, coord)
         except Exception as exc:
             logger.exception("indi: sync_radec failed")
@@ -353,8 +358,8 @@ class MountIndiAdapter:
             coord = self._device.getNumber("EQUATORIAL_EOD_COORD")
             if coord is None:
                 raise RuntimeError("EQUATORIAL_EOD_COORD property not found")
-            coord["RA"].setValue(float(ra_deg) / 15.0)
-            coord["DEC"].setValue(float(dec_deg))
+            find_widget(coord, "RA").setValue(float(ra_deg) / 15.0)
+            find_widget(coord, "DEC").setValue(float(dec_deg))
             await asyncio.to_thread(self._client.sendNewProperty, coord)
         except Exception as exc:
             logger.exception("indi: goto_radec failed")
@@ -459,7 +464,7 @@ class MountIndiAdapter:
         cw = self._device.getSwitch("CORDWRAP")
         if cw is None:
             return False
-        return cw["INDI_ENABLED"].getState() == "ON"
+        return find_widget(cw, "INDI_ENABLED").getStateAsString() == "On"
 
     async def cordwrap_set_enabled(self, enabled: bool) -> None:
         if self._device is None:
@@ -486,7 +491,7 @@ class MountIndiAdapter:
         if cw_pos is None:
             return "N"
         for cardinal, elem_name in self._CORDWRAP_POS_ELEMENTS.items():
-            if cw_pos[elem_name].getState() == "ON":
+            if find_widget(cw_pos, elem_name).getStateAsString() == "On":
                 return cardinal
         return "N"
 
@@ -528,7 +533,7 @@ class MountIndiAdapter:
             # so UI sliders still render; writes will surface the error.
             return 0
         elem_name = self._BACKLASH_ELEMENT[(axis, direction)]
-        return int(bl[elem_name].getValue())
+        return int(find_widget(bl, elem_name).getValue())
 
     async def set_backlash(
         self, axis: Axis, direction: Direction, value: int
@@ -545,7 +550,7 @@ class MountIndiAdapter:
                     "patch required (see plan Task 12)"
                 )
             elem_name = self._BACKLASH_ELEMENT[(axis, direction)]
-            bl[elem_name].setValue(float(int(value)))
+            find_widget(bl, elem_name).setValue(float(int(value)))
             await asyncio.to_thread(self._client.sendNewProperty, bl)
         except Exception as exc:
             logger.exception("indi: set_backlash failed")
