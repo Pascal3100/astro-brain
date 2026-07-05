@@ -67,10 +67,23 @@ class MountIndiAdapter:
         self._serial_device = serial_device or os.environ.get(
             SERIAL_DEVICE_ENV, SERIAL_DEVICE_DEFAULT
         )
-        self._device: Any | None = None
+        self._connected: bool = False
         self._active_slews: list[dict[str, Any]] = []
         self._goto_in_progress: bool = False
         self._goto_target: dict[str, Any] | None = None
+
+    @property
+    def _device(self) -> Any | None:
+        """Live device handle — re-fetched on every access, never cached.
+
+        A pyindi ``BaseDevice`` reference grabbed too early (before the
+        driver has defined its properties) goes stale: it exposes empty
+        property vectors (device name ``""``, nameless widgets). Fetching
+        it fresh each time returns the populated device. See journal S37.
+        """
+        if not self._connected or self._client is None:
+            return None
+        return self._client.getDevice(self._device_name)
 
     async def start(self) -> None:
         """Connect to indiserver and discover the mount device.
@@ -102,7 +115,8 @@ class MountIndiAdapter:
                 raise RuntimeError(
                     f"connectServer returned False ({self._host}:{self._port})"
                 )
-            self._device = await self._await_device()
+            await self._await_device()
+            self._connected = True
             self._bus.publish(
                 "mount",
                 SubsystemState(
@@ -125,7 +139,7 @@ class MountIndiAdapter:
                 await asyncio.to_thread(self._client.disconnectServer)
         except Exception:
             logger.warning("indi: disconnect on stop raised", exc_info=True)
-        self._device = None
+        self._connected = False
         self._bus.publish(
             "mount", SubsystemState(state="disconnected", since=_now())
         )

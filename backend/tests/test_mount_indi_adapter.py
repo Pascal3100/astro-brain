@@ -9,7 +9,7 @@ from astro_brain.adapters.mount_indi_adapter import (
     MountIndiAdapter,
 )
 from astro_brain.bus import StateBus
-from tests.fakes.fake_indi import FakeIndiClient
+from tests.fakes.fake_indi import FakeDevice, FakeIndiClient
 
 
 def _seed_mount_device(client: FakeIndiClient) -> None:
@@ -158,6 +158,47 @@ async def test_stop_slew_no_axis_uses_abort_motion() -> None:
     abort = client.getDevice(INDI_DEVICE_NAME).getSwitch("TELESCOPE_ABORT_MOTION")
     assert abort.findWidgetByName("ABORT").getStateAsString() == "On"
     assert bus.get_full_state().subsystems["mount"].state == "ready"
+
+
+class _StaleDeviceClient(FakeIndiClient):
+    """First ``getDevice`` returns an empty device (properties not yet
+    defined), later calls return the populated one — mirrors the real
+    pyindi behaviour where a device handle cached too early is stale and
+    exposes empty property vectors (journal S37).
+    """
+
+    def __init__(self, empty: FakeDevice, full: FakeDevice) -> None:
+        super().__init__()
+        self._empty = empty
+        self._full = full
+        self._seen = 0
+
+    def getDevice(self, name: str) -> FakeDevice:  # noqa: N802
+        self._seen += 1
+        return self._empty if self._seen == 1 else self._full
+
+
+@pytest.mark.asyncio
+async def test_slew_refetches_device_not_stale_empty_handle() -> None:
+    bus = StateBus()
+    empty = FakeDevice(INDI_DEVICE_NAME)  # device known but no properties yet
+    full = FakeDevice(INDI_DEVICE_NAME)
+    full.add_switch(
+        "TELESCOPE_MOTION_WE", {"MOTION_WEST": "OFF", "MOTION_EAST": "OFF"}
+    )
+    full.add_switch(
+        "TELESCOPE_SLEW_RATE",
+        {f"{i}x": ("ON" if i == 1 else "OFF") for i in range(1, 9)},
+    )
+    client = _StaleDeviceClient(empty, full)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()  # a naive adapter caches the empty handle here
+
+    await adapter.slew("az", "+", 8)
+
+    we = full.getSwitch("TELESCOPE_MOTION_WE")
+    assert we.findWidgetByName("MOTION_WEST").getStateAsString() == "On"
+    assert bus.get_full_state().subsystems["mount"].state == "moving"
 
 
 def _seed_time_location_properties(client: FakeIndiClient) -> None:
