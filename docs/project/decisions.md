@@ -8,7 +8,7 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 
 **Contexte** : design initial prévoyait un Arduino comme intermédiaire entre Pi et monture pour temps-réel.
 
-**Décision** : Pi communique directement avec la monture via série (port HC NexStar). _Lib révisée par l'ADR du 2026-05-01 (INDI)._
+**Décision** : Pi communique directement avec la monture via série (port HC NexStar). _Lib révisée par l'ADR du 2026-05-01 (INDI)._ _**Dérogée par l'ADR du 2026-07-05** (pont ESP32) : un micro-contrôleur est finalement introduit, non pour le temps-réel moteur mais comme interface électrique/WiFi sur le bus AUX single-wire._
 
 **Rationale** : la monture Celestron a déjà son micro-contrôleur interne pour le temps-réel moteur. Un Arduino ajouterait une couche série de plus, sans valeur. Le Pi reste réactif côté FastAPI via les patterns asyncio.
 
@@ -104,6 +104,8 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 
 ## 2026-05-01 — Câblage monture via dongle CP2102 USB-TTL 5V (port HC RJ12)
 
+> ⚠️ **SUPERSEDÉ par l'ADR du 2026-07-05 (pont ESP32).** Le dongle USB-TTL (CP2102 puis CH340) s'est avéré incapable de dialoguer avec le bus : le bus AUX est **single-wire half-duplex** (pas RX/TX séparés) et tout tap pas vraiment haute-Z perturbe la ligne (cause racine électrique, S26→S30). Conservé pour l'historique.
+
 **Contexte** : la monture s'attache au Pi par le port HC en RJ12 (TTL 5V). Le DroTek GPS occupe déjà l'UART matériel (PL011, `ttyAMA0`) en GPIO. Pas de level shifter ni de câble Celestron #93920 dans le tiroir au moment de la décision.
 
 **Décision** : interfacer le HC par un dongle USB-TTL **CP2102** (sélecteur sur **5V**) branché côté Pi sur un port USB libre, et côté HC sur un bornier maison RJ12 6P6C. Le HC apparaît en `/dev/ttyUSB0`. Les broches RX/TX/GND sont câblées 3↔TX-dongle / 4↔RX-dongle / 5↔GND ; broche 2 **non connectée** (peut exposer +12 V selon HC, à valider au multimètre).
@@ -182,3 +184,22 @@ Cette approche entre en contradiction directe avec le rationale de la migration 
 **Décision** : `docs/INDEX.md` référence trois vues — `technical/`, `project/`, `product/`. Chaque vue a un `README.md` index, et regroupe des docs courts et ciblés (1 sujet = 1 fichier).
 
 **Rationale** : faciliter la navigation et minimiser le contexte chargé à chaque session. Un long document monolithique est dur à maintenir et oblige à charger trop de contexte. Trois angles de lecture (technique / projet / produit) couvrent les besoins du dev hybride humain + IA.
+
+---
+
+## 2026-07-05 — Pont ESP32 WiFi↔bus AUX (dérogation à « pas d'Arduino »)
+
+**Contexte** : la liaison Pi↔monture prévue par l'ADR du 2026-05-01 (dongle USB-TTL CP2102 sur le port HAND CONTROL) n'a jamais fonctionné. Le fil matériel S26→S36 (~10 sessions, archives `2026-06-bus-aux.md` + journal S33+) a établi, recherche de fond à l'appui, que le port HC de la base SLT expose le **bus AUX interne single-wire half-duplex** (un seul fil DATA, 19200 8N2, TX et RX partagés, idle tiré HIGH par le pull-up monture ~139 k) — **pas** une paire RX/TX séparée. Sur un tel bus, chaque appareil surveille l'**écho non déformé** de sa propre émission ; tout tap qui n'est pas réellement haute-Z **charge/déforme la ligne** (les diodes de clamp d'un GPIO 3,3 V face au bus 4,4 V conduisent) → réponses moteur tuées **et** raquette en « No Response ». Le dongle (CP2102 puis CH340) perturbe le bus de façon non découplable passivement (diviseurs, résistances série, pull-ups bridés : tous tranchés en impasse S27→S32). Le circuit de référence éprouvé (Mark Lord rtr.ca / g7ltt HBG3, module SkyPortal WiFi officiel) confirme qu'il faut un **buffer tri-state actif @ 5 V** + suppression d'écho firmware, et que les contrôleurs moteurs répondent **sans la raquette** (archi voulue du driver `indi_celestron_aux`).
+
+**Décision** : interposer un **ESP32 (DevKit CP2102)** entre le Pi et le bus AUX, comme **pont WiFi↔série** exposant le bus en **TCP port 2000** — exactement le mode « Celestron WiFi / SkyPortal » que le driver `indi_celestron_aux` pilote nativement (`CONNECTION_MODE=TCP`, `DEVICE_ADDRESS=192.168.1.200:2000`). L'ESP32 porte l'**interface électrique** sur le bus single-wire : **TX** par buffer tri-state **74AHCT125** (drive push-pull actif HIGH+LOW, 470 Ω série, `/OE` piloté par GPIO32, relâché immédiatement après `flush()` pour éviter la collision de turnaround), **RX** par **comparateur LM2902** (entrée haute-Z 1M/1M, seuil ~0,9 V, renifle sans charger ni sur-piloter). Firmware `firmware/esp32-aux-bridge` : suppression d'écho half-duplex par comptage, robustesse WiFi (reconnect + watchdog + IP fixe), OTA (flash par WiFi). Cela **déroge à l'ADR du 2026-04-15 « pas d'Arduino »** et **supersède l'ADR du 2026-05-01 (dongle CP2102)**.
+
+**Rationale** :
+1. **C'est la seule voie qui marche** — validée bout en bout au jalon C (2026-07-05, S37) : le driver dialogue avec la vraie monture (handshake, lecture encodeur, slew réel bidirectionnel). Toutes les alternatives passives ont été épuisées méthodiquement.
+2. **La dérogation est mineure sur le fond de l'ADR d'origine** : « pas d'Arduino » visait à ne pas ajouter une couche série redondante pour le temps-réel moteur. L'ESP32 **ne fait pas de temps-réel moteur** (les MC internes s'en chargent) — il est un **transceiver/pont de liaison physique**, rôle qui n'existait pas dans le design initial (on croyait le port HC directement pilotable en TTL série standard).
+3. **Aligné avec la stack INDI** : le mode Network du driver est prévu pour ça (module SkyPortal officiel), donc zéro code custom de protocole — le driver gère le binaire AUX, le pont ne fait que relayer les octets.
+4. **Bénéfice collatéral** : le WiFi supprime le câble Pi↔monture et l'OTA supprime le cycle de reflash physique.
+
+**Conséquences** :
+- ADR 2026-04-15 (« pas d'Arduino ») annoté « dérogé » ; ADR 2026-05-01 (dongle CP2102) annoté « supersédé ».
+- Reste avant clôture Macro 1 : valider end-to-end via le backend (`pyindi-client` → `indiserver` → pont), un client backend flappe actuellement sur `indiserver` (à investiguer).
+- Câblage de référence : [`docs/technical/cablage-interface-aux.html`](../technical/cablage-interface-aux.html) + [`cablage-pont-esp32.html`](../technical/cablage-pont-esp32.html). Firmware : `firmware/esp32-aux-bridge`.
