@@ -58,9 +58,19 @@ Reprise après « le mode manuel de l'app ne marche pas » (contredit S37). Skil
 - **Primitive** `MountIndiAdapter.reconnect()` (Lock-guardée) : re-`connectServer` si socket tombé (`isServerConnected()`), `_await_device`, `_ensure_connected` ; publie `connecting→ready`, ou `disconnected` en échec (pour laisser le superviseur réessayer). `request_reconnect()` = fire-and-forget non bloquant.
 - **Superviseur** `MountConnectionSupervisor` (même moule que l'Orchestrator) : sur `disconnected`, réessaie `reconnect()` en **back-off** `[1,2,5,10,30]s` jusqu'à `ready` ; ignore `error`. Lancé en tâche de fond du lifespan (annulé avant `mount.stop()`).
 - **Manuel = nudge** : `POST /mount/reconnect` (non bloquant) + bouton **RECONNECTER** sur la bannière B2 → `ManualReconnectPressed`. Récup auto (app fermée ou non) **+** bouton pour forcer.
-- **Défense en profondeur** : borne API `SlewRequest.rate` resserrée `le=9 → le=8` (le `9x` n'existe pas). **353 backend + Flutter verts** (fichiers touchés lint-clean ; 28 erreurs ruff préexistantes hors-scope laissées telles quelles).
+- **Défense en profondeur** : borne API `SlewRequest.rate` resserrée `le=9 → le=8` (le `9x` n'existe pas). Commit `ad9d17f`. **353 backend + 231 Flutter verts** (fichiers touchés lint/analyze-clean ; 28 erreurs ruff préexistantes hors-scope laissées telles quelles).
+- ⚠️ **Piège de test Flutter rencontré** : un test widget tapait le bouton RECONNECTER câblé à un **vrai `ManualBloc`** (handler async + `bloc.close()`) → **hang de 10 min** (timeout par défaut) qui bloquait toute la suite. Fix : `MockBloc<ManualEvent, ManualState>` + `verify(add(...))` (le chemin api est couvert par le test bloc). Voir [[flutter-widget-test-mockbloc]].
 
-**🔜 Reprise :** déployer (Pi `git pull` + restart) et **valider à froid** : couper la connexion → vérifier reconnexion **auto** (back-off) + bouton ; re-tester D-Pad. Puis rouvrir Macro 2 (backlash mount-side) + valider wizard 3 étoiles / GoTo contre le matériel.
+**⚠️ État de fin de session : tout est commité + poussé sur `main` (`3ac2ebe` puis `ad9d17f`), mais RIEN n'est déployé ni validé sur le matériel.** La monture ne marche « maintenant » que parce que la connexion a été montée **à la main** en début de session (`indi_setprop …CONNECT=On`) — au prochain power-cycle elle retombera tant que le nouveau backend n'est pas déployé.
+
+**🔜 Reprise demain (ordonnée) :**
+1. **Déployer** : sur le Pi `cd ~/code/astro-brain && git pull && systemctl restart astro-brain.service`.
+2. **Confirmer 2 hypothèses pyindi on-device** (non testables workstation) : `client.isServerConnected()` existe **et** re-`connectServer()` marche sur la même instance après un drop. Si faux, adapter `reconnect()`.
+3. **Valider A (auto-connexion boot)** : après restart, sans action manuelle, `indi_getprop "Celestron AUX.CONNECTION.CONNECT"` = `On` + `curl /state` → `mount:ready`.
+4. **Valider C (auto-retry)** : `indi_setprop "Celestron AUX.CONNECTION.CONNECT=Off"` (ou couper l'ESP32) → vérifier dans `journalctl -u astro-brain` les logs « mount supervisor: reconnect attempt N » + retour `ready` seul.
+5. **Valider C (manuel)** : `curl -XPOST …/mount/reconnect` → `ready`.
+6. **Côté app** : re-tester le **D-Pad** (doit bouger la monture) + le bouton **RECONNECTER** de la bannière quand la monture est coupée.
+7. Puis rouvrir **Macro 2** (backlash mount-side, débloqué) + valider **wizard 3 étoiles / GoTo** contre le matériel (même path adapter, corrigé).
 
 ### Session 37 — OTA bootstrappé + JALON C VALIDÉ : la monture est pilotée par INDI (2026-07-05)
 
