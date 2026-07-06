@@ -39,6 +39,7 @@ SERIAL_DEVICE_ENV = "ASTRO_BRAIN_SERIAL_DEVICE"
 SERIAL_DEVICE_DEFAULT = "/dev/ttyUSB0"
 DEVICE_DISCOVERY_TIMEOUT_S = 5.0
 DEVICE_DISCOVERY_POLL_S = 0.1
+CONNECT_CONFIRM_TIMEOUT_S = 8.0
 
 
 def _now() -> datetime:
@@ -116,6 +117,7 @@ class MountIndiAdapter:
                     f"connectServer returned False ({self._host}:{self._port})"
                 )
             await self._await_device()
+            await self._ensure_connected()
             self._connected = True
             self._bus.publish(
                 "mount",
@@ -155,6 +157,46 @@ class MountIndiAdapter:
         raise TimeoutError(
             f"INDI device {self._device_name!r} not advertised within "
             f"{DEVICE_DISCOVERY_TIMEOUT_S}s"
+        )
+
+    async def _ensure_connected(self) -> None:
+        """Push ``CONNECTION.CONNECT=On`` and wait for the driver to confirm.
+
+        indiserver *advertises* the device (so :meth:`_await_device`
+        succeeds) even while the ``indi_celestron_aux`` driver is
+        disconnected from the mount. In that state the driver has not
+        defined any mount property (``TELESCOPE_SLEW_RATE``, motion
+        switches, …), so every command silently no-ops — which is exactly
+        why the app's manual mode moved nothing until the connection was
+        toggled by hand (journal S38). Connecting here makes the mount
+        usable straight after :meth:`start` without manual intervention.
+
+        A driver that exposes no ``CONNECTION`` property (never the real
+        one; only bare fakes) is left as-is.
+        """
+        conn = self._client.getDevice(self._device_name).getSwitch("CONNECTION")
+        if conn is None:
+            logger.warning("indi: no CONNECTION property; skipping connect")
+            return
+        if find_widget(conn, "CONNECT").getState() == SWITCH_ON:
+            return  # already connected
+        set_switch_one_of_many(conn, "CONNECT")
+        await asyncio.to_thread(self._client.sendNewProperty, conn)
+
+        # Wait for CONNECT to read back On (driver confirmed the link).
+        deadline = asyncio.get_running_loop().time() + CONNECT_CONFIRM_TIMEOUT_S
+        while asyncio.get_running_loop().time() < deadline:
+            fresh = self._client.getDevice(self._device_name).getSwitch(
+                "CONNECTION"
+            )
+            if fresh is not None and (
+                find_widget(fresh, "CONNECT").getState() == SWITCH_ON
+            ):
+                return
+            await asyncio.sleep(DEVICE_DISCOVERY_POLL_S)
+        raise TimeoutError(
+            f"mount did not confirm CONNECTION within "
+            f"{CONNECT_CONFIRM_TIMEOUT_S}s"
         )
 
     # --- joystick / slew --------------------------------------------------

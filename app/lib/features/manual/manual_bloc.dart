@@ -10,7 +10,9 @@ export 'manual_state.dart';
 class ManualBloc extends Bloc<ManualEvent, ManualState> {
   ManualBloc({required this.api}) : super(const ManualState()) {
     on<ManualRateChanged>(
-      (e, emit) => emit(state.copyWith(rate: e.rate.clamp(1, 9))),
+      // 1..8 : le driver INDI n'expose que 1x…8x (pas de 9x). Un rate 9
+      // faisait échouer le slew côté backend en silence (journal S38).
+      (e, emit) => emit(state.copyWith(rate: e.rate.clamp(1, 8))),
     );
     on<ManualSlewPressed>(_onSlew);
     on<ManualSlewReleased>(_onStop);

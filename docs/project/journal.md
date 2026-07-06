@@ -41,6 +41,18 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 
 ## Session en cours
 
+### Session 38 — Mode manuel app→monture : cause racine = driver non reconnecté + fix auto-connexion (2026-07-06)
+
+Reprise après « le mode manuel de l'app ne marche pas » (contredit S37). Skill `systematic-debugging`. Le end-to-end validé en S37 était un **curl direct** au backend ; le chemin **app→backend n'avait jamais été testé**.
+
+**Cause racine (confirmée live, lecture seule).** Symptôme : D-Pad actif, `POST /slew` → 200, **aucune erreur, aucun mouvement, à tous les rates**. Diag Pi : `Celestron AUX.CONNECTION.CONNECT=**Off**` + `No TELESCOPE_SLEW_RATE` → **le driver INDI n'était plus connecté à la monture**. En S37 la connexion avait été montée **à la main** (`indi_setprop …CONNECT=On`) et rien ne la rétablit → au retour elle est `Off`. `indiserver` **annonce** le device même déconnecté (`_await_device` passe), mais aucune propriété monture n'existe → `slew()` lève, publie `mount:error` via SSE… mais renvoie quand même **200** → app muette. Confirmé en reconnectant à la main : `CONNECT=On` → `TELESCOPE_SLEW_RATE` 1x→8x réapparaît, D-Pad **bouge la monture** (validation utilisateur).
+
+**Fix A — auto-connexion backend (TDD).** `MountIndiAdapter.start()` appelle désormais `_ensure_connected()` : pousse `CONNECTION.CONNECT=On` et attend la confirmation (`CONNECT_CONFIRM_TIMEOUT_S=8s`) avant de publier `ready`. Tolérant au driver sans `CONNECTION` (fakes) : warn + continue. Test RED→GREEN + ajustement d'un test slew (drop du push CONNECTION). **345 tests backend, lint OK.** Effet de bord assumé : monture éteinte au boot → `start()` échoue proprement → `mount:error` (désormais **visible**, cf. B2) au lieu d'un faux `ready` silencieux ; pas de reconnect auto (⇒ étape suivante).
+
+**Fix B — bugs app qui masquaient l'échec.** (B1) rate clampé **1..8** (`ManualBloc`) + `RateControl(max: 8)` — le `9x` n'existe pas côté INDI et cassait tout slew à 9. (B2) nouveau `MountStatusBanner` sur l'écran manuel → affiche `Erreur monture` / `Monture déconnectée` + message SSE quand la monture n'est pas pilotable (fini l'échec invisible). **229 tests Flutter, analyze clean.**
+
+**🔜 Reprise (décidée avec l'utilisateur) :** concevoir proprement la **gestion du restart d'`indiserver`** (reconnexion) — analyser l'existant (callbacks pyindi `serverDisconnected`/`watchDevice`, tâches de fond `orchestrator`/`invalidator`) avant de coder. Piste : primitive `reconnect()` (manuel via `POST /mount/reconnect` + bouton bannière) réutilisable ensuite par un auto-retry back-off. Note de couche : le retry app↔Pi (SSE back-off) ne couvre pas le lien Pi↔monture.
+
 ### Session 37 — OTA bootstrappé + JALON C VALIDÉ : la monture est pilotée par INDI (2026-07-05)
 
 Thread matériel → **logiciel**. L'ESP32 répond et entend (S36) → on ferme la boucle : flash OTA opérationnel, puis on branche le vrai driver INDI sur la monture. Skill `systematic-debugging` (contradiction « l'encodeur bouge mais rien ne bouge » élucidée).

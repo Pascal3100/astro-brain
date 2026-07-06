@@ -39,6 +39,28 @@ async def test_start_publishes_connecting_then_ready_when_device_arrives() -> No
 
 
 @pytest.mark.asyncio
+async def test_start_connects_the_driver_to_the_mount() -> None:
+    # Regression (journal S38): indiserver advertises the device even while
+    # the driver sits at CONNECTION.CONNECT=Off. In that state no mount
+    # properties exist and every command silently no-ops — the app's manual
+    # mode moved nothing. start() must explicitly push CONNECT=On.
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)  # seeds CONNECTION with CONNECT=OFF
+    adapter = MountIndiAdapter(bus, client=client)
+
+    await adapter.start()
+
+    conn = client.getDevice(INDI_DEVICE_NAME).getSwitch("CONNECTION")
+    assert conn.findWidgetByName("CONNECT").getStateAsString() == "On"
+    assert conn.findWidgetByName("DISCONNECT").getStateAsString() == "Off"
+    assert any(p is conn for p in client.sent_properties), (
+        "start() must send the CONNECTION property to the server"
+    )
+    assert bus.get_full_state().subsystems["mount"].state == "ready"
+
+
+@pytest.mark.asyncio
 async def test_start_publishes_error_when_connect_fails() -> None:
     bus = StateBus()
 
@@ -93,6 +115,7 @@ async def test_slew_alt_plus_rate4_pushes_slew_rate_then_motion_north() -> None:
     _seed_motion_properties(client)
     adapter = MountIndiAdapter(bus, client=client)
     await adapter.start()
+    client.sent_properties.clear()  # drop the CONNECTION push from start()
 
     await adapter.slew("alt", "+", 4)
 

@@ -26,13 +26,13 @@ void main() {
   });
 
   blocTest<ManualBloc, ManualState>(
-    'ManualRateChanged clampé entre 1 et 9',
+    'ManualRateChanged clampé entre 1 et 8 (le rate 9x n\'existe pas côté INDI)',
     build: () => ManualBloc(api: api),
     act: (b) => b
       ..add(const ManualRateChanged(12))
       ..add(const ManualRateChanged(0)),
     expect: () => [
-      const ManualState(rate: 9),
+      const ManualState(rate: 8),
       const ManualState(rate: 1),
     ],
   );

@@ -9,6 +9,7 @@ import '../../widgets/astro_app_bar.dart';
 import '../../widgets/dpad_control.dart';
 import 'manual_bloc.dart';
 import '../../widgets/rate_control.dart';
+import 'widgets/mount_status_banner.dart';
 import 'widgets/tracking_toggle.dart';
 
 class ManualScreen extends StatelessWidget {
@@ -32,7 +33,9 @@ class ManualScreen extends StatelessWidget {
             child: Column(
               children: [
                 const AstroAppBar(current: AstroScreen.manual),
-                const SizedBox(height: DesignTokens.space2XL),
+                const SizedBox(height: DesignTokens.spaceLG),
+                const MountStatusBanner(),
+                const SizedBox(height: DesignTokens.spaceLG),
                 const Expanded(
                   child: Center(
                     child: AspectRatio(
@@ -46,6 +49,7 @@ class ManualScreen extends StatelessWidget {
                   buildWhen: (a, b) => a.rate != b.rate,
                   builder: (ctx, state) => RateControl(
                     value: state.rate,
+                    max: 8, // le driver INDI n'expose que 1x…8x
                     onChanged: (v) =>
                         ctx.read<ManualBloc>().add(ManualRateChanged(v)),
                   ),
