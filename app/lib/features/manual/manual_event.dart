@@ -36,3 +36,8 @@ class ManualTrackingToggled extends ManualEvent {
   @override
   List<Object> get props => [enabled];
 }
+
+/// Demande une reconnexion de la monture (bouton de la bannière d'erreur).
+class ManualReconnectPressed extends ManualEvent {
+  const ManualReconnectPressed();
+}

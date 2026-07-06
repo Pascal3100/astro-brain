@@ -89,6 +89,69 @@ async def test_stop_publishes_disconnected() -> None:
     assert client.connected is False
 
 
+@pytest.mark.asyncio
+async def test_handle_server_disconnected_publishes_disconnected_not_error() -> None:
+    # indiserver dropping is a lost link, not a transient command error:
+    # publish `disconnected` (what the reconnect supervisor watches) and
+    # drop the stale device handle so commands no-op cleanly (S38).
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    assert bus.get_full_state().subsystems["mount"].state == "ready"
+
+    adapter.handle_server_disconnected(2)
+
+    state = bus.get_full_state().subsystems["mount"]
+    assert state.state == "disconnected"
+    assert "2" in (state.message or "")
+    # _device must now be None so a stray slew is a silent no-op.
+    await adapter.slew("az", "+", 5)
+    assert bus.get_full_state().subsystems["mount"].state == "disconnected"
+
+
+@pytest.mark.asyncio
+async def test_reconnect_reestablishes_link_after_server_drop() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    # Simulate indiserver dropping: transport down + the client callback
+    # that the real AstroBrainIndiClient forwards to the adapter.
+    client.simulate_disconnect()
+    adapter.handle_server_disconnected(1)
+    assert client.isServerConnected() is False
+    assert bus.get_full_state().subsystems["mount"].state == "disconnected"
+
+    await adapter.reconnect()
+
+    assert client.isServerConnected() is True
+    conn = client.getDevice(INDI_DEVICE_NAME).getSwitch("CONNECTION")
+    assert conn.findWidgetByName("CONNECT").getStateAsString() == "On"
+    assert bus.get_full_state().subsystems["mount"].state == "ready"
+
+
+@pytest.mark.asyncio
+async def test_reconnect_republishes_disconnected_on_failure() -> None:
+    # A failed reconnect must leave `disconnected` (not `ready`/`error`) so
+    # the supervisor keeps retrying.
+    bus = StateBus()
+
+    class _NoConnectClient(FakeIndiClient):
+        def connectServer(self) -> bool:  # noqa: N802
+            return False
+
+    client = _NoConnectClient()
+    _seed_mount_device(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    # Never started/connected → reconnect must go through connectServer.
+    await adapter.reconnect()
+
+    assert bus.get_full_state().subsystems["mount"].state == "disconnected"
+
+
 def _seed_motion_properties(client: FakeIndiClient) -> None:
     dev = client.getDevice(INDI_DEVICE_NAME)
     assert dev is not None

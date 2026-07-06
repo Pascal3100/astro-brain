@@ -6,6 +6,7 @@ import '../../../state/app_bloc/app_bloc.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_typography.dart';
 import '../../../theme/design_tokens.dart';
+import '../manual_bloc.dart';
 
 /// Bannière affichée en mode manuel quand la monture n'est pas pilotable
 /// (erreur INDI ou lien déconnecté).
@@ -54,6 +55,22 @@ class MountStatusBanner extends StatelessWidget {
                   style: context.textStyles.hudCaption
                       .copyWith(color: colors.dotError),
                 ),
+              ),
+              const SizedBox(width: DesignTokens.spaceSM),
+              TextButton(
+                key: const Key('mount-reconnect-button'),
+                onPressed: () => context
+                    .read<ManualBloc>()
+                    .add(const ManualReconnectPressed()),
+                style: TextButton.styleFrom(
+                  foregroundColor: colors.dotError,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: DesignTokens.spaceSM,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('RECONNECTER'),
               ),
             ],
           ),

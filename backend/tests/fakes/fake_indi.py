@@ -265,6 +265,9 @@ class FakeIndiClient:
         self.serverDisconnected(0)
         return True
 
+    def isServerConnected(self) -> bool:  # noqa: N802
+        return self.connected
+
     def getDevice(self, name: str) -> FakeDevice | None:  # noqa: N802
         return self._devices.get(name)
 

@@ -72,6 +72,12 @@ class ApiService {
     await _post('/tracking', {'enabled': enabled});
   }
 
+  /// Déclenche une reconnexion de la monture (non bloquant côté backend :
+  /// la progression revient par SSE `/state`).
+  Future<void> reconnectMount() async {
+    await _post('/mount/reconnect', const {});
+  }
+
   Future<void> _post(String path, Map<String, dynamic> body) async {
     final resp = await _client
         .post(

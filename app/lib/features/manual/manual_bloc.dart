@@ -17,6 +17,7 @@ class ManualBloc extends Bloc<ManualEvent, ManualState> {
     on<ManualSlewPressed>(_onSlew);
     on<ManualSlewReleased>(_onStop);
     on<ManualTrackingToggled>(_onTracking);
+    on<ManualReconnectPressed>(_onReconnect);
   }
 
   final ApiService api;
@@ -45,6 +46,18 @@ class ManualBloc extends Bloc<ManualEvent, ManualState> {
   ) async {
     try {
       await api.setTracking(e.enabled);
+      emit(state.copyWith(clearError: true));
+    } on Exception catch (err) {
+      emit(state.copyWith(lastError: err.toString()));
+    }
+  }
+
+  Future<void> _onReconnect(
+    ManualReconnectPressed e,
+    Emitter<ManualState> emit,
+  ) async {
+    try {
+      await api.reconnectMount();
       emit(state.copyWith(clearError: true));
     } on Exception catch (err) {
       emit(state.copyWith(lastError: err.toString()));

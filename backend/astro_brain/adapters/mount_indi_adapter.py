@@ -72,6 +72,8 @@ class MountIndiAdapter:
         self._active_slews: list[dict[str, Any]] = []
         self._goto_in_progress: bool = False
         self._goto_target: dict[str, Any] | None = None
+        self._reconnect_lock = asyncio.Lock()
+        self._pending_reconnects: set[asyncio.Task[None]] = set()
 
     @property
     def _device(self) -> Any | None:
@@ -108,7 +110,9 @@ class MountIndiAdapter:
                 )
 
                 self._client = AstroBrainIndiClient(
-                    bus=self._bus, on_update=self.handle_property_update
+                    bus=self._bus,
+                    on_update=self.handle_property_update,
+                    on_disconnect=self.handle_server_disconnected,
                 )
             self._client.setServer(self._host, self._port)
             ok = await asyncio.to_thread(self._client.connectServer)
@@ -145,6 +149,84 @@ class MountIndiAdapter:
         self._bus.publish(
             "mount", SubsystemState(state="disconnected", since=_now())
         )
+
+    def handle_server_disconnected(self, code: int) -> None:
+        """React to indiserver dropping (invoked on the asyncio loop).
+
+        The PyIndi client forwards its ``serverDisconnected`` callback here.
+        A dropped link is **not** a transient command error: we publish
+        ``disconnected`` (which :class:`MountConnectionSupervisor` watches
+        to trigger reconnection) and reserve ``error`` for recoverable
+        command failures. Flipping ``_connected`` also stops :attr:`_device`
+        from handing out a stale handle. See journal S38.
+        """
+        self._connected = False
+        self._bus.publish(
+            "mount",
+            SubsystemState(
+                state="disconnected",
+                message=f"indiserver disconnected (code={code})",
+                since=_now(),
+            ),
+        )
+
+    async def reconnect(self) -> None:
+        """Re-establish the mount link end-to-end (manual or supervisor).
+
+        Serialised by a lock so a manual nudge and the background
+        supervisor never race. Reuses the boot connect sequence: reconnect
+        to indiserver if the socket dropped, rediscover the device, then
+        push ``CONNECTION.CONNECT=On`` via :meth:`_ensure_connected`. On
+        failure it publishes ``disconnected`` (not ``error``) so the
+        supervisor keeps retrying.
+        """
+        async with self._reconnect_lock:
+            if self._client is None:
+                await self.start()
+                return
+            self._bus.publish(
+                "mount", SubsystemState(state="connecting", since=_now())
+            )
+            try:
+                if not self._client.isServerConnected():
+                    self._client.setServer(self._host, self._port)
+                    ok = await asyncio.to_thread(self._client.connectServer)
+                    if not ok:
+                        raise RuntimeError(
+                            f"connectServer returned False "
+                            f"({self._host}:{self._port})"
+                        )
+                await self._await_device()
+                await self._ensure_connected()
+                self._connected = True
+                self._bus.publish(
+                    "mount",
+                    SubsystemState(
+                        state="ready",
+                        details={"device": self._device_name},
+                        since=_now(),
+                    ),
+                )
+            except Exception as exc:
+                self._connected = False
+                logger.exception("indi: reconnect failed")
+                self._bus.publish(
+                    "mount",
+                    SubsystemState(
+                        state="disconnected", message=str(exc), since=_now()
+                    ),
+                )
+
+    def request_reconnect(self) -> None:
+        """Schedule a reconnect without blocking the caller.
+
+        Used by ``POST /mount/reconnect``: the REST call returns
+        immediately (the app has a short timeout) and connection progress
+        flows back over SSE.
+        """
+        task = asyncio.create_task(self.reconnect())
+        self._pending_reconnects.add(task)
+        task.add_done_callback(self._pending_reconnects.discard)
 
     async def _await_device(self) -> Any:
         """Poll ``getDevice`` until the device shows up or we time out."""

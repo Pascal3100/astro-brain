@@ -51,7 +51,16 @@ Reprise après « le mode manuel de l'app ne marche pas » (contredit S37). Skil
 
 **Fix B — bugs app qui masquaient l'échec.** (B1) rate clampé **1..8** (`ManualBloc`) + `RateControl(max: 8)` — le `9x` n'existe pas côté INDI et cassait tout slew à 9. (B2) nouveau `MountStatusBanner` sur l'écran manuel → affiche `Erreur monture` / `Monture déconnectée` + message SSE quand la monture n'est pas pilotable (fini l'échec invisible). **229 tests Flutter, analyze clean.**
 
-**🔜 Reprise (décidée avec l'utilisateur) :** concevoir proprement la **gestion du restart d'`indiserver`** (reconnexion) — analyser l'existant (callbacks pyindi `serverDisconnected`/`watchDevice`, tâches de fond `orchestrator`/`invalidator`) avant de coder. Piste : primitive `reconnect()` (manuel via `POST /mount/reconnect` + bouton bannière) réutilisable ensuite par un auto-retry back-off. Note de couche : le retry app↔Pi (SSE back-off) ne couvre pas le lien Pi↔monture.
+**Commit `3ac2ebe`** (Fix A + B, 345 backend / 229 Flutter). Puis, à froid, conception de la **reconnexion INDI** (analyse de l'existant avant code).
+
+**Fix C — reconnexion `indiserver` (auto + manuel, une seule primitive).** Constat existant : `AstroBrainIndiClient.serverDisconnected` **détectait** déjà la chute mais publiait `error` + « redémarrez le service », sans toucher `adapter._connected` ni reconnecter ; le pattern de tâche de fond abonnée au bus existait (`Orchestrator`, `AlignmentInvalidator`). Conception retenue (couches : le retry app↔Pi ne couvre pas le lien Pi↔monture — cas monture éteinte au boot = app OK) :
+- **Sémantique** : `serverDisconnected` routé via l'adaptateur (hook `on_disconnect`) → `_connected=False` + publie **`disconnected`** (pas `error`) ; `error` réservé aux échecs de commande récupérables. Distinction nette lien-perdu vs commande-ratée, cohérente avec `AlignmentInvalidator`.
+- **Primitive** `MountIndiAdapter.reconnect()` (Lock-guardée) : re-`connectServer` si socket tombé (`isServerConnected()`), `_await_device`, `_ensure_connected` ; publie `connecting→ready`, ou `disconnected` en échec (pour laisser le superviseur réessayer). `request_reconnect()` = fire-and-forget non bloquant.
+- **Superviseur** `MountConnectionSupervisor` (même moule que l'Orchestrator) : sur `disconnected`, réessaie `reconnect()` en **back-off** `[1,2,5,10,30]s` jusqu'à `ready` ; ignore `error`. Lancé en tâche de fond du lifespan (annulé avant `mount.stop()`).
+- **Manuel = nudge** : `POST /mount/reconnect` (non bloquant) + bouton **RECONNECTER** sur la bannière B2 → `ManualReconnectPressed`. Récup auto (app fermée ou non) **+** bouton pour forcer.
+- **Défense en profondeur** : borne API `SlewRequest.rate` resserrée `le=9 → le=8` (le `9x` n'existe pas). **353 backend + Flutter verts** (fichiers touchés lint-clean ; 28 erreurs ruff préexistantes hors-scope laissées telles quelles).
+
+**🔜 Reprise :** déployer (Pi `git pull` + restart) et **valider à froid** : couper la connexion → vérifier reconnexion **auto** (back-off) + bouton ; re-tester D-Pad. Puis rouvrir Macro 2 (backlash mount-side) + valider wizard 3 étoiles / GoTo contre le matériel.
 
 ### Session 37 — OTA bootstrappé + JALON C VALIDÉ : la monture est pilotée par INDI (2026-07-05)
 

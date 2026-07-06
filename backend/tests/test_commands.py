@@ -59,6 +59,23 @@ def test_slew_rejects_rate_out_of_range(harness: Harness) -> None:
     assert r.status_code == 422
 
 
+def test_slew_rejects_rate_9(harness: Harness) -> None:
+    # 9x does not exist on the INDI driver (1x…8x only) — rejected at the
+    # API boundary, not silently accepted then failing on hardware (S38).
+    r = harness.client.post(
+        "/slew", json={"axis": "alt", "direction": "+", "rate": 9}
+    )
+    assert r.status_code == 422
+
+
+def test_mount_reconnect_schedules_reconnect(harness: Harness) -> None:
+    r = harness.client.post("/mount/reconnect")
+    assert r.status_code == 200, r.text
+    assert r.json() == {"ok": True}
+    # FakeMount records the fire-and-forget request synchronously.
+    assert harness.client.app.state.mount.reconnect_requests == 1
+
+
 def test_stop_without_axis_stops_all(harness: Harness) -> None:
     harness.client.post(
         "/slew", json={"axis": "alt", "direction": "+", "rate": 5}

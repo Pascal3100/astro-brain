@@ -28,6 +28,7 @@ from fastapi import FastAPI
 
 from astro_brain.alignment_invalidator import AlignmentInvalidator
 from astro_brain.bus import StateBus
+from astro_brain.mount_connection_supervisor import MountConnectionSupervisor
 from astro_brain.orchestrator import Orchestrator
 from astro_brain.repository import alignment_repo
 from astro_brain.repository.state_db import db_path as _default_db_path
@@ -180,6 +181,9 @@ def build_app(
     bus = StateBus()
     services = _select_services(bus, use_hardware=use_hardware)
     orchestrator = Orchestrator(bus=bus, mount=services["mount"])
+    reconnect_supervisor = MountConnectionSupervisor(
+        bus=bus, mount=services["mount"]
+    )
 
     background_tasks: list[asyncio.Task[Any]] = []
 
@@ -261,6 +265,11 @@ def build_app(
 
         orch_task = asyncio.create_task(orchestrator.run(), name="orchestrator")
         background_tasks.append(orch_task)
+        background_tasks.append(
+            asyncio.create_task(
+                reconnect_supervisor.run(), name="mount-reconnect-supervisor"
+            )
+        )
         try:
             yield
         finally:

@@ -35,10 +35,11 @@ def _now() -> datetime:
 class AstroBrainIndiClient(PyIndi.BaseClient):
     """Production INDI client. Pushes connection lifecycle to the bus."""
 
-    def __init__(self, *, bus: StateBus, on_update=None) -> None:
+    def __init__(self, *, bus: StateBus, on_update=None, on_disconnect=None) -> None:
         super().__init__()
         self._bus = bus
         self._on_update = on_update
+        self._on_disconnect = on_disconnect
         # Capture the loop so callbacks fired from PyIndi's C++ thread
         # can hand work back to asyncio safely.
         self._loop = asyncio.get_running_loop()
@@ -50,12 +51,15 @@ class AstroBrainIndiClient(PyIndi.BaseClient):
 
     def serverDisconnected(self, code: int) -> None:  # noqa: N802
         logger.warning("indi: server disconnected (code=%s)", code)
+        if self._on_disconnect is not None:
+            # Adapter owns the reaction (flips _connected + publishes
+            # `disconnected`, which the reconnect supervisor watches).
+            self._loop.call_soon_threadsafe(self._on_disconnect, code)
+            return
+        # Fallback when no adapter hook is wired: publish `disconnected`.
         state = SubsystemState(
-            state="error",
-            message=(
-                f"indiserver disconnected (code={code}). "
-                "Restart astro-brain.service to reconnect."
-            ),
+            state="disconnected",
+            message=f"indiserver disconnected (code={code})",
             since=_now(),
         )
         self._loop.call_soon_threadsafe(self._bus.publish, "mount", state)

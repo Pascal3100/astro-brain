@@ -36,6 +36,20 @@ async def stop(
     return OkResponse()
 
 
+@router.post("/mount/reconnect", response_model=OkResponse)
+async def mount_reconnect(
+    mount: MountService = Depends(deps.get_mount),
+) -> OkResponse:
+    """Trigger a mount reconnect.
+
+    Non-blocking: schedules the reconnect and returns immediately (the app
+    uses a short request timeout). Connection progress — ``connecting`` →
+    ``ready`` / ``disconnected`` — flows back over SSE ``/state``.
+    """
+    mount.request_reconnect()
+    return OkResponse()
+
+
 @router.post("/tracking", response_model=OkResponse)
 async def tracking(
     req: TrackingRequest,

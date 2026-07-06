@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:astro_brain/features/manual/manual_bloc.dart';
 import 'package:astro_brain/features/manual/widgets/mount_status_banner.dart';
 import 'package:astro_brain/models/system_state.dart';
 import 'package:astro_brain/state/app_bloc/app_bloc.dart';
@@ -9,8 +10,12 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 class _MockAppBloc extends MockBloc<AppEvent, AppState> implements AppBloc {}
+
+class _MockManualBloc extends MockBloc<ManualEvent, ManualState>
+    implements ManualBloc {}
 
 SystemState _systemWithMount(String state, {String? message}) =>
     SystemState.fromJson(jsonDecode('''
@@ -39,11 +44,14 @@ ThemeData _theme() => ThemeData(
       ],
     );
 
-Widget _host(AppBloc bloc) => MaterialApp(
+Widget _host(AppBloc bloc, {ManualBloc? manual}) => MaterialApp(
       theme: _theme(),
       home: Scaffold(
-        body: BlocProvider<AppBloc>.value(
-          value: bloc,
+        body: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppBloc>.value(value: bloc),
+            if (manual != null) BlocProvider<ManualBloc>.value(value: manual),
+          ],
           child: const MountStatusBanner(),
         ),
       ),
@@ -98,5 +106,30 @@ void main() {
     await tester.pumpWidget(_host(bloc));
 
     expect(find.byKey(const Key('mount-status-banner')), findsNothing);
+  });
+
+  testWidgets('bouton RECONNECTER dispatch ManualReconnectPressed',
+      (tester) async {
+    final bloc = _MockAppBloc();
+    whenListen(
+      bloc,
+      const Stream<AppState>.empty(),
+      initialState: AppState(
+        connection: ConnectionStatus.connected,
+        system: _systemWithMount('disconnected'),
+      ),
+    );
+    final manual = _MockManualBloc();
+    whenListen(
+      manual,
+      const Stream<ManualState>.empty(),
+      initialState: const ManualState(),
+    );
+
+    await tester.pumpWidget(_host(bloc, manual: manual));
+    await tester.tap(find.byKey(const Key('mount-reconnect-button')));
+    await tester.pump(const Duration(milliseconds: 350)); // settle ripple
+
+    verify(() => manual.add(const ManualReconnectPressed())).called(1);
   });
 }

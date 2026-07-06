@@ -28,6 +28,19 @@ class MountService(Protocol):
     async def start(self) -> None: ...
     async def stop(self) -> None: ...
 
+    async def reconnect(self) -> None:
+        """Re-establish the mount link (indiserver + driver→mount).
+
+        Idempotent and safe to call while already connected. Publishes
+        ``connecting`` then ``ready`` on success, or ``disconnected`` on
+        failure so a supervisor can keep retrying.
+        """
+        ...
+
+    def request_reconnect(self) -> None:
+        """Schedule :meth:`reconnect` without blocking (fire-and-forget)."""
+        ...
+
     async def slew(self, axis: Axis, direction: Direction, rate: int) -> None: ...
     async def stop_slew(self, axis: Axis | None) -> None: ...
 

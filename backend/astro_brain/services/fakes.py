@@ -31,6 +31,8 @@ class FakeMount:
         self._active_slews: list[dict[str, Any]] = []
         self.sync_calls: list[tuple[float, float]] = []
         self.goto_calls: list[tuple[float, float, str | None]] = []
+        self.reconnect_calls: int = 0
+        self.reconnect_requests: int = 0
 
     async def start(self) -> None:
         self._bus.publish(
@@ -41,6 +43,20 @@ class FakeMount:
                 since=_now(),
             ),
         )
+
+    async def reconnect(self) -> None:
+        self.reconnect_calls += 1
+        self._bus.publish(
+            "mount",
+            SubsystemState(
+                state="ready",
+                details={"firmware_version": "fake-1.0"},
+                since=_now(),
+            ),
+        )
+
+    def request_reconnect(self) -> None:
+        self.reconnect_requests += 1
 
     async def stop(self) -> None:
         self._bus.publish(

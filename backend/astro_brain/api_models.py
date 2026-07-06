@@ -17,7 +17,9 @@ class SlewRequest(BaseModel):
 
     axis: Literal["alt", "az"]
     direction: Literal["+", "-"]
-    rate: int = Field(ge=1, le=9)
+    # 1..8: the INDI driver only exposes slew rates 1x…8x (no 9x). Rejecting
+    # 9 here mirrors the app-side clamp — defence in depth (journal S38).
+    rate: int = Field(ge=1, le=8)
 
 
 class StopRequest(BaseModel):

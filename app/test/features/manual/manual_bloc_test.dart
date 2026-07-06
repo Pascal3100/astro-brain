@@ -23,6 +23,7 @@ void main() {
         .thenAnswer((_) async {});
     when(() => api.stop(axis: any(named: 'axis'))).thenAnswer((_) async {});
     when(() => api.setTracking(any())).thenAnswer((_) async {});
+    when(() => api.reconnectMount()).thenAnswer((_) async {});
   });
 
   blocTest<ManualBloc, ManualState>(
@@ -46,6 +47,15 @@ void main() {
     verify: (_) {
       verify(() => api.slew(
           axis: Axis.alt, direction: Direction.plus, rate: 7)).called(1);
+    },
+  );
+
+  blocTest<ManualBloc, ManualState>(
+    'ManualReconnectPressed appelle api.reconnectMount',
+    build: () => ManualBloc(api: api),
+    act: (b) => b.add(const ManualReconnectPressed()),
+    verify: (_) {
+      verify(() => api.reconnectMount()).called(1);
     },
   );
 
