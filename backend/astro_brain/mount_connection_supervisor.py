@@ -62,11 +62,16 @@ class MountConnectionSupervisor:
             mount = self._bus.get_full_state().subsystems.get("mount")
             if mount is None or mount.state != MountState.DISCONNECTED.value:
                 return
-            logger.info("mount supervisor: reconnect attempt %d", attempt + 1)
+            # WARNING (not INFO): the backend runs at the WARNING root level
+            # in production, so INFO would be invisible — and a lost mount
+            # link + its recovery are exactly the events ops needs to see.
+            logger.warning(
+                "mount supervisor: reconnect attempt %d", attempt + 1
+            )
             await self._mount.reconnect()
             mount = self._bus.get_full_state().subsystems.get("mount")
             if mount is not None and mount.state == MountState.READY.value:
-                logger.info("mount supervisor: reconnected")
+                logger.warning("mount supervisor: reconnected")
                 return
             delay = self._backoff[min(attempt, len(self._backoff) - 1)]
             attempt += 1
