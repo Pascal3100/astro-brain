@@ -287,6 +287,49 @@ async def test_slew_refetches_device_not_stale_empty_handle() -> None:
     assert bus.get_full_state().subsystems["mount"].state == "moving"
 
 
+class _DelayedConnectionClient(FakeIndiClient):
+    """``getDevice`` first returns a placeholder whose ``CONNECTION`` vector
+    has no ``CONNECT`` widget yet (nameless widgets, as the real driver
+    streams its property tree in after the device is advertised), then the
+    fully-populated device. Mirrors journal S38: ``_ensure_connected`` read
+    ``CONNECT`` the instant the device appeared and crashed with KeyError.
+    """
+
+    def __init__(
+        self, placeholder: FakeDevice, full: FakeDevice, ready_after: int
+    ) -> None:
+        super().__init__()
+        self._placeholder = placeholder
+        self._full = full
+        self._ready_after = ready_after
+        self._seen = 0
+
+    def getDevice(self, name: str) -> FakeDevice:  # noqa: N802
+        self._seen += 1
+        if self._seen > self._ready_after:
+            return self._full
+        return self._placeholder
+
+
+@pytest.mark.asyncio
+async def test_start_waits_for_connection_widget_to_stream_in() -> None:
+    bus = StateBus()
+    placeholder = FakeDevice(INDI_DEVICE_NAME)
+    # CONNECTION advertised but its named widgets not defined yet (the real
+    # driver hands back a nameless placeholder for a beat after connect).
+    placeholder.add_switch("CONNECTION", {"": "OFF"})
+    full = FakeDevice(INDI_DEVICE_NAME)
+    full.add_switch("CONNECTION", {"CONNECT": "OFF", "DISCONNECT": "ON"})
+    client = _DelayedConnectionClient(placeholder, full, ready_after=2)
+    adapter = MountIndiAdapter(bus, client=client)
+
+    await adapter.start()
+
+    conn = full.getSwitch("CONNECTION")
+    assert conn.findWidgetByName("CONNECT").getStateAsString() == "On"
+    assert bus.get_full_state().subsystems["mount"].state == "ready"
+
+
 def _seed_time_location_properties(client: FakeIndiClient) -> None:
     dev = client.getDevice(INDI_DEVICE_NAME)
     assert dev is not None

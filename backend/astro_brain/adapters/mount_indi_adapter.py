@@ -241,6 +241,37 @@ class MountIndiAdapter:
             f"{DEVICE_DISCOVERY_TIMEOUT_S}s"
         )
 
+    async def _await_connection_switch(self) -> Any | None:
+        """Poll until the ``CONNECTION`` switch exposes its ``CONNECT`` widget.
+
+        Right after :meth:`connectServer` the driver's property tree is still
+        streaming in over the socket: ``getDevice`` can hand back a
+        placeholder whose ``CONNECTION`` vector holds nameless widgets
+        (same stale-handle family as journal S37/S38). Reading ``CONNECT``
+        the instant the device appears raised ``KeyError: 'CONNECT'`` and
+        failed ``start()`` on hardware. Poll (re-fetching the device each
+        time, since the handle is never cached) until the named widget shows
+        up. Returns ``None`` if the device genuinely never advertises a
+        ``CONNECTION`` switch — only bare fakes, left as-is by the caller.
+        """
+        deadline = (
+            asyncio.get_running_loop().time() + CONNECT_CONFIRM_TIMEOUT_S
+        )
+        saw_switch = False
+        while asyncio.get_running_loop().time() < deadline:
+            dev = self._client.getDevice(self._device_name)
+            conn = dev.getSwitch("CONNECTION") if dev is not None else None
+            if conn is not None:
+                saw_switch = True
+                if conn.findWidgetByName("CONNECT") is not None:
+                    return conn
+            elif not saw_switch:
+                # Never advertised a CONNECTION switch: a bare fake, not the
+                # real driver (which returns a placeholder within ~20 ms).
+                return None
+            await asyncio.sleep(DEVICE_DISCOVERY_POLL_S)
+        return None
+
     async def _ensure_connected(self) -> None:
         """Push ``CONNECTION.CONNECT=On`` and wait for the driver to confirm.
 
@@ -256,7 +287,7 @@ class MountIndiAdapter:
         A driver that exposes no ``CONNECTION`` property (never the real
         one; only bare fakes) is left as-is.
         """
-        conn = self._client.getDevice(self._device_name).getSwitch("CONNECTION")
+        conn = await self._await_connection_switch()
         if conn is None:
             logger.warning("indi: no CONNECTION property; skipping connect")
             return
