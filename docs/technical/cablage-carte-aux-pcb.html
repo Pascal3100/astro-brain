@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carte pont AUX (PCB) — Astro-Brain</title>
+<style>
+  :root {
+    --bg:        #0a0e1a;
+    --panel:     #111a2e;
+    --panel-2:   #0d1424;
+    --line:      #1e2c47;
+    --txt:       #c8d6f0;
+    --txt-dim:   #6f82a8;
+    --accent:    #4fd1ff;
+    --accent-bg: rgba(79,209,255,.10);
+    --power:     #ffb454;
+    --gnd:       #7184a8;
+    --sig:       #4fd1ff;
+    --out:       #4fe0a0;
+    --warn:      #ff5d6c;
+    --ok:        #4fe0a0;
+    --wip:       #ffb454;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:0; background:var(--bg); color:var(--txt);
+    font-family: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:980px; margin:0 auto; padding:28px 22px 90px; }
+  header {
+    display:flex; align-items:flex-start; justify-content:space-between;
+    gap:16px; flex-wrap:wrap; margin-bottom:22px;
+    border-bottom:1px solid var(--line); padding-bottom:18px;
+  }
+  h1 { font-size:18px; margin:0; letter-spacing:.5px; }
+  h1 .sub { display:block; font-size:12px; color:var(--txt-dim); font-weight:400; margin-top:4px; letter-spacing:0; }
+  h2 {
+    font-size:13px; text-transform:uppercase; letter-spacing:1.5px;
+    color:var(--accent); margin:38px 0 14px; padding-left:10px;
+    border-left:3px solid var(--accent);
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  }
+  h3 { font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--txt-dim); margin:20px 0 8px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; }
+
+  .badge { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700;
+           padding:4px 10px; border-radius:20px; letter-spacing:.5px; white-space:nowrap; }
+  .badge.ok  { color:var(--ok);   background:rgba(79,224,160,.10); border:1px solid rgba(79,224,160,.4); }
+  .badge.wip { color:var(--wip);  background:rgba(255,180,84,.10); border:1px solid rgba(255,180,84,.4); }
+  .badge.mix { color:var(--accent); background:var(--accent-bg); border:1px solid rgba(79,209,255,.4); }
+
+  .legend { display:flex; flex-wrap:wrap; gap:8px 18px; margin:0 0 16px; font-size:12px; }
+  .legend span { display:inline-flex; align-items:center; gap:7px; color:var(--txt-dim); }
+  .swatch { width:18px; height:4px; border-radius:2px; display:inline-block; flex:0 0 auto; }
+  .s-sig { background:var(--sig); } .s-out { background:var(--out); }
+  .s-pwr { background:var(--power); } .s-gnd { background:var(--gnd); }
+  .s-wifi { background:var(--sig); height:0; border-top:2px dashed var(--sig); }
+
+  .schwrap { display:flex; justify-content:center; overflow-x:auto; }
+  svg text { font-family:inherit; }
+  .blk        { fill:var(--panel-2); stroke:var(--line); stroke-width:2; }
+  .blk-title  { fill:var(--txt); font-size:13px; font-weight:700; }
+  .blk-sub    { fill:var(--txt-dim); font-size:10.5px; }
+  .blk-tag    { font-size:10px; font-weight:700; letter-spacing:.5px; }
+  .w-sig { stroke:var(--sig);   stroke-width:2.5; fill:none; }
+  .w-out { stroke:var(--out);   stroke-width:2.5; fill:none; }
+  .w-pwr { stroke:var(--power); stroke-width:2.5; fill:none; }
+  .w-gnd { stroke:var(--gnd);   stroke-width:2.5; fill:none; }
+  .w-wifi{ stroke:var(--sig);   stroke-width:2; fill:none; stroke-dasharray:6 4; }
+  .w-warn{ stroke:var(--warn);  stroke-width:2.5; fill:none; stroke-dasharray:4 4; }
+  .t-sig { fill:var(--sig); font-size:11px; } .t-pwr { fill:var(--power); font-size:11px; }
+  .t-gnd { fill:var(--gnd); font-size:11px; } .t-dim { fill:var(--txt-dim); font-size:10.5px; }
+  .t-out { fill:var(--out); font-size:11px; } .t-warn { fill:var(--warn); font-size:11px; }
+  .arrow { fill:var(--txt-dim); }
+
+  table.netlist { border-collapse:collapse; width:100%; font-size:12.5px; margin-top:4px; }
+  table.netlist th, table.netlist td { border:1px solid var(--line); padding:7px 10px; text-align:left; vertical-align:top; }
+  table.netlist th { color:var(--accent); font-weight:600; background:var(--panel-2); }
+  table.netlist code { white-space:nowrap; color:var(--accent); }
+  table.netlist td.warncell { color:var(--warn); font-weight:700; }
+  .net-pwr td:first-child code { color:var(--power); }
+  .net-gnd td:first-child code { color:var(--gnd); }
+
+  .warn { border-left:3px solid var(--warn); background:rgba(255,93,108,.07); padding:12px 16px; border-radius:6px; margin:12px 0; }
+  .warn b { color:var(--warn); }
+  .okbox { border-left:3px solid var(--ok); background:rgba(79,224,160,.07); padding:12px 16px; border-radius:6px; margin:12px 0; }
+  .okbox b { color:var(--ok); }
+  .note { border-left:3px solid var(--wip); background:rgba(255,180,84,.07); padding:12px 16px; border-radius:6px; margin:12px 0; }
+  .note b { color:var(--wip); }
+  .muted { color:var(--txt-dim); }
+  code { color:var(--accent); }
+  .back { display:inline-block; margin-bottom:18px; font-size:12px; }
+  ul { margin:6px 0; padding-left:20px; font-size:13px; line-height:1.7; }
+  ul li b { color:var(--txt); }
+  footer { margin-top:54px; color:var(--txt-dim); font-size:11px; text-align:center; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Carte pont AUX — planche PCB
+      <span class="sub">Consolidation RJ-12 + RX LM2902 + TX 74AHCT125 + ESP32 enfiché · v0 (schéma de départ) · 2026-07-07</span>
+    </h1>
+    <span class="badge wip">✎ schéma de départ</span>
+  </header>
+
+  <a class="back" href="cablage-global.html">← Câblage global</a>
+
+  <div class="okbox">
+    <b>But de la carte.</b> Remplacer le montage sur breadboard par <b>une seule carte propre</b> : on y branche
+    en entrée le <b>RJ-12</b> (bus AUX de la monture) et on y <b>enfiche l'ESP32</b> sur barrettes femelles.
+    La carte porte les deux étages déjà validés — <b>RX comparateur LM2902</b> (✓ S33) et <b>TX buffer tri-state 74AHCT125</b> (✓ S36) —
+    plus leur découplage et l'entrée <b>5 V</b>. Rien d'autre : <b>pas de LDO</b>, c'est un <b>pont de bus pur</b>.
+    Le détail « composant par composant » des deux étages reste dans
+    <a href="cablage-interface-aux.html">interface bus AUX</a> ; cette page en donne la <b>vue carte</b> (netlist + BOM + connecteurs + notes fab).
+  </div>
+
+  <h2>Vue carte — blocs &amp; nets</h2>
+  <div class="panel">
+    <div class="legend">
+      <span><i class="swatch s-sig"></i> signal logique / DATA</span>
+      <span><i class="swatch s-out"></i> sortie RX (~2,9 V) / 1Y</span>
+      <span><i class="swatch s-pwr"></i> +5 V (rail)</span>
+      <span><i class="swatch s-gnd"></i> GND commun</span>
+    </div>
+    <div class="schwrap">
+      <svg viewBox="0 0 960 540" width="100%" style="max-width:960px" role="img" aria-label="Vue carte du pont AUX : RJ-12, LM2902, 74AHCT125, ESP32 enfiché">
+        <defs>
+          <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" class="arrow"/></marker>
+        </defs>
+
+        <!-- rails -->
+        <rect x="50" y="46" width="860" height="13" rx="4" fill="rgba(255,180,84,0.12)" stroke="var(--power)" stroke-width="1.5"/>
+        <text x="58" y="40" class="t-pwr" style="font-weight:700">+5 V — rail (VCC LM2902 · VCC 74AHCT125 · VIN ESP32)</text>
+        <rect x="50" y="492" width="860" height="13" rx="4" fill="rgba(113,132,168,0.14)" stroke="var(--gnd)" stroke-width="1.5"/>
+        <text x="58" y="486" class="t-gnd" style="font-weight:700">GND — masse commune (RJ-12 p5 · entrée 5 V · les 2 CI · ESP32 · Pi)</text>
+
+        <!-- J1 RJ-12 -->
+        <rect class="blk" x="50" y="205" width="150" height="150" rx="10"/>
+        <text x="125" y="232" text-anchor="middle" class="blk-title">J1 · RJ-12 6P6C</text>
+        <text x="125" y="248" text-anchor="middle" class="blk-sub">→ HAND CONTROL (bus AUX)</text>
+        <text x="70" y="278" class="t-warn">p3 +12 V</text><text x="150" y="278" class="t-warn">✗ NC</text>
+        <text x="70" y="300" class="t-sig">p4 DATA</text>
+        <text x="70" y="322" class="t-gnd">p5 GND</text>
+        <text x="70" y="344" class="t-dim">p6 BUSY · NC</text>
+
+        <!-- DATA node bus -->
+        <line x1="200" y1="296" x2="300" y2="296" class="w-sig"/>
+        <circle cx="300" cy="296" r="4.5" class="dot" fill="var(--sig)"/>
+        <text x="286" y="286" class="t-sig" style="font-weight:700">DATA</text>
+        <!-- up to RX, down to TX -->
+        <line x1="300" y1="296" x2="300" y2="170" class="w-sig"/>
+        <line x1="300" y1="170" x2="360" y2="170" class="w-sig" marker-end="url(#ah)"/>
+        <line x1="300" y1="296" x2="300" y2="410" class="w-out"/>
+        <!-- 470 on TX return -->
+        <line x1="360" y1="410" x2="330" y2="410" class="w-out" marker-end="url(#ah)"/>
+        <rect x="330" y="401" width="26" height="16" rx="3" fill="#c79a5b" stroke="#7a5a2c" stroke-width="1.3"/>
+        <text x="343" y="434" text-anchor="middle" class="t-dim">R7 470Ω</text>
+        <line x1="300" y1="410" x2="330" y2="410" class="w-out"/>
+
+        <!-- GND / 5V from J1 -->
+        <line x1="125" y1="322" x2="125" y2="492" class="w-gnd"/>
+
+        <!-- U1 LM2902 RX -->
+        <rect class="blk" x="360" y="118" width="180" height="104" rx="10"/>
+        <text x="450" y="146" text-anchor="middle" class="blk-title">U1 · LM2902 (RX)</text>
+        <text x="450" y="163" text-anchor="middle" class="blk-sub">comparateur haute-Z · 1/4</text>
+        <text x="450" y="179" text-anchor="middle" class="blk-sub">÷2 (R1/R2) · Vréf 0,9 V (R3/R4)</text>
+        <text x="450" y="200" text-anchor="middle" class="blk-tag" fill="var(--ok)">✓ S33</text>
+        <line x1="450" y1="118" x2="450" y2="59" class="w-pwr"/>
+        <line x1="450" y1="222" x2="450" y2="492" class="w-gnd"/>
+        <!-- RX out -> GPIO16 (via R5/R6) -->
+        <line x1="540" y1="170" x2="620" y2="170" class="w-out"/>
+        <text x="548" y="162" class="t-out">→ R5 1k / R6 4k7 → ~2,9 V</text>
+        <line x1="620" y1="170" x2="620" y2="250" class="w-out"/>
+        <line x1="620" y1="250" x2="700" y2="250" class="w-out" marker-end="url(#ah)"/>
+
+        <!-- U2 74AHCT125 TX -->
+        <rect class="blk" x="360" y="360" width="180" height="104" rx="10"/>
+        <text x="450" y="388" text-anchor="middle" class="blk-title">U2 · 74AHCT125 (TX)</text>
+        <text x="450" y="405" text-anchor="middle" class="blk-sub">buffer tri-state · gate 1</text>
+        <text x="450" y="421" text-anchor="middle" class="blk-sub">1A ← G17 · 1/OE ← G32 · 1Y → 470Ω</text>
+        <text x="450" y="442" text-anchor="middle" class="blk-tag" fill="var(--ok)">✓ S36</text>
+        <line x1="450" y1="360" x2="450" y2="59" class="w-pwr"/>
+        <line x1="450" y1="464" x2="450" y2="492" class="w-gnd"/>
+        <!-- G17 / G32 into TX -->
+        <line x1="700" y1="330" x2="540" y2="330" class="w-sig"/>
+        <line x1="540" y1="330" x2="540" y2="392" class="w-sig" marker-end="url(#ah)"/>
+        <text x="560" y="324" class="t-sig">G17 → 1A</text>
+        <line x1="700" y1="360" x2="560" y2="360" class="w-out"/>
+        <line x1="560" y1="360" x2="560" y2="410" class="w-out" marker-end="url(#ah)"/>
+        <text x="566" y="378" class="t-out">G32 → 1/OE</text>
+
+        <!-- ESP32 -->
+        <rect class="blk" x="700" y="205" width="200" height="180" rx="10"/>
+        <text x="800" y="233" text-anchor="middle" class="blk-title">ESP32 DevKit</text>
+        <text x="800" y="250" text-anchor="middle" class="blk-sub">enfiché · barrettes femelles</text>
+        <text x="800" y="266" text-anchor="middle" class="blk-sub">Serial2 19200 8N2 · WiFi STA</text>
+        <text x="716" y="292" class="t-out">GPIO16 ← RX</text>
+        <text x="716" y="330" class="t-sig">GPIO17 → TX</text>
+        <text x="716" y="360" class="t-out">GPIO32 → /OE</text>
+        <line x1="800" y1="205" x2="800" y2="59" class="w-pwr"/>
+        <text x="806" y="84" class="t-pwr">VIN ← +5 V</text>
+        <line x1="800" y1="385" x2="800" y2="492" class="w-gnd"/>
+
+        <!-- J2 5V input -->
+        <rect class="blk" x="50" y="118" width="150" height="52" rx="10"/>
+        <text x="125" y="140" text-anchor="middle" class="blk-title">J2 · entrée 5 V</text>
+        <text x="125" y="156" text-anchor="middle" class="blk-sub">← buck 12 V→5 V</text>
+        <line x1="125" y1="118" x2="125" y2="59" class="w-pwr" marker-end="url(#ah)"/>
+        <line x1="200" y1="150" x2="230" y2="150" class="w-gnd"/><line x1="230" y1="150" x2="230" y2="492" class="w-gnd"/>
+
+        <text x="50" y="528" class="t-dim">Nets logiques bleus, sortie RX / 1Y verts, +5 V orange, GND gris. Détail par composant : cablage-interface-aux.html.</text>
+      </svg>
+    </div>
+  </div>
+
+  <h2>Netlist consolidée (saisie KiCad)</h2>
+  <div class="panel">
+    <table class="netlist">
+      <tr><th>Net</th><th>Nœuds reliés</th><th>Rôle / niveau</th></tr>
+      <tr class="net-pwr">
+        <td><code>+5V</code></td>
+        <td><code>J2.1</code> · <code>U1.4</code> (V+) · <code>U2.14</code> (VCC) · <code>U2.4/10/13</code> (/OE gates inutilisés) · <code>ESP32.VIN</code> · <code>R3</code> (haut) · <code>C1+ C2+ C3+</code></td>
+        <td>rail 5 V (buck 12→5 V)</td>
+      </tr>
+      <tr class="net-gnd">
+        <td><code>GND</code></td>
+        <td><code>J2.2</code> · <code>J1.5</code> · <code>U1.11</code> · <code>U2.7</code> · <code>U2.5/9/12</code> (A gates inutilisés) · <code>ESP32.GND</code> · <code>R2 R4 R6</code> (bas) · <code>C1– C2– C3–</code> · réf. amplis inutilisés (voir + bas)</td>
+        <td>masse commune — <b>à câbler explicitement</b> (cause suspecte S28)</td>
+      </tr>
+      <tr>
+        <td><code>DATA</code></td>
+        <td><code>J1.4</code> · <code>R1</code> (haut) · <code>R7 470Ω → U2.3</code> (1Y)</td>
+        <td>single-wire half-duplex (RX + TX sur le même fil)</td>
+      </tr>
+      <tr>
+        <td><code>IN+</code></td>
+        <td><code>R1</code> (bas) · <code>R2</code> (haut) · <code>U1.3</code> (IN1+)</td>
+        <td>diviseur ÷2 → ~2,05 V au repos</td>
+      </tr>
+      <tr>
+        <td><code>VREF</code></td>
+        <td><code>R3</code> (bas) · <code>R4</code> (haut) · <code>U1.2</code> (IN1−)</td>
+        <td>référence ~0,9 V (seuil bas)</td>
+      </tr>
+      <tr>
+        <td><code>RX</code></td>
+        <td><code>U1.1</code> (OUT1) <code>→ R5 1k →</code> nœud · <code>R6 4k7</code> (bas → GND) · <code>ESP32.GPIO16</code></td>
+        <td>sortie propre ~2,9 V compatible GPIO</td>
+      </tr>
+      <tr>
+        <td><code>TX_DATA</code></td>
+        <td><code>ESP32.GPIO17</code> · <code>U2.2</code> (1A)</td>
+        <td>donnée série à émettre</td>
+      </tr>
+      <tr>
+        <td><code>TX_OE</code></td>
+        <td><code>ESP32.GPIO32</code> · <code>U2.1</code> (1/OE)</td>
+        <td>output-enable actif bas (LOW = émet, HIGH = Hi-Z)</td>
+      </tr>
+    </table>
+    <p class="muted" style="margin:12px 0 0">Rappel LM2902 (DIP-14) : <code>1</code>=OUT1, <code>2</code>=IN1−, <code>3</code>=IN1+, <code>4</code>=V+, <code>11</code>=GND. On n'utilise que l'ampli A.</p>
+  </div>
+
+  <h2>Nomenclature (BOM)</h2>
+  <div class="panel">
+    <table class="netlist">
+      <tr><th>Réf</th><th>Valeur / composant</th><th>Boîtier conseillé</th><th>Note</th></tr>
+      <tr><td><code>U1</code></td><td>LM2902 (quad op-amp)</td><td>DIP-14 sur support</td><td>seul 1/4 utilisé (ampli A)</td></tr>
+      <tr><td><code>U2</code></td><td>74AHCT125 (quad tri-state)</td><td>DIP-14 sur support</td><td>seul gate 1 utilisé</td></tr>
+      <tr><td>—</td><td>ESP32 DevKit (WROOM)</td><td>2× barrette femelle</td><td><b>enfiché</b> — vérifier nb de pins &amp; pas inter-rangées</td></tr>
+      <tr><td><code>R1, R2</code></td><td>1 MΩ</td><td>THT 1/4 W</td><td>diviseur d'entrée ÷2</td></tr>
+      <tr><td><code>R3</code></td><td>10 kΩ</td><td>THT 1/4 W</td><td>haut du diviseur Vréf</td></tr>
+      <tr><td><code>R4</code></td><td>2,2 kΩ</td><td>THT 1/4 W</td><td>bas du diviseur Vréf</td></tr>
+      <tr><td><code>R5</code></td><td>1 kΩ</td><td>THT 1/4 W</td><td>haut du diviseur de sortie RX</td></tr>
+      <tr><td><code>R6</code></td><td>4,7 kΩ</td><td>THT 1/4 W</td><td>bas du diviseur de sortie RX</td></tr>
+      <tr><td><code>R7</code></td><td>470 Ω</td><td>THT 1/4 W</td><td>série 1Y → DATA (limite courant TX)</td></tr>
+      <tr><td><code>C1, C2</code></td><td>100 nF céramique</td><td>THT / X7R</td><td>découplage — 1 au ras de chaque CI</td></tr>
+      <tr><td><code>C3</code></td><td>10 µF</td><td>céram. / tantale</td><td>réservoir près de VIN ESP32 (pics WiFi)</td></tr>
+      <tr><td><code>J1</code></td><td>RJ-12 6P6C</td><td>jack PCB traversant</td><td>vers HAND CONTROL monture</td></tr>
+      <tr><td><code>J2</code></td><td>bornier 2 pts</td><td>screw / KF2510</td><td>entrée 5 V (+ / GND)</td></tr>
+    </table>
+    <p class="muted" style="margin:12px 0 0">
+      DIP + traversant = soudure main facile pour un tirage à l'unité (cohérent KiCad + JLCPCB PCB nu).
+      Version SMD (SOIC-14 + 0603) seulement si tu passes en PCBA assemblé.
+    </p>
+  </div>
+
+  <h2>Connecteurs</h2>
+  <div class="panel">
+    <h3>J1 — RJ-12 6P6C (bus AUX)</h3>
+    <table class="netlist">
+      <tr><th>Broche</th><th>Fonction</th><th>Carte</th></tr>
+      <tr><td><code>3</code></td><td class="warncell">+12 V</td><td class="warncell">✗ pad isolé — AUCUNE piste, aucun cuivre proche</td></tr>
+      <tr><td><code>4</code></td><td><b style="color:var(--sig)">DATA</b></td><td>net <code>DATA</code> (RX + TX)</td></tr>
+      <tr><td><code>5</code></td><td><b style="color:var(--gnd)">GND</b></td><td>net <code>GND</code></td></tr>
+      <tr><td><code>6</code></td><td>BUSY</td><td>non connectée (mono-maître)</td></tr>
+      <tr><td><code>1, 2</code></td><td>—</td><td>non connectées</td></tr>
+    </table>
+    <h3 style="margin-top:18px">ESP32 — broches utilisées (le reste : barrette non nettée)</h3>
+    <table class="netlist">
+      <tr><th>Pin</th><th>Net</th><th>Rôle</th></tr>
+      <tr><td><code>GPIO16</code></td><td><code>RX</code></td><td>← sortie LM2902 (~2,9 V)</td></tr>
+      <tr><td><code>GPIO17</code></td><td><code>TX_DATA</code></td><td>→ 1A du 74AHCT125</td></tr>
+      <tr><td><code>GPIO32</code></td><td><code>TX_OE</code></td><td>→ 1/OE (actif bas)</td></tr>
+      <tr><td><code>VIN</code></td><td><code>+5V</code></td><td>alim (PAS l'USB en exploitation)</td></tr>
+      <tr><td><code>GND</code></td><td><code>GND</code></td><td>masse commune</td></tr>
+    </table>
+  </div>
+
+  <h2>Points d'ingénierie ajoutés vs breadboard</h2>
+  <div class="panel">
+    <ul>
+      <li><b>Amplis LM2902 inutilisés (B, C, D) — à ne PAS laisser flottants.</b> Câbler chacun en <b>suiveur</b> : <code>IN+ → GND</code> et <code>OUT ↔ IN−</code>. Soit B : <code>5→GND</code>, <code>7↔6</code> · C : <code>10→GND</code>, <code>8↔9</code> · D : <code>12→GND</code>, <code>14↔13</code>. Évite oscillation parasite et conso. <span class="muted">(absent des schémas breadboard — vrai ajout PCB)</span></li>
+      <li><b>Gates 74AHCT125 inutilisés (2·3·4)</b> : <code>/OE (4·10·13) → VCC</code>, <code>A (5·9·12) → GND</code>, sorties <code>Y (6·8·11)</code> en l'air. Jamais flottantes.</li>
+      <li><b>Réservoir 10 µF (C3)</b> près du VIN ESP32 : absorbe les pics de courant WiFi qui, sinon, bruitent le rail 5 V lu par le comparateur.</li>
+      <li><b>Masse : un seul plan/point commun</b>, RJ-12 p5 dessus. La séparation de masse était un suspect du blocage S28.</li>
+      <li><b>Étage RX à l'écart du switching/antenne ESP32</b> ; nœud DATA le plus court possible.</li>
+    </ul>
+  </div>
+
+  <div class="warn">
+    <b>⚠️ Broche 3 (+12 V) du RJ-12.</b> À repérer au multimètre, monture allumée, AVANT tout branchement — un câble RJ-12
+    <i>reversed</i> inverse l'ordre. Sur la carte : pad <b>totalement isolé</b>, pas de cuivre à proximité, sérigraphie « +12 V — NE PAS CONNECTER ».
+    Un contact +12 V grille U1/U2/ESP32.
+  </div>
+
+  <div class="note">
+    <b>Empreinte ESP32 = le vrai piège mécanique.</b> Les DevKit ESP32 varient (30 / 36 / 38 pins) et surtout le
+    <b>pas inter-rangées</b> diffère selon les modèles. <b>Mesure TON module</b> (nombre de pins + entraxe des deux rangées)
+    avant de figer le footprint des barrettes, sinon il ne rentrera pas.
+  </div>
+
+  <div class="okbox">
+    <b>Le 3,3 V (CS + SDO d'un ADXL) n'est PAS sur cette carte.</b> C'est un fil direct
+    <code>Pi pin 1 (3V3) → CS + SDO du GY-291</code> concerné, côté capteurs. Deux entrées logiques (~µA) → aucun LDO,
+    aucune piste 3,3 V ici. La carte AUX reste un pont de bus pur. <span class="muted">(voir arbre d'alim : <a href="cablage-alimentation.html">alimentation</a>)</span>
+  </div>
+
+  <h2>Reste à faire</h2>
+  <div class="panel">
+    <ul>
+      <li>Saisie schéma <b>KiCad</b> à partir de cette netlist (versionné dans le repo).</li>
+      <li>Empreintes : DIP-14 ×2, RJ-12 PCB, barrettes ESP32 (après mesure), bornier, passifs THT.</li>
+      <li>Routage 2 couches, plan de masse, isolement pad +12 V, export Gerbers → upload JLCPCB (~25 € les 5).</li>
+      <li>MAJ <code>hardware.md</code> (récap fils : 3,3 V ADXL depuis Pi pin 1) — <b>au moment de graver</b>, pas avant.</li>
+    </ul>
+  </div>
+
+  <footer>
+    Astro-Brain DIY — carte pont AUX (PCB) · schéma de départ v0.
+    Sources : <a href="cablage-interface-aux.html">interface bus AUX</a> · <a href="cablage-pont-esp32.html">pont ESP32</a> · <a href="cablage-alimentation.html">alimentation</a>.
+    Réf. <code>docs/technical/hardware.md</code>.
+  </footer>
+
+</div>
+</body>
+</html>
