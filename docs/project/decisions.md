@@ -110,7 +110,7 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 
 **Décision** : interfacer le HC par un dongle USB-TTL **CP2102** (sélecteur sur **5V**) branché côté Pi sur un port USB libre, et côté HC sur un bornier maison RJ12 6P6C. Le HC apparaît en `/dev/ttyUSB0`. Les broches RX/TX/GND sont câblées 3↔TX-dongle / 4↔RX-dongle / 5↔GND ; broche 2 **non connectée** (peut exposer +12 V selon HC, à valider au multimètre).
 
-**Rationale** : (1) zéro conflit avec le GPS (qui garde l'UART matériel pour lui), (2) coût équivalent à un level shifter + câble UART, (3) compatible avec le standard INDI (`/dev/ttyUSBx`), (4) chaud-débranchable contrairement au GPIO. Câblage et avertissements : [`docs/technical/hardware.md`](../technical/hardware.md#monture--usb-série-via-dongle-cp2102-port-hc).
+**Rationale** : (1) zéro conflit avec le GPS (qui garde l'UART matériel pour lui), (2) coût équivalent à un level shifter + câble UART, (3) compatible avec le standard INDI (`/dev/ttyUSBx`), (4) chaud-débranchable contrairement au GPIO. Câblage et avertissements : [`docs/technical/hardware.md`](../technical/hardware.md). _(ADR supersédée le 2026-07-05 — pivot ESP32 ; le dongle USB-TTL ne fonctionne pas sur ce bus single-wire.)_
 
 ---
 
@@ -203,3 +203,21 @@ Cette approche entre en contradiction directe avec le rationale de la migration 
 - ADR 2026-04-15 (« pas d'Arduino ») annoté « dérogé » ; ADR 2026-05-01 (dongle CP2102) annoté « supersédé ».
 - Reste avant clôture Macro 1 : valider end-to-end via le backend (`pyindi-client` → `indiserver` → pont), un client backend flappe actuellement sur `indiserver` (à investiguer).
 - Câblage de référence : [`docs/technical/cablage-interface-aux.html`](../technical/cablage-interface-aux.html) + [`cablage-pont-esp32.html`](../technical/cablage-pont-esp32.html). Firmware : `firmware/esp32-aux-bridge`.
+
+---
+
+## 2026-07-08 — Backlash mount-side différé hors Macro 2 (dépend d'un fork driver)
+
+**Contexte** : Macro 2 (Setup) listait « Backlash compensation ALT + AZ (mount-side) » comme dernier item, historiquement bloqué par la liaison monture (dongle CP2102). Macro 1 étant bouclée (S37, pont ESP32), le blocage liaison est levé — mais la vérification du driver installé sur le Pi (`indi-celestronaux` **v1.5**, `indi-bin 2.2.0`) montre que le binaire n'expose **que** `FocuserInterface::SetFocuserBacklash` : **aucune propriété `MOUNT_AXIS_BACKLASH`, aucun `MC_*_BACKLASH` d'axe**. Le code adapter backend (`get_backlash`/`set_backlash` via le vecteur `MOUNT_AXIS_BACKLASH`) est déjà écrit et testé, mais `set_backlash` lève volontairement `RuntimeError` tant que le driver n'advertise pas la propriété. Exposer le backlash d'axe exige donc un **fork + patch C++ du driver** (~70 lignes : commandes `MC_SET_POS/NEG_BACKLASH` + propriété INDI), puis build/install sur le Pi.
+
+**Décision** : **sortir le backlash mount-side du train Macro 2** et le rattacher à **Macro 5** (caméras + guidage), où il apporte sa valeur réelle. Macro 2 est déclarée **done** sur son critère (calibrations/courses/configs accessibles depuis l'app + persistées + permettent un alignement avec confiance) sans le backlash. Les cartes Setup 5/6 restent visibles mais marquées « Reporté — Macro 5 » (placeholders inertes) ; le code adapter + les 5 tests sont **conservés en l'état** (prêts pour le jour où le driver est patché).
+
+**Rationale** :
+1. **Le backlash ne paie qu'en imaging/guidage** (GoTo précis, dithering) — inutile pour manuel + 3 étoiles + GoTo basique (Macro 3). La roadmap le classait déjà 🌫 « différable, le driver fonctionne sans ».
+2. **Le vrai coût est du C++ driver, pas de l'app** : forker/builder `indi_celestron_aux` est une tâche de la famille « stack INDI » (comme le pivot ESP32), pas du chantier Setup. La ranger sous Macro 5 évite de dépenser une session de C++ dont le bénéfice n'arrive qu'à Macro 5.
+3. **Aucun code jeté** : l'adapter et ses tests restent ; seul le câblage REST/UI/persistance est reporté avec le patch driver.
+
+**Conséquences** :
+- Roadmap : item backlash retiré de Macro 2, ajouté à Macro 5 (« Backlash mount-side ALT/AZ — fork driver `MC_*_BACKLASH` + REST + UI »). Macro 2 marquée done.
+- Setup : cartes 5/6 « Reporté — Macro 5 » ; carte 7 (cordwrap) reste « À implémenter » (indépendante, le driver la gère).
+- Le fork driver reste noté comme prérequis dans Macro 5.

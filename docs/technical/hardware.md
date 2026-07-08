@@ -154,13 +154,13 @@ sudo i2cset -y 1 0x1e 0x23 0x0C      # CTRL_REG4 : high-perf Z
 sudo i2cset -y 1 0x1e 0x22 0x00      # CTRL_REG3 : mode continu
 ```
 
-## Monture — USB-série sur le bus AUX (port HAND CONTROL de la base SLT)
+## Monture — bus AUX via pont ESP32 (port HAND CONTROL de la base SLT)
 
 La **NexStar SLT** expose deux jacks **RJ-12 6P6C** sur la base — `AUX` et `HAND CONTROL` — **câblés en parallèle sur le même bus AUX interne**. On se branche sur le port **HAND CONTROL** : on n'entre **pas** dans le cerveau de la raquette, on se pose directement sur le bus, en face des contrôleurs moteur ALT/AZ. La raquette est alors **hors boucle** (débranchée) ; `indi_celestron_aux` devient maître du bus et gère lui-même alignement/GoTo.
 
-Pour éviter un conflit UART avec le GPS (qui occupe `ttyAMA0`), on passe par un dongle USB-TTL en mode **5V**, branché sur un port USB du Pi → `/dev/ttyUSB0`. Le dongle réel est un **CH340** (`1a86:7523`, énuméré `1a86_USB_Serial`) — n'importe quel CH340/CP2102/FT232RL 5V conviendrait.
+Le bus AUX est un **single-wire half-duplex** (une seule ligne DATA, cf. section suivante) : un dongle USB-TTL posé direct perturbe le bus (investigation S26→S29). La liaison passe donc par un **pont ESP32** qui expose le bus en **TCP :2000** (WiFi) et porte l'interface électrique (RX LM2902 / TX 74AHCT125). Le driver `indi_celestron_aux` s'y connecte en **mode Network** (`192.168.1.200:2000`) — pas de `/dev/ttyUSB*`. Acté en [ADR 2026-07-05](../project/decisions.md).
 
-> Config driver (baud, `DEVICE_PORT`, `PORT_TYPE`) : voir [indi-reference.md](indi-reference.md). Le backend (`mount_indi_adapter.py`) ne touche **pas** la couche série — tout est délégué à `indi_celestron_aux`.
+> Config driver (mode Network, `DEVICE_ADDRESS`) : voir [indi-reference.md](indi-reference.md). Le backend (`mount_indi_adapter.py`) ne touche **pas** la couche liaison — tout est délégué à `indi_celestron_aux`.
 
 ### Nature du bus AUX (≠ UART point-à-point)
 

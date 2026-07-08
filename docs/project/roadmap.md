@@ -17,7 +17,7 @@ App Flutter manuelle + tracking + GPS, livrée 2026-04-25. Établit la chaîne `
 - ✅ App Flutter native + AppBar template + thème jour/nuit
 - ✅ Service systemd, mDNS `astro-brain.local:8000`, override `--dart-define`
 - ✅ Backend 64 tests verts, app 53 tests verts, smoke test téléphone (Moto g54 5G)
-- 🌫 Passe physique mount-branchée (sections 3 et 7 de `backend/deploy/INTEGRATION_CHECKLIST.md`) — fermable une fois Macro 1 validée sur dongle.
+- 🌫 Passe physique mount-branchée (sections 3 et 7 de `backend/deploy/INTEGRATION_CHECKLIST.md`) — Macro 1 étant validée (pont ESP32, S37), reste à cocher formellement la checklist.
 
 ---
 
@@ -28,13 +28,13 @@ Refonte technique du `MountAdapter` pour pivoter de `nexstarpy` vers la stack IN
 - ✅ Stack INDI installée sur le Pi (repo Astroberry Trixie arm64) — voir ADR 2026-05-04
 - ✅ Backend refactor `MountAdapter` INDI + bus thread-safe (89/89 tests verts)
 - ✅ `MountService.sync_radec(ra_deg, dec_deg)` (`ON_COORD_SET=SYNC` + `EQUATORIAL_EOD_COORD`) — livré 2026-05-10 (alimente le modèle natif Celestron pour Macro 3 #2, cf. ADR 2026-05-10)
-- 🚧 **Smoke test E2E — pivot ESP32, jalons A+B verts : LA MONTURE BOUGE (2026-06-13, S29)** : le RX du dongle CH340 perturbe le bus de façon non découplable passivement (masse seule propre, mais R série 4,7 k insuffisant — S29). **Pivot vers un pont ESP32 WiFi↔bus AUX** (mode « Celestron WiFi » du driver = TCP port 2000, GPIO haute-Z → supprime le défaut CH340). **Jalon A** : firmware pont transparent (`Serial2` 16/17, TCP 2000) flashé via `arduino-cli`, chaîne flash→WiFi→`TCP 192.168.4.1:2000 OPEN`. **Jalon B** : étage **BC547** (0,05 V, S28) piloté par GPIO17, RX GPIO16 via R 3,5 k, raquette débranchée → **rejeu des octets de slew capturés S28 → l'AZM tourne physiquement dans les deux sens sur commande**. ⇒ **blocage matériel S26→S28 levé.** (`GET_VER` reste écho seul ; slew ~0,5 s/commande, le slew continu via half-duplex turnaround est géré par le vrai driver → jalon C.) Reste : jalon C `indi_celestron_aux` Network sur le Pi (prérequis IP stables + ESP32 mode station), jalon D backend série→réseau. Détail : [`../technical/cablage-pont-esp32.html`](../technical/cablage-pont-esp32.html). **ADR pivot ESP32 à acter au jalon C** (déroge à « pas d'Arduino »).
+- ✅ **Smoke test E2E — pivot ESP32, jalons A+B verts : LA MONTURE BOUGE (2026-06-13, S29)** : le RX du dongle CH340 perturbe le bus de façon non découplable passivement (masse seule propre, mais R série 4,7 k insuffisant — S29). **Pivot vers un pont ESP32 WiFi↔bus AUX** (mode « Celestron WiFi » du driver = TCP port 2000, GPIO haute-Z → supprime le défaut CH340). **Jalon A** : firmware pont transparent (`Serial2` 16/17, TCP 2000) flashé via `arduino-cli`, chaîne flash→WiFi→`TCP 192.168.4.1:2000 OPEN`. **Jalon B** : étage **BC547** (0,05 V, S28) piloté par GPIO17, RX GPIO16 via R 3,5 k, raquette débranchée → **rejeu des octets de slew capturés S28 → l'AZM tourne physiquement dans les deux sens sur commande**. ⇒ **blocage matériel S26→S28 levé.** (`GET_VER` reste écho seul ; slew ~0,5 s/commande, le slew continu via half-duplex turnaround est géré par le vrai driver → jalon C.) Reste : jalon C `indi_celestron_aux` Network sur le Pi (prérequis IP stables + ESP32 mode station), jalon D backend série→réseau. Détail : [`../technical/cablage-pont-esp32.html`](../technical/cablage-pont-esp32.html). **ADR pivot ESP32 à acter au jalon C** (déroge à « pas d'Arduino »).
 - 🟢 **Round-trip TX validé — la monture RÉPOND (2026-07-01, S35)** : après le fil RX/TX (RX prouvé par comparateur **LM2902** S33), le TX est passé du **BC547 open-collector** (fronts trop lents, moteur muet S33) au **buffer tri-state 74AHCT125** (drive push-pull, 470 Ω série, `/OE` sur GPIO32). **`GET_VER` round-trip OK** : l'azimut `0x10` répond `3b 05 10 0d fe 05 09 d2` (firmware v5.09) → **blocage électrique S26→S33 levé**. Câblage : [`../technical/cablage-interface-aux.html`](../technical/cablage-interface-aux.html).
 - 🟢 **Turnaround TX→RX fiabilisé — round-trip 30/30 (2026-07-02, S36)** : la fiabilité ~1/3 de S35 était une **collision de bus** (garde `delayMicroseconds` après `flush()` retenant le buffer piloté HIGH dans la fenêtre de réponse → 1ᵉʳ octet `3b` détruit). Firmware `/OE` (jamais committé en S35, perdu) **reconstruit** dans le repo ; fix = relâcher `/OE` immédiatement après `flush()`. Diagnostic par dump brut (`ECHO_SUPPRESS=0`) → écho 6/6 propre, `3b` absent du brut = framing, pas le drain. **Bus AUX fiable de bout en bout.**
 - 🎉 **JALON C VALIDÉ — la monture est pilotée par INDI (2026-07-05, S37)** : OTA bootstrappé (flash WiFi opérationnel, `AUTH` OK). Le driver `indi_celestron_aux` (v1.5) en mode Network (`.200:2000`) **dialogue avec la vraie monture** à travers le pont ESP32 : `CONNECTION._STATE=Ok` (handshake), lecture d'encodeur stable au repos + poll continu, **slew réel bidirectionnel confirmé visuellement** (8x → ~2°/s). **Blocage central S26→S33 totalement levé** ; chaîne `Driver INDI → TCP → ESP32 → 74AHCT125/LM2902 → bus AUX → moteur` opérationnelle. Câblage : [`../technical/cablage-interface-aux.html`](../technical/cablage-interface-aux.html).
 - ✅ **END-TO-END validé via le backend (2026-07-05, S37)** : `POST /slew` (path de l'app) → FastAPI → pyindi-client → indiserver → pont ESP32 → monture **fait tourner la vraie monture** (AZ 9,3°→11,3° en 2 s, `mount:ready`). Le test a démasqué 2 bugs adapter (masqués par un `FakeIndiClient` trop permissif), corrigés en TDD : (a) accès éléments INDI (`findWidgetByName` + états switch entiers `ISS_ON/OFF` + vrais noms `1x`…`8x`/`ABORT` — corrige aussi `set_time`/`set_location` S27) ; (b) device pyindi caché trop tôt = handle périmé → re-fetch à chaque opération. **ADR pivot ESP32** acté (2026-07-05).
 - ✅ Fix backend `set_time`/`set_location` (`TypeError __getitem__`) — corrigé S37 (même cause que le bug d'accès aux éléments INDI : subscript chaîne → `findWidgetByName`)
-- 🌫 Fork upstream patch backlash mount-axis (`MC_*_BACKLASH`, ~70 lignes C++) — différable, le driver fonctionne sans
+- 🌫 Fork upstream patch backlash mount-axis (`MC_*_BACKLASH`, ~70 lignes C++) — différable, le driver fonctionne sans. **Suivi désormais en Macro 5** (le backlash mount-side y est rattaché, ADR 2026-07-08).
 
 *Done quand* : Macro 0 reste fonctionnelle, monture pilotée via INDI, `nexstarpy` retiré du backend.
 
@@ -42,9 +42,9 @@ Spec : [`docs/superpowers/specs/2026-05-01-mount-indi-design.md`](../superpowers
 
 ---
 
-## Macro 2 — Setup
+## Macro 2 — Setup ✅
 
-Page Setup unifiée + toutes les calibrations et configurations préalables à un alignement sérieux. Pré-requis : Macro 1.
+Page Setup unifiée + toutes les calibrations et configurations préalables à un alignement sérieux. Pré-requis : Macro 1. **Done 2026-07-08.**
 
 - ✅ Page Setup unifiée (hub des cards) — scaffold Session 14
 - ✅ Slice INFRA backend (sqlite `state.db` + repos calibration/limits) — livré 2026-05-05 (Session 17)
@@ -52,11 +52,11 @@ Page Setup unifiée + toutes les calibrations et configurations préalables à u
 - ✅ Calibration compass LIS3MDL (item #2 — soft-iron offsets, heading tilt-compensé via fusion ADXL co-localisé) — livré 2026-05-07 (Session 18)
 - ✅ Calibration ADXL345 tube (item #3 — zéro ALT, tube horizontal) — livré 2026-05-07 (Session 18)
 - ✅ Courses ALT min/max (alimentées par ADXL345 tube, anti-collision) — livré 2026-05-07 (Session 19)
-- 📦 Backlash compensation ALT + AZ (mount-side, **bloqué dongle CP2102**)
+- ➡️ ~~Backlash compensation ALT + AZ (mount-side)~~ **déplacé en Macro 5** (2026-07-08) : le driver `indi-celestronaux` v1.5 n'expose pas `MOUNT_AXIS_BACKLASH` → nécessite un fork/patch C++ ; valeur réelle seulement en imaging/guidage. Cartes Setup 5/6 marquées « Reporté — Macro 5 ». Cf. ADR 2026-07-08.
 - ✅ Network/IP config — livré Session 14 (carte #8 Setup)
 - ✅ À propos (versions, IP, uptime) — livré 2026-05-07 (Session 19)
 
-*Done quand* : toutes les calibrations/courses/configs sont accessibles depuis l'app, valeurs persistées, et permettent de tenter un alignement avec confiance.
+*Done quand* : ~~toutes les calibrations/courses/configs sont accessibles depuis l'app, valeurs persistées, et permettent de tenter un alignement avec confiance.~~ **Atteint 2026-07-08** : calibrations (niveau monture, compass, zéro ALT), courses ALT, réseau et à-propos accessibles depuis l'app + persistés. Le backlash mount-side est reporté en Macro 5 (dépend d'un fork driver, sans valeur avant l'imaging).
 
 Spec validée : [`docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md`](../superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md). Plan : [`docs/superpowers/plans/2026-05-04-v02-setup-implementation.md`](../superpowers/plans/2026-05-04-v02-setup-implementation.md).
 
@@ -69,11 +69,11 @@ Optionnels à arbitrer plus tard : slew rates personnalisés, cone error, PEC.
 Première mise en station effective, GoTo réel, catalogue d'objets brillants. Hub central remplace le HomeScreen comme landing post-Splash. Pré-requis : Macro 2.
 
 - ✅ Hub central (landing post-Splash, 4 cartes Manuel / Setup / Status / À propos) — livré 2026-05-08 (Session 20)
-- 🚧 Wizard alignement 3 étoiles assisté capteurs (compass + tilt + GPS pour pré-pointage, validation auto via résiduel SVD < ~1°, fallback manuel) — software livré 2026-05-10 (Session 22, backend + Flutter, 180 tests app + tests backend), validation matérielle bloquée dongle CP2102 (Macro 1)
-- 🚧 GoTo réel (`POST /goto {ra_deg, dec_deg, target_name}` sur monture alignée — `EQUATORIAL_EOD_COORD` + `ON_COORD_SET=TRACK`, slew + tracking sidéral natif) — software livré 2026-06-01 (Session 24 : `MountService.goto_radec`, garde `is_aligned`, complétion BUSY→OK via `updateProperty`, `goto_in_progress` exposé via SSE, abort réutilise `/stop`) ; validation matérielle (slew réel) reportée dongle CP2102 (Macro 1)
+- 🚧 Wizard alignement 3 étoiles assisté capteurs (compass + tilt + GPS pour pré-pointage, validation auto via résiduel SVD < ~1°, fallback manuel) — software livré 2026-05-10 (Session 22, backend + Flutter, 180 tests app + tests backend), validation matérielle à valider sur matériel (liaison OK depuis S37)
+- 🚧 GoTo réel (`POST /goto {ra_deg, dec_deg, target_name}` sur monture alignée — `EQUATORIAL_EOD_COORD` + `ON_COORD_SET=TRACK`, slew + tracking sidéral natif) — software livré 2026-06-01 (Session 24 : `MountService.goto_radec`, garde `is_aligned`, complétion BUSY→OK via `updateProperty`, `goto_in_progress` exposé via SSE, abort réutilise `/stop`) ; validation matérielle (slew réel) à faire (liaison OK depuis S37)
 - 🚧 Catalogue minimal backend : tranche A (stars étendues IAU CSN cap mag 3, 140 entrées) livrée 2026-05-10 ; enrichissement visibilité `visible_now` (alt/az courants via `_ephemeris` + `VisibilityEnricher`, dégradation gracieuse sans fix GPS) livré 2026-06-01 (Session 24) — tranches Messier + planètes (skyfield) à suivre
-- 🚧 Page Catalogue minimal (recherche + filtres magnitude/visible-now, détail bottom sheet, GoTo + slew bar, bandeau non-aligné) — software livré 2026-06-01 (Session 24, Flutter) ; validation visuelle Android + slew réel reportés dongle CP2102
-- 🚧 Aide identification étoile dans sa constellation (rattachée #2 wizard) : schéma au trait orienté ciel dans le wizard (`ConstellationChart`, asset `constellation_figures.json` 23 figures), navigateur par constellation visible au swap, bandeau « Position GPS requise » dans la carte ALIGNER du Hub ; **chaîne de position revue : fix GPS Pi → GPS téléphone (geolocator) → sinon pas de wizard (fallback Paris supprimé)** — software livré 2026-06-05 (Session 25, 342 tests backend + 226 tests app) ; validation matérielle bloquée dongle CP2102
+- 🚧 Page Catalogue minimal (recherche + filtres magnitude/visible-now, détail bottom sheet, GoTo + slew bar, bandeau non-aligné) — software livré 2026-06-01 (Session 24, Flutter) ; validation visuelle Android + slew réel à faire (liaison OK depuis S37)
+- 🚧 Aide identification étoile dans sa constellation (rattachée #2 wizard) : schéma au trait orienté ciel dans le wizard (`ConstellationChart`, asset `constellation_figures.json` 23 figures), navigateur par constellation visible au swap, bandeau « Position GPS requise » dans la carte ALIGNER du Hub ; **chaîne de position revue : fix GPS Pi → GPS téléphone (geolocator) → sinon pas de wizard (fallback Paris supprimé)** — software livré 2026-06-05 (Session 25, 342 tests backend + 226 tests app) ; validation matérielle à valider sur matériel (liaison OK depuis S37)
 
 *Done quand* : on peut faire une mise en station 3 étoiles puis pointer fiablement Messier/planètes/étoiles brillantes en session réelle.
 
@@ -102,6 +102,7 @@ Stack INDI étendue aux caméras, pipeline preview, plate solving local. Premiè
 - 📦 Machine d'état backend `idle / focusing / guiding / imaging` (verrou par caméra)
 - 📦 Astrometry.net local + endpoint `/solve`
 - 📦 Page Framing (snap + overlay coords centre + orientation capteur)
+- 📦 Backlash mount-side ALT/AZ (déplacé de Macro 2, 2026-07-08) : **prérequis fork driver** `indi_celestron_aux` (`MC_*_BACKLASH` → propriété `MOUNT_AXIS_BACKLASH`, ~70 lignes C++, absent en v1.5) ; puis REST GET/PUT + persistance + écran Flutter + bloc. Adapter backend `get/set_backlash` + 5 tests **déjà écrits** (attendent la propriété driver). Cf. ADR 2026-07-08.
 
 *Done quand* : snap → image lisible dans l'app → plate solve renvoie coordonnées exactes du centre.
 

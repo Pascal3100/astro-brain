@@ -2,7 +2,7 @@
 
 Système de contrôle autonome pour télescope DIY — backend FastAPI sur Raspberry Pi + app Flutter sur téléphone.
 
-Pilote un Maksutov Bresser 127/1900 sur monture Celestron, dialogue avec la monture en USB-série (protocole NexStar) et lit le GPS depuis un module DroTek.
+Pilote un Maksutov Bresser 127/1900 sur monture Celestron : le backend dialogue avec la monture via la stack INDI (`indi_celestron_aux` + `pyindi-client`) à travers un pont ESP32 posé sur le bus AUX, et lit le GPS depuis un module DroTek.
 
 ## Structure
 
@@ -24,8 +24,8 @@ Specs et plans : `docs/superpowers/specs/` et `docs/superpowers/plans/`. Journal
 Pas de versions numérotées. Train d'étapes regroupées en macro-étapes ; une étape se déplace, une macro est "done" quand le télescope reste utilisable end-to-end.
 
 - **Macro 0 — Socle** ✓ Joystick + tracking + GPS/heure (livré 2026-04-25)
-- **Macro 1 — Migration INDI** 🚧 Refonte `MountAdapter` `nexstarpy` → `pyindi-client` (bloqué smoke test par dongle CP2102)
-- **Macro 2 — Setup** : calibration compass + ADXL345 ×2, courses ALT, backlash, cordwrap, network/IP, à propos
+- **Macro 1 — Migration INDI** ✅ (S37) Refonte `MountAdapter` `nexstarpy` → `pyindi-client` ; monture pilotée via pont ESP32 (WiFi ↔ bus AUX)
+- **Macro 2 — Setup** ✅ calibration compass + ADXL345 ×2, courses ALT, network/IP, à propos (backlash reporté Macro 5)
 - **Macro 3 — Mise en station + GoTo basique** : 3 étoiles + GoTo + catalogue minimal + Hub central
 - **Macro 4 — Catalogue intelligent** : NGC/IC + setup tube — parité raquette Celestron atteinte
 - **Macro 5 — Caméras + plate solving** : stack INDI, pipeline preview, framing

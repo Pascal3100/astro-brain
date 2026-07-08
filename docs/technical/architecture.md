@@ -4,11 +4,12 @@
 
 ```
 App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[pyindi-client]─▶  indiserver
-                                                       │ UART GPIO + I2C1              │ indi_celestron_aux
+                                                       │ UART GPIO + I2C1              │ indi_celestron_aux (mode Network)
                                                        │                               ▼
-                                                       │                         /dev/ttyUSB0 (CP2102)
-                                                       │                               │
-                                                       │                            HC RJ12 ─▶ Monture Celestron
+                                                       │                       WiFi/TCP :2000 ─▶ pont ESP32
+                                                       │                                           │ RX LM2902 / TX 74AHCT125
+                                                       │                                           ▼
+                                                       │                                  bus AUX (HC RJ12) ─▶ Monture Celestron
                                                        ▼
                                                  GPS DroTek + LIS3MDL + ADXL345
                                                        │
@@ -16,9 +17,9 @@ App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[pyin
                                               aiosqlite ─▶ /var/lib/astro-brain/state.db
 ```
 
-- **Backend** : FastAPI (Python 3.13) sur Raspberry Pi 3 B+. Pas d'Arduino dans la chaîne.
+- **Backend** : FastAPI (Python 3.13) sur Raspberry Pi 3 B+.
 - **Frontend** : app Flutter native (pas une PWA), pattern BLoC.
-- **Communication Pi ↔ Monture** : stack INDI — `indiserver` + driver `indi_celestron_aux` côté Pi, client Python `pyindi-client` dans le backend FastAPI. Liaison physique : port HC RJ12 → dongle USB-TTL CP2102 (5V) → `/dev/ttyUSB0` (NexStar 9600 baud, AUX en pass-through). Détails : [`indi-reference.md`](indi-reference.md). ADR : [2026-05-01 — Pilotage monture via INDI (drop nexstarpy)](../project/decisions.md).
+- **Communication Pi ↔ Monture** : stack INDI — `indiserver` + driver `indi_celestron_aux` côté Pi, client Python `pyindi-client` dans le backend FastAPI. Liaison physique : port HAND CONTROL (RJ-12) sur le **bus AUX** single-wire half-duplex (19200 8N2) → interface RX LM2902 / TX 74AHCT125 → **pont ESP32** exposant le bus en **TCP :2000** (WiFi), driver en **mode Network** (`192.168.1.200:2000`). Détails : [`indi-reference.md`](indi-reference.md) + [`hardware.md`](hardware.md). ADRs : [2026-05-01 — INDI (drop nexstarpy)](../project/decisions.md) + [2026-07-05 — pont ESP32](../project/decisions.md).
 - **Plate solving (Macro 5+)** : Astrometry.net local sur le Pi.
 
 ## Décisions structurantes

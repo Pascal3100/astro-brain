@@ -21,7 +21,7 @@ GET  /state                           # snapshot complet du SystemState
 GET /events                           # SSE — event: state | snapshot
 ```
 
-## Macro 2 — Setup (Slice A livré 2026-05-07)
+## Macro 2 — Setup ✅ (done 2026-07-08)
 
 Détails dans la spec Setup : [`docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md`](../superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md).
 
@@ -52,17 +52,17 @@ GET /sensors/compass/stream?hz=5             # SSE CompassReading { heading_deg,
 
 `hz` ∈ [1, 20]. Hors borne → `422`. Streams lazy : aucun I2C lu tant qu'aucun client connecté.
 
-### Endpoints anticipés (Slices B/C/D, non livrés)
+### Courses ALT + à-propos (livré)
 
 ```
-POST /setup/limits/alt       { alt_min_deg, alt_max_deg }      # Slice B
-GET  /setup/limits/alt
-POST /mount/backlash         { az_pos, az_neg, alt_pos, alt_neg }  # Slice D — bloqué dongle
-GET  /mount/backlash
-POST /mount/cordwrap         { enabled, position_deg }              # Slice D
-GET  /system/about                                                  # Slice C
-POST /system/restart                                                # Slice C
+GET  /limits/alt             # 200 { alt_min_deg, alt_max_deg }
+PUT  /limits/alt             { alt_min_deg, alt_max_deg }        # 422 hors borne
+GET  /about                  # 200 versions, IP/SSID, uptime, started_at
 ```
+
+### Backlash mount-side — reporté Macro 5
+
+Adapter backend `get/set_backlash` déjà écrit (vecteur INDI `MOUNT_AXIS_BACKLASH`) mais **aucune route REST** : le driver `indi_celestron_aux` v1.5 n'expose pas la propriété → nécessite un fork/patch C++, sans valeur avant l'imaging. Déplacé en Macro 5 ([ADR 2026-07-08](../project/decisions.md)).
 
 ## Macro 3 — Mise en station + GoTo basique (à spécifier)
 

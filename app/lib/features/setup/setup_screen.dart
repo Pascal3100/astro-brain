@@ -179,11 +179,16 @@ class _SetupScreenState extends State<SetupScreen> {
     );
   }
 
-  SetupCard _placeholder(int n, IconData icon, String label) => SetupCard(
+  SetupCard _placeholder(
+    int n,
+    IconData icon,
+    String label, {
+    String sublabel = 'À implémenter',
+  }) => SetupCard(
     index: n,
     icon: icon,
     label: label,
-    sublabel: 'À implémenter (v0.2)',
+    sublabel: sublabel,
     dotStatus: OverallStatus.gray,
   );
 
@@ -193,8 +198,21 @@ class _SetupScreenState extends State<SetupScreen> {
       2 => _buildLis3mdlCard(),
       3 => _buildAdxlTubeCard(),
       4 => _buildLimitsAltCard(),
-      5 => _placeholder(5, PhosphorIconsBold.arrowsClockwise, 'BACKLASH ALT'),
-      6 => _placeholder(6, PhosphorIconsBold.arrowsClockwise, 'BACKLASH AZ'),
+      // Backlash mount-side reporté : nécessite un patch du driver
+      // indi_celestron_aux (MOUNT_AXIS_BACKLASH absent en v1.5) ; valeur réelle
+      // seulement en imaging/guidage. Cf. ADR 2026-07-08. Rattaché Macro 5.
+      5 => _placeholder(
+        5,
+        PhosphorIconsBold.arrowsClockwise,
+        'BACKLASH ALT',
+        sublabel: 'Reporté — Macro 5',
+      ),
+      6 => _placeholder(
+        6,
+        PhosphorIconsBold.arrowsClockwise,
+        'BACKLASH AZ',
+        sublabel: 'Reporté — Macro 5',
+      ),
       7 => _placeholder(7, PhosphorIconsBold.arrowClockwise, 'CORDWRAP AZ'),
       8 => BlocBuilder<AppBloc, AppState>(
         buildWhen: (a, b) => a.connection != b.connection,
