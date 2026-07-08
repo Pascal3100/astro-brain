@@ -42,6 +42,20 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 
 ## Session en cours
 
+### Session 40 — App release muette : cause racine = permission INTERNET manquante (2026-07-08)
+
+Reprise sur « l'app reste bloquée au premier écran (splash) et le RETRY n'arrive pas à reconnecter ». Skill `systematic-debugging`, validation directe sur le Moto g54 (`adb`, captures d'écran).
+
+**Fausse piste écartée d'abord.** Le splash affichait « ASTRO-BRAIN NOT REACHABLE ». Hypothèse initiale (prefs effacées → hôte retombé sur `astro-brain.local` que le mDNS Android ne résout pas) : **réfutée par preuve** — le téléphone joignait le backend (`nc 192.168.1.36:8000` exit 0, ping 0% perte), et **même en saisissant l'IP directe dans Setup → Réseau, le TESTER échouait** avec la même erreur.
+
+**Cause racine (message d'erreur complet via `uiautomator dump`).** `SocketException: Connection failed (OS Error: Operation not permitted, errno = 1)` = **EPERM** — l'OS refuse la socket à l'app, pas un problème réseau. Vérif des manifests : `debug/` et `profile/AndroidManifest.xml` déclarent `INTERNET`, **`main/AndroidManifest.xml` ne l'a pas**. Flutter n'injecte INTERNET **que** dans debug/profile → l'APK **release** n'a aucun accès réseau. Masqué jusqu'ici car tous les smoke tests étaient en debug/profile ; **S39 = premier build `--release`** → bug révélé. Voir [[project_flutter_release_internet]].
+
+**Fix.** Ajout de `<uses-permission android:name="android.permission.INTERNET"/>` dans `main/AndroidManifest.xml`. Rebuild `--release` + réinstall → **app connectée end-to-end** : pastille rouge INACTIF (offline) → **orange ALERTE** (= `overall` réel du backend, orange à cause du GPS `no_fix`), bannière GPS backend affichée. L'hôte est resté `astro-brain.local` (prefs re-effacées par `flutter install`) et la connexion marche quand même → une fois INTERNET présent, Dart résout le mDNS sur ce téléphone (la note S39 « pointer sur l'IP » n'était donc pas la cause).
+
+**Points annexes relevés (non traités, à arbitrer) :** (1) `flutter install` désinstalle toujours avant d'installer → efface les `SharedPreferences` (c'est ce qui « perdait » l'IP) ; (2) bug cosmétique `_stepStatus` : en phase `failure` les 3 étapes du splash s'affichent cochées vertes ✓ (car `failure.index > p.index`), contredisant le message d'erreur rouge ; (3) le RETRY réessaie le même hôte sans permettre de le corriger depuis l'écran d'échec.
+
+**🔜 Reprise :** la validation matérielle en attente depuis S39 (D-Pad → vraie monture, bouton RECONNECTER) est de nouveau possible maintenant que l'app communique. Puis rouvrir Macro 2 (backlash) + wizard 3 étoiles / GoTo.
+
 ### Session 39 — Déploiement S38 + validation matérielle (auto-connexion boot, reconnexion manuelle) (2026-07-07)
 
 Reprise du handoff S38 (« déployer + valider à froid »). Skills `systematic-debugging` (bug on-device) + `test-driven-development`. Édition + tests workstation, exécution/validation sur le Pi (IP directe `192.168.1.36`, alias `astro-brain` en route morte comme noté S33).
