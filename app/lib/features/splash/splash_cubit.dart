@@ -43,6 +43,7 @@ class SplashCubit extends Cubit<SplashState> {
       emit(state.copyWith(
         phase: SplashPhase.failure,
         errorMessage: e.toString(),
+        failedPhase: state.phase,
       ));
     }
   }

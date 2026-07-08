@@ -5,6 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/design_tokens.dart';
+import '../setup/network/network_screen.dart';
 import 'splash_cubit.dart';
 import 'splash_state.dart';
 
@@ -62,15 +63,15 @@ class _SplashScreenState extends State<SplashScreen> {
                     const SizedBox(height: DesignTokens.space2XL),
                     _Step(
                       label: 'CONTACTING ASTRO-BRAIN.LOCAL',
-                      state: _stepStatus(state, SplashPhase.contacting),
+                      state: stepStatusFor(state, SplashPhase.contacting),
                     ),
                     _Step(
                       label: 'LOADING STATE SNAPSHOT',
-                      state: _stepStatus(state, SplashPhase.loading),
+                      state: stepStatusFor(state, SplashPhase.loading),
                     ),
                     _Step(
                       label: 'OPENING EVENT STREAM',
-                      state: _stepStatus(state, SplashPhase.openingStream),
+                      state: stepStatusFor(state, SplashPhase.openingStream),
                     ),
                     if (failed) ...[
                       const SizedBox(height: DesignTokens.space2XL),
@@ -84,16 +85,31 @@ class _SplashScreenState extends State<SplashScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           FilledButton(
+                            key: const Key('splash-retry'),
                             onPressed: () => ctx.read<SplashCubit>().start(),
                             child: const Text('RETRY'),
                           ),
                           const SizedBox(width: DesignTokens.spaceMD),
                           TextButton(
+                            key: const Key('splash-continue-offline'),
                             onPressed: () =>
                                 ctx.read<SplashCubit>().continueOffline(),
                             child: const Text('CONTINUE OFFLINE →'),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: DesignTokens.spaceSM),
+                      // L'hôte par défaut (mDNS) ou une IP obsolète est la cause
+                      // n°1 d'un splash en échec : rendre la config réseau
+                      // atteignable ici plutôt que via CONTINUE OFFLINE → Setup.
+                      TextButton(
+                        key: const Key('splash-configure-network'),
+                        onPressed: () => Navigator.of(ctx).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const NetworkScreen(),
+                          ),
+                        ),
+                        child: const Text('CONFIGURER LE RÉSEAU'),
                       ),
                     ],
                   ],
@@ -106,40 +122,47 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  _StepState _stepStatus(SplashState s, SplashPhase p) {
-    if (s.phase == SplashPhase.failure) {
-      return s.phase.index > p.index ? _StepState.done : _StepState.error;
-    }
-    if (s.phase.index > p.index || s.phase == SplashPhase.success) {
-      return _StepState.done;
-    }
-    if (s.phase == p) return _StepState.active;
-    return _StepState.pending;
-  }
 }
 
-enum _StepState { pending, active, done, error }
+enum SplashStepState { pending, active, done, error }
+
+/// Statut visuel d'une étape [p] du splash pour l'état [s]. Fonction pure
+/// (extraite pour être testable directement, cf. bug d'affichage : en `failure`
+/// toutes les étapes paraissaient « faites »).
+SplashStepState stepStatusFor(SplashState s, SplashPhase p) {
+  if (s.phase == SplashPhase.failure) {
+    final failed = s.failedPhase ?? SplashPhase.contacting;
+    if (p.index < failed.index) return SplashStepState.done; // franchie avant l'échec
+    if (p == failed) return SplashStepState.error; // l'étape qui a échoué
+    return SplashStepState.pending; // jamais atteinte
+  }
+  if (s.phase.index > p.index || s.phase == SplashPhase.success) {
+    return SplashStepState.done;
+  }
+  if (s.phase == p) return SplashStepState.active;
+  return SplashStepState.pending;
+}
 
 class _Step extends StatelessWidget {
   const _Step({required this.label, required this.state});
   final String label;
-  final _StepState state;
+  final SplashStepState state;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final text = context.textStyles;
     final icon = switch (state) {
-      _StepState.pending => PhosphorIconsRegular.circle,
-      _StepState.active => PhosphorIconsBold.circleDashed,
-      _StepState.done => PhosphorIconsBold.check,
-      _StepState.error => PhosphorIconsBold.x,
+      SplashStepState.pending => PhosphorIconsRegular.circle,
+      SplashStepState.active => PhosphorIconsBold.circleDashed,
+      SplashStepState.done => PhosphorIconsBold.check,
+      SplashStepState.error => PhosphorIconsBold.x,
     };
     final color = switch (state) {
-      _StepState.pending => colors.textMuted,
-      _StepState.active => colors.accent,
-      _StepState.done => colors.accent,
-      _StepState.error => colors.dotError,
+      SplashStepState.pending => colors.textMuted,
+      SplashStepState.active => colors.accent,
+      SplashStepState.done => colors.accent,
+      SplashStepState.error => colors.dotError,
     };
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: DesignTokens.spaceXS),

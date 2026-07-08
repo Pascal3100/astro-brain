@@ -73,7 +73,8 @@ void main() {
       const SplashState(phase: SplashPhase.contacting),
       isA<SplashState>()
           .having((s) => s.phase, 'phase', SplashPhase.failure)
-          .having((s) => s.errorMessage, 'errorMessage', contains('boom')),
+          .having((s) => s.errorMessage, 'errorMessage', contains('boom'))
+          .having((s) => s.failedPhase, 'failedPhase', SplashPhase.contacting),
     ],
   );
 }
