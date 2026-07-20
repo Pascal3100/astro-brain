@@ -40,7 +40,6 @@ from astro_brain.routes.catalog import router as catalog_router
 from astro_brain.routes.commands import router as commands_router
 from astro_brain.routes.events import router as events_router
 from astro_brain.routes.goto import router as goto_router
-from astro_brain.routes.limits import router as limits_router
 from astro_brain.routes.sensors import _LazySensor
 from astro_brain.routes.sensors import router as sensors_router
 from astro_brain.routes.state import router as state_router
@@ -297,7 +296,6 @@ def build_app(
     app.include_router(events_router)
     app.include_router(calibration_router)
     app.include_router(sensors_router)
-    app.include_router(limits_router)
     app.include_router(alignment_router)
     app.include_router(catalog_router)
     app.include_router(goto_router)

@@ -7,7 +7,6 @@ from pydantic import ValidationError
 
 from astro_brain.models.calibration import (
     Adxl345Offsets,
-    AltLimits,
     CalibrationProgress,
     CalibrationStatus,
     Lis3mdlOffsets,
@@ -49,25 +48,6 @@ def test_lis3mdl_offsets_round_trip() -> None:
     parsed = Lis3mdlOffsets.model_validate_json(json_str)
     assert parsed == payload
     assert parsed.scale_matrix[2][2] == 1.02
-
-
-def test_alt_limits_valid() -> None:
-    limits = AltLimits(min_deg=0.0, max_deg=90.0)
-    json_str = limits.model_dump_json()
-    parsed = AltLimits.model_validate_json(json_str)
-    assert parsed == limits
-
-
-def test_alt_limits_rejects_too_narrow_range() -> None:
-    with pytest.raises(ValidationError):
-        AltLimits(min_deg=20.0, max_deg=25.0)
-
-
-def test_alt_limits_rejects_min_ge_max() -> None:
-    with pytest.raises(ValidationError):
-        AltLimits(min_deg=80.0, max_deg=10.0)
-    with pytest.raises(ValidationError):
-        AltLimits(min_deg=50.0, max_deg=50.0)
 
 
 def test_calibration_progress_round_trip_with_residual_none() -> None:

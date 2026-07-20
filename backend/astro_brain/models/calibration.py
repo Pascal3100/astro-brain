@@ -1,9 +1,9 @@
-"""Pydantic payload models for sensor calibrations (ADXL345, LIS3MDL, alt limits)."""
+"""Pydantic payload models for sensor calibrations (ADXL345, LIS3MDL)."""
 
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
 
 class Adxl345Offsets(BaseModel):
@@ -21,20 +21,6 @@ class Lis3mdlOffsets(BaseModel):
     ]
     coverage_pct: float
     residual: float
-
-
-class AltLimits(BaseModel):
-    min_deg: float
-    max_deg: float
-
-    @model_validator(mode="after")
-    def _check_range(self) -> "AltLimits":
-        # Ordered bounds and minimum 30° usable range.
-        if self.min_deg >= self.max_deg:
-            raise ValueError("min_deg must be strictly less than max_deg")
-        if (self.max_deg - self.min_deg) < 30:
-            raise ValueError("AltLimits range must be at least 30 degrees wide")
-        return self
 
 
 class CalibrationProgress(BaseModel):
