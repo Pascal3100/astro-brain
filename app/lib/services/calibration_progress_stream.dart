@@ -10,7 +10,7 @@ import 'sse_parser.dart';
 
 /// Helper SSE one-shot pour les sessions de calibration.
 ///
-/// Diffère de [TiltStreamService]/[CompassStreamService] : pas de reconnect,
+/// Diffère de [CompassStreamService] : pas de reconnect,
 /// le stream se termine naturellement quand le backend envoie l'event `end`
 /// (après finalize/abort) ou quand la connexion ferme. Le bloc consommateur
 /// observe la fin via `onDone`.
@@ -100,7 +100,7 @@ class CalibrationProgressStream {
       _out.add(CalibrationProgress.fromJson(json));
     } catch (_) {
       // Payload mal formé : drop sans tuer la souscription. Voir le commentaire
-      // équivalent dans TiltStreamService.
+      // équivalent dans CompassStreamService.
     }
   }
 
