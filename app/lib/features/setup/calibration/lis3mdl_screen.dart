@@ -341,9 +341,7 @@ class _HeadingPreview extends StatelessWidget {
               ],
             );
           }
-          final qualifier = reading.tiltCompensated
-              ? 'tilt-compensé'
-              : 'naïve — niveau monture non calibré';
+          const qualifier = 'cap magnétique (non tilt-compensé)';
           return Row(
             children: [
               Icon(

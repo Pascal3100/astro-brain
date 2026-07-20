@@ -7,7 +7,6 @@ from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock
 
 import aiosqlite
-import numpy as np
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -16,19 +15,12 @@ from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.calibration import router, stream_calibration
 from astro_brain.services.calibration import CalibrationServiceImpl
 
+from ._calibration_samples import full_sphere_samples as _full_sphere_samples
+
 # ---------------------------------------------------------------------------
 # Fake adapter (local — richer than the fakes in fakes.py because we need
 # to control sample content for threshold tests)
 # ---------------------------------------------------------------------------
-
-
-def _full_sphere_samples(n: int, seed: int = 42) -> list[tuple[float, float, float]]:
-    """n points spread over the full unit sphere — good coverage."""
-    rng = np.random.default_rng(seed)
-    v = rng.standard_normal((n, 3))
-    v /= np.linalg.norm(v, axis=1, keepdims=True)
-    v *= 40.0  # arbitrary non-unit radius, order of magnitude of real µT readings
-    return [tuple(row) for row in v.tolist()]
 
 
 _GOOD_COVERAGE: list[tuple[float, float, float]] = _full_sphere_samples(1_000)

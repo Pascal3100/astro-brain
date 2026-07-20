@@ -48,8 +48,8 @@ class _LazySensor:
     directly.  Opening a live sensor stream while a calibration session is active
     will call ``start()`` a second time, which is idempotent on the fake adapters
     and merely re-writes init registers on the real chips.  The UI flow prevents
-    this in practice (the tilt/compass screens are not accessible during
-    calibration), so this is acceptable in v0.2.
+    this in practice (the compass screen is not accessible during calibration),
+    so this is acceptable in v0.2.
     """
 
     def __init__(self, adapter: Any) -> None:

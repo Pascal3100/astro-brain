@@ -20,8 +20,8 @@ def _check_sensor_id(sensor_id: str) -> None:
         raise ValueError(f"unknown sensor_id: {sensor_id!r}")
 
 
-def _check_payload_type(sensor_id: str, payload: Lis3mdlOffsets) -> None:
-    if sensor_id == "lis3mdl" and not isinstance(payload, Lis3mdlOffsets):
+def _check_payload_type(payload: Lis3mdlOffsets) -> None:
+    if not isinstance(payload, Lis3mdlOffsets):
         raise TypeError(
             f"sensor_id 'lis3mdl' requires Lis3mdlOffsets, got {type(payload).__name__}"
         )
@@ -71,7 +71,7 @@ async def upsert_offsets(
 ) -> None:
     """Insert or replace the calibration row for ``sensor_id``."""
     _check_sensor_id(sensor_id)
-    _check_payload_type(sensor_id, payload)
+    _check_payload_type(payload)
 
     payload_json = payload.model_dump_json()
     calibrated_at = datetime.now(UTC).isoformat()

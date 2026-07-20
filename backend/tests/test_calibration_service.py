@@ -15,6 +15,7 @@ from astro_brain.repository.state_db import run_migrations
 from astro_brain.services.calibration import CalibrationServiceImpl
 from astro_brain.services.interfaces import ConflictError
 
+from ._calibration_samples import full_sphere_samples as _full_sphere_samples
 from .fakes.sensor_fakes import FakeLis3mdl as FakeLis3mdlAdapter
 
 # ---------------------------------------------------------------------------
@@ -36,15 +37,6 @@ async def db() -> AsyncIterator[aiosqlite.Connection]:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _full_sphere_samples(n: int, seed: int = 42) -> list[tuple[float, float, float]]:
-    """n points spread over the full unit sphere — good coverage."""
-    rng = np.random.default_rng(seed)
-    v = rng.standard_normal((n, 3))
-    v /= np.linalg.norm(v, axis=1, keepdims=True)
-    v *= 40.0  # arbitrary non-unit radius, order of magnitude of real µT readings
-    return [tuple(row) for row in v.tolist()]
 
 
 def _hemisphere_samples(n: int, seed: int = 42) -> list[tuple[float, float, float]]:
@@ -206,8 +198,14 @@ async def test_lis3mdl_coverage_threshold(db: aiosqlite.Connection) -> None:
         lis3mdl_coverage_threshold=80.0,
     )
     sid = await svc.start("lis3mdl")
-    # Wait for > 500 samples (500 × 0.001s = 0.5s, plus margin).
-    await asyncio.sleep(0.7)
+    # Force the deterministic sample set instead of waiting on the sampling
+    # loop's wall-clock timing: at 500 samples × 1ms/sample, a fixed
+    # asyncio.sleep(0.7) races against real scheduling jitter (event loop
+    # load, CI slowness) and can land under lis3mdl_min_samples, raising
+    # "insufficient samples" instead of the "coverage" error under test —
+    # the same deterministic-override pattern is already used in
+    # test_finalize_before_threshold_raises above.
+    svc._samples = list(hemi_samples)
 
     with pytest.raises(ValueError, match="coverage"):
         await svc.finalize(sid)
