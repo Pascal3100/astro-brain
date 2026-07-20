@@ -52,6 +52,37 @@ le HTML reste la spec de référence. Les deux doivent rester cohérents.
 
 Rappel LM2902 (DIP-14) : `1`=OUT1, `2`=IN1−, `3`=IN1+, `4`=V+, `11`=GND.
 
+## Netlist-as-code → import Pcbnew
+
+La carte est décrite en Python dans [`gen_netlist.py`](gen_netlist.py) (composants + nets),
+qui émet [`aux-bridge.net`](aux-bridge.net) — un netlist KiCad importable directement dans Pcbnew.
+C'est la **source éditable** du board : on modifie le `.py`, on régénère, on ré-importe.
+
+```bash
+python3 gen_netlist.py        # régénère aux-bridge.net (15 composants, 13 nets)
+```
+
+**Import dans KiCad (snap) :**
+
+1. Lancer Pcbnew : `kicad.pcbnew` (éditeur de circuit imprimé, en standalone).
+2. `Fichier → Importer → Netlist…` → choisir `aux-bridge.net`.
+3. Les empreintes arrivent empilées à l'origine avec le **chevelu** (airwires) → placer puis router.
+
+Détails : les empreintes sont toutes résolues **sauf `A1` (ESP32)** — voir ci-dessous.
+Les pins inutilisés sont déjà gérés (amplis LM2902 en suiveurs, `/OE`/`A` des gates tirés,
+sorties `Y` volontairement libres, `J1.3` +12 V non connectée).
+
+### A1 — ESP32 : empreinte à créer
+
+Aucune empreinte DevKitC en lib stock. Dans le netlist, `A1` a une **empreinte vide** et
+ses pins sont **nommés par fonction** (`VIN`, `GND`, `IO16`, `IO17`, `IO32`). Il faut créer une
+empreinte (2 rangées de pads au **pas mesuré sur ta carte**) dont les pads portent ces noms →
+le chevelu se résoudra alors tout seul. À l'import, Pcbnew signalera « A1 sans empreinte » : normal.
+
+> ⚠️ Le netlist n'a **pas** pu être vérifié par import headless (pas de commande `kicad-cli`
+> pour ça) — sa **structure S-expr est validée** (parse OK) et toutes les empreintes/pads
+> référencés existent. Contrôle visuel à l'import.
+
 ## Correspondance symboles KiCad
 
 | Réf | Symbole | Librairie |
@@ -81,8 +112,9 @@ Repérer l'orientation au multimètre (monture allumée) avant tout branchement 
 ## État
 
 - [x] Spec / netlist consolidée (HTML)
-- [ ] Schéma KiCad (`.kicad_sch`)
-- [ ] Empreintes (DIP-14 ×2, RJ-12, barrettes ESP32 après mesure, bornier, passifs)
+- [x] Netlist-as-code (`gen_netlist.py` → `aux-bridge.net`, structure validée)
+- [ ] Empreinte ESP32 DevKitC à créer (pads `VIN/GND/IO16/IO17/IO32`, pas mesuré)
+- [ ] Import netlist dans Pcbnew → placement des empreintes
 - [ ] Routage 2 couches + plan de masse + isolement pad +12 V
 - [ ] Export Gerbers → commande JLCPCB (~25 € les 5)
 - [ ] MAJ `hardware.md` (récap fils : 3,3 V ADXL depuis Pi pin 1)
