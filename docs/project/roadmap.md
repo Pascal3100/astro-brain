@@ -48,15 +48,15 @@ Page Setup unifiée + toutes les calibrations et configurations préalables à u
 
 - ✅ Page Setup unifiée (hub des cards) — scaffold Session 14
 - ✅ Slice INFRA backend (sqlite `state.db` + repos calibration/limits) — livré 2026-05-05 (Session 17)
-- ✅ Calibration ADXL345 monture (item #1 — niveau monture, planéité absolue) — livré 2026-05-07 (Session 18)
-- ✅ Calibration compass LIS3MDL (item #2 — soft-iron offsets, heading tilt-compensé via fusion ADXL co-localisé) — livré 2026-05-07 (Session 18)
-- ✅ Calibration ADXL345 tube (item #3 — zéro ALT, tube horizontal) — livré 2026-05-07 (Session 18)
-- ✅ Courses ALT min/max (alimentées par ADXL345 tube, anti-collision) — livré 2026-05-07 (Session 19)
+- ~~✅ Calibration ADXL345 monture (item #1 — niveau monture, planéité absolue) — livré 2026-05-07 (Session 18)~~ (capteur retiré — voir ADR 2026-07-17)
+- ✅ Calibration compass LIS3MDL (item #2 — soft-iron offsets) — livré 2026-05-07 (Session 18)
+- ~~✅ Calibration ADXL345 tube (item #3 — zéro ALT, tube horizontal) — livré 2026-05-07 (Session 18)~~ (capteur retiré — voir ADR 2026-07-17)
+- ~~✅ Courses ALT min/max (alimentées par ADXL345 tube, anti-collision) — livré 2026-05-07 (Session 19)~~ (capteur retiré — voir ADR 2026-07-17)
 - ➡️ ~~Backlash compensation ALT + AZ (mount-side)~~ **déplacé en Macro 5** (2026-07-08) : le driver `indi-celestronaux` v1.5 n'expose pas `MOUNT_AXIS_BACKLASH` → nécessite un fork/patch C++ ; valeur réelle seulement en imaging/guidage. Cartes Setup 5/6 marquées « Reporté — Macro 5 ». Cf. ADR 2026-07-08.
 - ✅ Network/IP config — livré Session 14 (carte #8 Setup)
 - ✅ À propos (versions, IP, uptime) — livré 2026-05-07 (Session 19)
 
-*Done quand* : ~~toutes les calibrations/courses/configs sont accessibles depuis l'app, valeurs persistées, et permettent de tenter un alignement avec confiance.~~ **Atteint 2026-07-08** : calibrations (niveau monture, compass, zéro ALT), courses ALT, réseau et à-propos accessibles depuis l'app + persistés. Le backlash mount-side est reporté en Macro 5 (dépend d'un fork driver, sans valeur avant l'imaging).
+*Done quand* : ~~toutes les calibrations/courses/configs sont accessibles depuis l'app, valeurs persistées, et permettent de tenter un alignement avec confiance.~~ **Atteint 2026-07-08** : calibration compass, réseau et à-propos accessibles depuis l'app + persistés. (Niveau monture, zéro ALT et courses ALT — livrés à date puis **retirés le 2026-07-17**, voir ADR — n'entrent plus dans ce critère.) Le backlash mount-side est reporté en Macro 5 (dépend d'un fork driver, sans valeur avant l'imaging).
 
 Spec validée : [`docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md`](../superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md). Plan : [`docs/superpowers/plans/2026-05-04-v02-setup-implementation.md`](../superpowers/plans/2026-05-04-v02-setup-implementation.md).
 
@@ -69,7 +69,7 @@ Optionnels à arbitrer plus tard : slew rates personnalisés, cone error, PEC.
 Première mise en station effective, GoTo réel, catalogue d'objets brillants. Hub central remplace le HomeScreen comme landing post-Splash. Pré-requis : Macro 2.
 
 - ✅ Hub central (landing post-Splash, 4 cartes Manuel / Setup / Status / À propos) — livré 2026-05-08 (Session 20)
-- 🚧 Wizard alignement 3 étoiles assisté capteurs (compass + tilt + GPS pour pré-pointage, validation auto via résiduel SVD < ~1°, fallback manuel) — software livré 2026-05-10 (Session 22, backend + Flutter, 180 tests app + tests backend), validation matérielle à valider sur matériel (liaison OK depuis S37)
+- 🚧 Wizard alignement 3 étoiles assisté capteurs (compass + GPS pour pré-pointage, validation auto via résiduel SVD < ~1°, fallback manuel) — software livré 2026-05-10 (Session 22, backend + Flutter, 180 tests app + tests backend), validation matérielle à valider sur matériel (liaison OK depuis S37)
 - 🚧 GoTo réel (`POST /goto {ra_deg, dec_deg, target_name}` sur monture alignée — `EQUATORIAL_EOD_COORD` + `ON_COORD_SET=TRACK`, slew + tracking sidéral natif) — software livré 2026-06-01 (Session 24 : `MountService.goto_radec`, garde `is_aligned`, complétion BUSY→OK via `updateProperty`, `goto_in_progress` exposé via SSE, abort réutilise `/stop`) ; validation matérielle (slew réel) à faire (liaison OK depuis S37)
 - 🚧 Catalogue minimal backend : tranche A (stars étendues IAU CSN cap mag 3, 140 entrées) livrée 2026-05-10 ; enrichissement visibilité `visible_now` (alt/az courants via `_ephemeris` + `VisibilityEnricher`, dégradation gracieuse sans fix GPS) livré 2026-06-01 (Session 24) — tranches Messier + planètes (skyfield) à suivre
 - 🚧 Page Catalogue minimal (recherche + filtres magnitude/visible-now, détail bottom sheet, GoTo + slew bar, bandeau non-aligné) — software livré 2026-06-01 (Session 24, Flutter) ; validation visuelle Android + slew réel à faire (liaison OK depuis S37)

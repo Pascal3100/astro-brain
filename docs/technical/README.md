@@ -5,7 +5,7 @@ Comment Astro-Brain est construit : architecture, matériel, modèle d'état, AP
 ## Sommaire
 
 - [architecture.md](architecture.md) — vue d'ensemble Pi ↔ App, protocoles, choix de stack.
-- [hardware.md](hardware.md) — câblage GPIO, capteurs (GPS, compass, ADXL345), périphériques USB.
+- [hardware.md](hardware.md) — câblage GPIO, capteurs (GPS, compass), périphériques USB.
 - [state-model.md](state-model.md) — bus interne, sous-systèmes, agrégateur, format SSE.
 - [api.md](api.md) — endpoints REST + flux SSE par macro-étape.
 - [deployment.md](deployment.md) — installation Pi OS, dépendances, service systemd.

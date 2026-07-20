@@ -4,6 +4,23 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 
 ---
 
+## 2026-07-17 — Retrait des 2× ADXL345 + feature Courses ALT
+
+**Contexte** : les 2× ADXL345 (tube `0x53`, monture `0x1D`) et la feature Courses ALT ont été spécifiés avant l'installation physique du tube sur la monture. Cette installation n'a jamais été faite, et la coller maintenant imposerait de concevoir et imprimer **2 boîtiers 3D** (fixation tube + fixation monture) pour des capteurs dont la valeur s'est effritée entre-temps : (1) l'ADR [2026-05-10](decisions.md) a requalifié le modèle SVD du wizard 3 étoiles en simple indicateur de qualité et fait reposer l'alignement/le pointage sur le **sync natif Celestron** — les deux ADXL sont donc **hors du chemin de pointage** depuis cette décision ; (2) la feature Courses ALT (bornes logicielles `/limits/alt`, item Macro 2) n'a **jamais été enforcée** dans le code de commande (aucun garde-fou branché sur le slew réel) — un audit de code mené pendant ce retrait confirme qu'aucune décision d'alignement ou de slew n'était conditionnée par une lecture tilt ; c'était strictement un affichage/une saisie, jamais un chemin de sécurité actif.
+
+**Décision** : retirer les deux ADXL345 (`0x53` tube, `0x1D` monture) et la feature Courses ALT — code, endpoints, écrans Flutter, câblage. Garder le compass **LIS3MDL** (`0x1E`) et le **GPS** DroTek, qui restent tous deux utiles (cap magnétique pour le pré-pointage, position/heure pour les éphémérides).
+
+**Conséquences** :
+- Le compass LIS3MDL fonctionne désormais en **heading non tilt-compensé** (il n'y a plus d'ADXL co-localisé pour fusionner l'inclinaison) — précision dégradée si la monture n'est pas de niveau, acceptable car le plate solve (Macro 5) prend le relais pour le pointage précis.
+- La **mise à niveau** de la monture repasse entièrement par la **bulle physique** du trépied (plus de bulle virtuelle logicielle).
+- L'**anti-collision ALT** (butées tube/trépied) n'est plus assurée par un capteur dédié ; elle est repoussée à **Macro 3 (GoTo)**, où le path planning peut s'appuyer sur la **position monture** rapportée par le driver (pas de capteur externe requis).
+
+**Cross-références** : **supersède** l'ADR [2026-04-24](decisions.md) (« Accéléromètres simples ADXL345 ×2 plutôt que IMU 9DOF »). Touche l'ADR [2026-04-21](decisions.md) (le bus I2C1 devient **compass-only** — plus de sélection d'adresse via SDO). Touche l'ADR [2026-05-09](decisions.md) (le retrait des courses AZ logicielles laissait les courses ALT comme seul reliquat asymétrique AZ/ALT ; cette asymétrie devient **sans objet** puisque les courses ALT disparaissent aussi). Touche l'ADR [2026-05-10](decisions.md) (le modèle SVD/sync natif, déjà la source de vérité du pointage, est la raison pour laquelle les ADXL étaient devenus superflus). Touche l'ADR [2026-07-08](decisions.md) (le backlash mount-side reste différé en Macro 5 pour une raison indépendante — driver — mais Macro 2 perd un item de plus avec ce retrait).
+
+**Rationale** : la valeur retirée (mise à niveau assistée, zéro ALT assisté, garde-fou ALT logiciel jamais actif) ne justifie pas le coût d'installation physique (2 boîtiers 3D) pour un usage qui n'est de toute façon plus sur le chemin critique du pointage (cf. 2026-05-10) ni sur un chemin de sécurité actif (jamais enforcé). Les besoins réels identifiés en retrait (résilience reboot, home/parking, calibration ponctuelle du zéro ALT à la bulle, correction de déclinaison compass) sont capturés comme pistes prospectives dans [`backlog.md`](backlog.md#reprise--résilience--aide-au-pré-pointage-post-retrait-adxl-macro-3).
+
+---
+
 ## 2026-04-15 — Pas d'Arduino dans la chaîne
 
 **Contexte** : design initial prévoyait un Arduino comme intermédiaire entre Pi et monture pour temps-réel.
@@ -26,13 +43,15 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 
 **Contexte** : le Pi 3 B+ a 4 ports USB. Le projet final aura 3 caméras + monture (USB), ce qui sature.
 
-**Décision** : tous les capteurs (GPS DroTek, compass LIS3MDL, ADXL345 ×2) passent par les GPIO (UART0 + I2C1), pas via USB.
+**Décision** : tous les capteurs (GPS DroTek, compass LIS3MDL, ADXL345 ×2) passent par les GPIO (UART0 + I2C1), pas via USB. _(Les ADXL345 ×2 sont retirés par l'ADR du 2026-07-17 ; le bus I2C1 reste GPIO, désormais compass-only.)_
 
 **Rationale** : préserve les ports USB pour la monture et les caméras. Les bus GPIO ont la bande passante nécessaire (NMEA en UART à 9600/38400 bauds, I2C à 400 kHz).
 
 ---
 
 ## 2026-04-24 — Accéléromètres simples (ADXL345 ×2) plutôt que IMU 9DOF
+
+> **Supersédée par l'ADR du 2026-07-17** (retrait des 2× ADXL345 + feature Courses ALT). Conservée pour l'historique.
 
 **Contexte** : besoin de mesurer l'inclinaison du tube (zéro ALT, butées) et la planéité de la monture (mise à niveau).
 

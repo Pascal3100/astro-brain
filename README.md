@@ -25,7 +25,7 @@ Pas de versions numérotées. Train d'étapes regroupées en macro-étapes ; une
 
 - **Macro 0 — Socle** ✓ Joystick + tracking + GPS/heure (livré 2026-04-25)
 - **Macro 1 — Migration INDI** ✅ (S37) Refonte `MountAdapter` `nexstarpy` → `pyindi-client` ; monture pilotée via pont ESP32 (WiFi ↔ bus AUX)
-- **Macro 2 — Setup** ✅ calibration compass + ADXL345 ×2, courses ALT, network/IP, à propos (backlash reporté Macro 5)
+- **Macro 2 — Setup** ✅ calibration compass, network/IP, à propos (ADXL345 ×2 et courses ALT retirés le 2026-07-17 ; backlash reporté Macro 5)
 - **Macro 3 — Mise en station + GoTo basique** : 3 étoiles + GoTo + catalogue minimal + Hub central
 - **Macro 4 — Catalogue intelligent** : NGC/IC + setup tube — parité raquette Celestron atteinte
 - **Macro 5 — Caméras + plate solving** : stack INDI, pipeline preview, framing

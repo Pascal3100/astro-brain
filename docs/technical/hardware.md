@@ -9,8 +9,6 @@ Référence pratique pour le matériel et les branchements physiques.
 | **Raspberry Pi 3 B+** | Backend FastAPI, GPS, calculs astro, plate solving (Macro 5+) | — |
 | **Monture Celestron NexStar SLT** | GoTo + suivi sidéral | Bus AUX (port HAND CONTROL RJ-12) via **pont ESP32 WiFi** : interface single-wire **RX comparateur LM2902 + TX buffer 74AHCT125** → ESP32 (`192.168.1.200:2000`) → driver INDI `indi_celestron_aux` en mode Network. Schémas : [cablage-interface-aux.html](cablage-interface-aux.html) + [cablage-pont-esp32.html](cablage-pont-esp32.html) |
 | **GPS DroTek Ublox M8N + compass XL** | Géolocalisation, heure UTC, cap magnétique | UART0 GPIO (GPS) + I2C1 GPIO (compass LIS3MDL) |
-| **ADXL345 tube** (`0x53`) | Zéro ALT + détection butées d'inclinaison | I2C1 GPIO |
-| **ADXL345 monture** (`0x1D`) | Mise à niveau pré-session (bulle virtuelle) | I2C1 GPIO |
 | **Caméras astrophoto** (Macro 5+) | T7C, StarShoot Autoguider, lunette guide SV165 | USB |
 | **Alimentation** | 3 sources : (1) secteur 220 V → 5 V/2,5 A pour le **Pi seul** ; (2) **rail 5 V** (12 V → 5 V) pour **tout le reste du 5 V** (ESP32, interface AUX, pull-ups, VCC capteurs) ; (3) **3,3 V fourni par le Pi** (logique). Masses communes. | [cablage-alimentation.html](cablage-alimentation.html) |
 
@@ -21,10 +19,6 @@ La monture passe désormais par le **WiFi** (pont ESP32 sur le bus AUX), plus pa
 | Device | Adresse | Usage |
 |---|---|---|
 | LIS3MDL (compass) | `0x1E` | Cap magnétique, alignement assisté (Macro 3+) |
-| ADXL345 tube | `0x53` | Zéro ALT, butées (Macro 2+) |
-| ADXL345 monture | `0x1D` | Niveau trépied (Macro 2+) |
-
-Les 2 ADXL345 cohabitent sur le même bus grâce à la pin SDO (sélection d'adresse). Pas de multiplexeur nécessaire.
 
 ## Plan du header GPIO (Pi 3 B+, vue du dessus)
 
@@ -45,7 +39,7 @@ Broches utilisées :
 | 6   | —   | GND      | GND commun |
 | 8   | GPIO14 | TXD0  | Pi TX → GPS RX |
 | 10  | GPIO15 | RXD0  | Pi RX ← GPS TX |
-| 3   | GPIO2  | SDA1  | I2C data (compass + ADXL345 ×2) |
+| 3   | GPIO2  | SDA1  | I2C data (compass) |
 | 5   | GPIO3  | SCL1  | I2C clock |
 
 ## GPS — UART0
@@ -209,15 +203,6 @@ indiserver -v indi_celestron_aux          # doit énumérer le device "Celestron
 
 Le pont ESP32 se flashe en USB sur la workstation (`/dev/ttyUSB0`, FQBN `esp32:esp32:esp32`), pas sur le Pi. Tests réseau **depuis le Pi** (vrai client du driver).
 
-## ADXL345 ×2 — I2C1
-
-Câblage identique au compass (SDA/SCL partagés). Sélection d'adresse via pin SDO :
-
-- **Tube** : SDO = VCC → adresse `0x53`
-- **Monture** : SDO = GND → adresse `0x1D`
-
-Justification du choix accéléromètres simples vs IMU 9DOF : usage statique pur, la gravité suffit (`atan2(ay, az)`). Précision < 0.5° brute, < 0.1° après calibration statique. Voir [project/decisions.md](../project/decisions.md).
-
 ## Récap fils
 
 ```
@@ -227,7 +212,6 @@ GPS  TX   ──── Pin 10 (RXD0)
 GPS  RX   ──── Pin 8  (TXD0)
 Mag  SDA  ──── Pin 3  (SDA1)       VCC ── rail 5 V
 Mag  SCL  ──── Pin 5  (SCL1)
-ADXL ×2   ──── Pin 3 + Pin 5 (parallèle sur I2C1)   VCC ── rail 5 V
 Mount    HAND CONTROL/AUX (RJ-12) — bus AUX, via pont ESP32 WiFi :
   Pin 3 (+12V) ──── NE PAS connecter
   Pin 4 (DATA single-wire) ──┬── RX LM2902 ──► GPIO16 ┐
