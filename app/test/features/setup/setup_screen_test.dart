@@ -67,13 +67,11 @@ void main() {
     // Par défaut, capteur jamais calibré (FutureBuilder card #1).
     when(() => mockApi.getCalibrationStatus(any())).thenAnswer(
       (_) async => const CalibrationStatus(
-        sensorId: 'adxl345_mount',
+        sensorId: 'lis3mdl',
         calibratedAt: null,
         payload: null,
       ),
     );
-    // Par défaut, courses ALT jamais définies (FutureBuilder card #4).
-    when(() => mockApi.getAltLimits()).thenAnswer((_) async => null);
     bloc = AppBloc(eventStream: mockStream);
 
     SharedPreferences.setMockInitialValues({});
@@ -86,8 +84,8 @@ void main() {
     theme.close();
   });
 
-  testWidgets('renders 8 SetupCards', (tester) async {
-    // Tall viewport so ListView.separated builds all 8 items.
+  testWidgets('renders 5 SetupCards', (tester) async {
+    // Tall viewport so ListView.separated builds all 5 items.
     tester.view.physicalSize = const Size(1080, 4000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -99,61 +97,52 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.byType(SetupCard), findsNWidgets(8));
+    expect(find.byType(SetupCard), findsNWidgets(5));
   });
 
-  testWidgets(
-    'cards #1, #2, #3, #4 (COURSES ALT) and #8 (RÉSEAU) have onTap',
-    (tester) async {
-      tester.view.physicalSize = const Size(1080, 4000);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
+  testWidgets('card #1 (COMPASS) and #5 (RÉSEAU) have onTap', (tester) async {
+    tester.view.physicalSize = const Size(1080, 4000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
 
-      await tester.pumpWidget(
-        _wrap(const SetupScreen(), bloc, theme, api: mockApi),
+    await tester.pumpWidget(
+      _wrap(const SetupScreen(), bloc, theme, api: mockApi),
+    );
+    // Laisse les FutureBuilder se résoudre sans attendre les animations infinies.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final cards = tester
+        .widgetList<SetupCard>(find.byType(SetupCard))
+        .toList();
+    for (var i = 0; i < cards.length; i++) {
+      final isInteractive = (i == 0) || (i == 4);
+      expect(
+        cards[i].onTap == null,
+        !isInteractive,
+        reason: 'card #${i + 1} onTap mismatch',
       );
-      // Laisse les FutureBuilder se résoudre sans attendre les animations infinies.
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
+    }
+    // Sanity : le mock a bien été appelé pour le capteur câblé.
+    verify(() => mockApi.getCalibrationStatus('lis3mdl')).called(1);
+  });
 
-      final cards = tester
-          .widgetList<SetupCard>(find.byType(SetupCard))
-          .toList();
-      for (var i = 0; i < cards.length; i++) {
-        final isInteractive =
-            (i == 0) || (i == 1) || (i == 2) || (i == 3) || (i == 7);
-        expect(
-          cards[i].onTap == null,
-          !isInteractive,
-          reason: 'card #${i + 1} onTap mismatch',
-        );
-      }
-      // Sanity : le mock a bien été appelé pour les trois capteurs câblés
-      // et les courses ALT.
-      verify(() => mockApi.getCalibrationStatus('adxl345_mount')).called(1);
-      verify(() => mockApi.getCalibrationStatus('lis3mdl')).called(1);
-      verify(() => mockApi.getCalibrationStatus('adxl345_tube')).called(1);
-      verify(() => mockApi.getAltLimits()).called(1);
-    },
-  );
+  testWidgets('card #1 sublabel reads "Non calibré" when never calibrated', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 4000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
 
-  testWidgets(
-    'cards #1, #2 and #3 sublabel read "Non calibré" when never calibrated',
-    (tester) async {
-      tester.view.physicalSize = const Size(1080, 4000);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      _wrap(const SetupScreen(), bloc, theme, api: mockApi),
+    );
+    // Laisse les FutureBuilder se résoudre sans attendre les animations infinies.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
-      await tester.pumpWidget(
-        _wrap(const SetupScreen(), bloc, theme, api: mockApi),
-      );
-      // Laisse les FutureBuilder se résoudre sans attendre les animations infinies.
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
-
-      expect(find.text('Non calibré'), findsNWidgets(3));
-    },
-  );
+    expect(find.text('Non calibré'), findsOneWidget);
+  });
 
   test('formatRelativeAge formats durations correctly', () {
     expect(formatRelativeAge(const Duration(seconds: 5)), 'Calibré il y a 5s');

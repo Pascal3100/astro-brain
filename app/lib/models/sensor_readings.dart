@@ -2,7 +2,6 @@
 ///
 /// Correspondance JSON → Dart :
 ///   `ts`               → `DateTime` via `DateTime.parse`
-///   `pitch_deg`/`roll_deg`/`magnitude_g` → `double`
 ///   `heading_deg`/`magnitude_uT`         → `double`
 ///   `raw` (objet `{x,y,z}`)              → record `(double, double, double)`
 ///   `tilt_compensated`/`calibrated`      → `bool`
@@ -11,51 +10,10 @@ library;
 import 'package:equatable/equatable.dart';
 
 // ---------------------------------------------------------------------------
-// TiltReading
-// ---------------------------------------------------------------------------
-
-/// Lecture inclinaison instantanée (ADXL345 monté).
-///
-/// Champs :
-/// - [ts] : horodatage backend.
-/// - [pitchDeg] : pitch en degrés (rotation autour de l'axe Y).
-/// - [rollDeg] : roll en degrés (rotation autour de l'axe X).
-/// - [magnitudeG] : norme du vecteur d'accélération en g (≈1.0 au repos).
-/// - [calibrated] : `true` si la calibration a été appliquée.
-class TiltReading extends Equatable {
-  const TiltReading({
-    required this.ts,
-    required this.pitchDeg,
-    required this.rollDeg,
-    required this.magnitudeG,
-    required this.calibrated,
-  });
-
-  final DateTime ts;
-  final double pitchDeg;
-  final double rollDeg;
-  final double magnitudeG;
-  final bool calibrated;
-
-  factory TiltReading.fromJson(Map<String, dynamic> json) {
-    return TiltReading(
-      ts: DateTime.parse(json['ts'] as String),
-      pitchDeg: (json['pitch_deg'] as num).toDouble(),
-      rollDeg: (json['roll_deg'] as num).toDouble(),
-      magnitudeG: (json['magnitude_g'] as num).toDouble(),
-      calibrated: json['calibrated'] as bool,
-    );
-  }
-
-  @override
-  List<Object?> get props => [ts, pitchDeg, rollDeg, magnitudeG, calibrated];
-}
-
-// ---------------------------------------------------------------------------
 // CompassReading
 // ---------------------------------------------------------------------------
 
-/// Lecture compas instantanée (LIS3MDL + compensation par ADXL mount).
+/// Lecture compas instantanée (LIS3MDL).
 ///
 /// Champs :
 /// - [ts] : horodatage backend.

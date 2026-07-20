@@ -1,7 +1,6 @@
 /// BLoC générique de calibration capteur.
 ///
-/// Cycle de vie identique pour les 3 capteurs (`adxl345_mount`,
-/// `adxl345_tube`, `lis3mdl`) :
+/// Cycle de vie pour le capteur compass (`lis3mdl`) :
 ///   idle → (Started) POST /start → ouverture stream SSE → sampling
 ///   sampling → (ProgressReceived*) state.progress mis à jour
 ///   sampling → (FinalizeRequested) computing → POST /finalize → done
@@ -9,8 +8,8 @@
 ///   * → erreur HTTP/SSE → error
 ///
 /// Ce qui varie entre capteurs : le `sensorId` et la fonction `finalizeGate`
-/// qui décide quand le bouton VALIDER s'active. Les seuils par capteur
-/// sont définis dans ce fichier (cf. [adxlCanFinalize], [lis3mdlCanFinalize]).
+/// qui décide quand le bouton VALIDER s'active. Le seuil est défini dans ce
+/// fichier (cf. [lis3mdlCanFinalize]).
 ///
 /// Note : on réutilise l'enum [CalibrationState] du modèle pour la phase
 /// du bloc — ses valeurs (`idle/sampling/computing/done/aborted/error`)
@@ -34,13 +33,6 @@ export '../../../models/calibration.dart'
 // -----------------------------------------------------------------------------
 // Gates par capteur — miroir des défauts backend (cf. services/calibration.py)
 // -----------------------------------------------------------------------------
-
-/// ADXL345 : `adxl_min_samples=100`, `adxl_sigma_threshold=0.05`.
-const int kAdxlMinSamples = 100;
-const double kAdxlSigmaThreshold = 0.05;
-
-bool adxlCanFinalize(CalibrationProgress p) =>
-    p.samplesN >= kAdxlMinSamples && p.sigma < kAdxlSigmaThreshold;
 
 /// LIS3MDL : `lis3mdl_min_samples=500`, `lis3mdl_coverage_threshold=80.0`.
 /// Le backend ne gate pas sur `residual` côté finalize ; on reproduit les

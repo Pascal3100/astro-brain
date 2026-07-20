@@ -6,8 +6,7 @@ import '../../../../theme/app_typography.dart';
 import '../../../../theme/design_tokens.dart';
 import '../../../../widgets/hud_panel.dart';
 
-/// Affiche un état de progression de calibration (réutilisable entre
-/// les écrans ADXL mount/tube et compass).
+/// Affiche un état de progression de calibration.
 ///
 /// `progress == null` rend un état d'attente. Sinon : spinner + nombre
 /// d'échantillons + sigma + (optionnel) couverture sphérique + hint.
