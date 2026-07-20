@@ -176,7 +176,6 @@
       <rect x="560" y="262" width="300" height="58" class="blk"/>
       <text x="710" y="283" text-anchor="middle" class="blk-title">VCC capteurs</text>
       <text x="710" y="299" text-anchor="middle" class="blk-sub">GPS M8N · LIS3MDL</text>
-      <text x="710" y="313" text-anchor="middle" class="blk-sub">2× ADXL345</text>
     </a>
 
     <!-- Fils rail 5 V -> destinations (éventail) -->
@@ -226,7 +225,7 @@
       <tr>
         <td>② Rail 5 V</td>
         <td>Batterie 12 V → convertisseur buck dédié 12 V → 5 V</td>
-        <td>ESP32 (VIN) · interface AUX (VCC LM2902 + VCC 74AHCT125 pin 14 + pull-ups) · VCC capteurs (GPS M8N, LIS3MDL, 2× ADXL345)</td>
+        <td>ESP32 (VIN) · interface AUX (VCC LM2902 + VCC 74AHCT125 pin 14 + pull-ups) · VCC capteurs (GPS M8N, LIS3MDL)</td>
         <td><b style="color:var(--power)">Tout le reste du 5 V.</b> <span class="muted">Aucun 5 V ne sort du Pi — les broches 5 V du header Pi ne sont pas utilisées.</span></td>
       </tr>
       <tr>

@@ -336,19 +336,12 @@
     avant de figer le footprint des barrettes, sinon il ne rentrera pas.
   </div>
 
-  <div class="okbox">
-    <b>Le 3,3 V (CS + SDO d'un ADXL) n'est PAS sur cette carte.</b> C'est un fil direct
-    <code>Pi pin 1 (3V3) → CS + SDO du GY-291</code> concerné, côté capteurs. Deux entrées logiques (~µA) → aucun LDO,
-    aucune piste 3,3 V ici. La carte AUX reste un pont de bus pur. <span class="muted">(voir arbre d'alim : <a href="cablage-alimentation.html">alimentation</a>)</span>
-  </div>
-
   <h2>Reste à faire</h2>
   <div class="panel">
     <ul>
       <li>Saisie schéma <b>KiCad</b> à partir de cette netlist (versionné dans le repo).</li>
       <li>Empreintes : DIP-14 ×2, RJ-12 PCB, barrettes ESP32 (après mesure), bornier, passifs THT.</li>
       <li>Routage 2 couches, plan de masse, isolement pad +12 V, export Gerbers → upload JLCPCB (~25 € les 5).</li>
-      <li>MAJ <code>hardware.md</code> (récap fils : 3,3 V ADXL depuis Pi pin 1) — <b>au moment de graver</b>, pas avant.</li>
     </ul>
   </div>
 

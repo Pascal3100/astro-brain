@@ -4,8 +4,7 @@ Carte PCB qui remplace le montage breadboard du pont bus AUX : entrée **RJ-12**
 monture NexStar SLT) → interface single-wire → **ESP32 enfiché** → WiFi → driver INDI sur le Pi.
 
 **Pont de bus pur** : RX comparateur LM2902 (✓ S33) + TX buffer tri-state 74AHCT125 (✓ S36),
-découplage, entrée 5 V. **Pas de LDO** — le 3,3 V des ADXL (CS + SDO) reste un fil direct
-`Pi pin 1 → capteur`, hors carte.
+découplage, entrée 5 V.
 
 ## Source de vérité
 
@@ -117,4 +116,3 @@ Repérer l'orientation au multimètre (monture allumée) avant tout branchement 
 - [ ] Import netlist dans Pcbnew → placement des empreintes
 - [ ] Routage 2 couches + plan de masse + isolement pad +12 V
 - [ ] Export Gerbers → commande JLCPCB (~25 € les 5)
-- [ ] MAJ `hardware.md` (récap fils : 3,3 V ADXL depuis Pi pin 1)
