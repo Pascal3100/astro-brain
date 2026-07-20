@@ -1,4 +1,4 @@
-"""CalibrationService — state machine + sampling loop for ADXL345 & LIS3MDL.
+"""CalibrationService — state machine + sampling loop for LIS3MDL.
 
 State machine per session: idle → sampling → computing → done | aborted | error.
 
@@ -18,29 +18,20 @@ from uuid import uuid4
 
 import aiosqlite
 
-from astro_brain.adapters.adxl345_adapter import Adxl345Adapter
 from astro_brain.adapters.lis3mdl_adapter import Lis3mdlAdapter
 from astro_brain.models.calibration import (
-    Adxl345Offsets,
     CalibrationProgress,
     CalibrationStatus,
     Lis3mdlOffsets,
 )
 from astro_brain.repository import calibration_repo
 from astro_brain.repository.calibration_repo import SENSOR_IDS
-from astro_brain.services._bias_fit import compute_bias_and_sigma
 from astro_brain.services._ellipsoid_fit import compute_ellipsoid_offsets, coverage_pct
 from astro_brain.services.interfaces import ConflictError
 
 _log = logging.getLogger(__name__)
 
 _SessionState = Literal["idle", "sampling", "computing", "done", "aborted", "error"]
-
-_ADXL_SENSORS = frozenset({"adxl345_mount", "adxl345_tube"})
-
-# Convention v0.2 : la position « tube horizontal » est définie par l'instant
-# du clic VALIDER côté client, donc le payload sérialise toujours 0°.
-_TUBE_ZERO_ALT_DEG = 0.0
 
 
 class CalibrationServiceImpl:
@@ -54,26 +45,18 @@ class CalibrationServiceImpl:
         self,
         *,
         db: aiosqlite.Connection,
-        adxl_mount: Adxl345Adapter,
-        adxl_tube: Adxl345Adapter,
         lis3mdl: Lis3mdlAdapter,
         sample_period_s: float = 0.02,
         progress_period_s: float = 0.2,
-        adxl_min_samples: int = 100,
-        adxl_sigma_threshold: float = 0.05,
         lis3mdl_min_samples: int = 500,
         lis3mdl_coverage_threshold: float = 80.0,
     ) -> None:
         self._db = db
-        self._adapters: dict[str, Adxl345Adapter | Lis3mdlAdapter] = {
-            "adxl345_mount": adxl_mount,
-            "adxl345_tube": adxl_tube,
+        self._adapters: dict[str, Lis3mdlAdapter] = {
             "lis3mdl": lis3mdl,
         }
         self._sample_period_s = sample_period_s
         self._progress_period_s = progress_period_s
-        self._adxl_min_samples = adxl_min_samples
-        self._adxl_sigma_threshold = adxl_sigma_threshold
         self._lis3mdl_min_samples = lis3mdl_min_samples
         self._lis3mdl_coverage_threshold = lis3mdl_coverage_threshold
 
@@ -122,10 +105,7 @@ class CalibrationServiceImpl:
             self._coverage = 0.0
             self._residual = None
             self._state = "sampling"
-            if sensor_id in _ADXL_SENSORS:
-                self._hint = "Maintenir immobile"
-            else:
-                self._hint = "Tournez le module dans toutes les directions"
+            self._hint = "Tournez le module dans toutes les directions"
 
             adapter = self._adapters[sensor_id]
             # adapter.start() reste sous le lock : sinon abort()/start() peuvent
@@ -188,8 +168,8 @@ class CalibrationServiceImpl:
         """Stop sampling, run math, persist to DB, and return the result.
 
         Raises:
-            ValueError: Session mismatch, insufficient samples, sigma too
-                        high (ADXL), or coverage too low (LIS3MDL).
+            ValueError: Session mismatch, insufficient samples, or coverage
+                        too low.
         """
         if (
             self._current_session is None
@@ -206,11 +186,7 @@ class CalibrationServiceImpl:
         samples = list(self._samples)  # snapshot
 
         try:
-            payload: Adxl345Offsets | Lis3mdlOffsets
-            if sensor_id in _ADXL_SENSORS:
-                payload = self._compute_adxl(sensor_id, samples)
-            else:
-                payload = self._compute_lis3mdl(samples)
+            payload: Lis3mdlOffsets = self._compute_lis3mdl(samples)
 
             await calibration_repo.upsert_offsets(self._db, sensor_id, payload)
             status = await calibration_repo.get_offsets(self._db, sensor_id)
@@ -250,19 +226,14 @@ class CalibrationServiceImpl:
     # Private helpers
     # ------------------------------------------------------------------
 
-    async def _sample_loop(
-        self, sensor_id: str, adapter: Adxl345Adapter | Lis3mdlAdapter
-    ) -> None:
+    async def _sample_loop(self, sensor_id: str, adapter: Lis3mdlAdapter) -> None:
         """Background task: read one sample per tick, update hint/stats."""
-        is_adxl = sensor_id in _ADXL_SENSORS
-        # Resolve the read callable once to avoid branching in the hot loop.
-        read_fn = getattr(adapter, "read_raw_g" if is_adxl else "read_raw")
         while (
             self._current_session is not None
             and self._state == "sampling"
         ):
             try:
-                sample: tuple[float, float, float] = await read_fn()
+                sample: tuple[float, float, float] = await adapter.read_raw()
             except Exception as exc:
                 _log.exception("Adapter read error during calibration: %s", exc)
                 self._state = "error"
@@ -272,29 +243,13 @@ class CalibrationServiceImpl:
             self._samples.append(sample)
             n = len(self._samples)
 
-            if is_adxl:
-                self._update_adxl_hint(n)
-            else:
-                # coverage_pct rebuild un set sur l'ensemble des samples ;
-                # tickrate 25 garde ça tolérable (≤ ~20 ms à 500 samples).
-                if n % 25 == 0 and n > 0:
-                    self._coverage = coverage_pct(self._samples)
-                self._update_lis3mdl_hint()
+            # coverage_pct rebuild un set sur l'ensemble des samples ;
+            # tickrate 25 garde ça tolérable (≤ ~20 ms à 500 samples).
+            if n % 25 == 0 and n > 0:
+                self._coverage = coverage_pct(self._samples)
+            self._update_lis3mdl_hint()
 
             await asyncio.sleep(self._sample_period_s)
-
-    def _update_adxl_hint(self, n: int) -> None:
-        """Recompute sigma every 10 samples (once >= 5) and update hint."""
-        if n >= 5 and n % 10 == 0:
-            with contextlib.suppress(ValueError):
-                _, self._sigma = compute_bias_and_sigma(self._samples)
-
-        if n < 20:
-            self._hint = "Maintenir immobile"
-        elif n < self._adxl_min_samples and self._sigma >= self._adxl_sigma_threshold:
-            self._hint = "Réduire les vibrations"
-        elif self._sigma < self._adxl_sigma_threshold:
-            self._hint = "Prêt à valider"
 
     def _update_lis3mdl_hint(self) -> None:
         """Update hint from current coverage percentage."""
@@ -304,22 +259,6 @@ class CalibrationServiceImpl:
             self._hint = "Continuez les rotations"
         else:
             self._hint = "Couverture suffisante, validez"
-
-    def _compute_adxl(
-        self, sensor_id: str, samples: list[tuple[float, float, float]]
-    ) -> Adxl345Offsets:
-        """Run ADXL math; raise ValueError on bad samples."""
-        if len(samples) < self._adxl_min_samples:
-            raise ValueError(
-                f"insufficient samples: {len(samples)} < {self._adxl_min_samples}"
-            )
-        bias, sigma = compute_bias_and_sigma(samples)
-        if sigma >= self._adxl_sigma_threshold:
-            raise ValueError(f"sigma too high: {sigma:.4f}")
-        zero_alt_deg: float | None = (
-            _TUBE_ZERO_ALT_DEG if sensor_id == "adxl345_tube" else None
-        )
-        return Adxl345Offsets(bias=bias, sigma=sigma, zero_alt_deg=zero_alt_deg)
 
     def _compute_lis3mdl(
         self, samples: list[tuple[float, float, float]]
@@ -350,9 +289,7 @@ class CalibrationServiceImpl:
                 await self._sampling_task
             self._sampling_task = None
 
-    async def _clear_session(
-        self, adapter: Adxl345Adapter | Lis3mdlAdapter
-    ) -> None:
+    async def _clear_session(self, adapter: Lis3mdlAdapter) -> None:
         """Cancel sampling, stop adapter, reset session state."""
         await self._stop_sampling()
         try:

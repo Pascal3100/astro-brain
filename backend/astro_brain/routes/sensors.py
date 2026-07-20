@@ -94,7 +94,7 @@ async def compass_stream(
     Emits one ``compass`` event per tick at the requested rate. ``hz`` doit
     être dans [1, 10], sinon 422. Calibration offsets are read once at
     stream-open time. Heading is always naive (no tilt compensation — the
-    mount ADXL345 that used to provide it has been removed).
+    mount accelerometer that used to provide it has been removed).
     """
     rate = _validate_hz(hz)
 

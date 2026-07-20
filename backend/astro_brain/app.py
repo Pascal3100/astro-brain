@@ -117,13 +117,8 @@ class _AlignmentSensorsBridge:
 
 
 def _select_services(bus: StateBus, *, use_hardware: bool) -> dict[str, Any]:
-    """Return the five services plus I2C adapters, either fakes or real hardware."""
+    """Return the five services plus the LIS3MDL adapter, either fakes or real hardware."""
     if use_hardware:
-        from astro_brain.adapters.adxl345_adapter import (
-            ADXL345_MOUNT_ADDR,
-            ADXL345_TUBE_ADDR,
-            Adxl345Adapter,
-        )
         from astro_brain.adapters.gpsd_adapter import GpsdAdapter
         from astro_brain.adapters.lis3mdl_adapter import Lis3mdlAdapter
         from astro_brain.adapters.mount_indi_adapter import MountIndiAdapter
@@ -139,19 +134,15 @@ def _select_services(bus: StateBus, *, use_hardware: bool) -> dict[str, Any]:
             "network": NetworkInfoAdapter(bus),
             "system": SystemInfoAdapter(bus),
             "tracking": mount,
-            "adxl_mount": Adxl345Adapter(addr=ADXL345_MOUNT_ADDR),
-            "adxl_tube": Adxl345Adapter(addr=ADXL345_TUBE_ADDR),
             "lis3mdl": Lis3mdlAdapter(),
         }
-    fake_adxl_mount, fake_adxl_tube, fake_lis3mdl = make_fake_calibration_adapters()
+    fake_lis3mdl = make_fake_calibration_adapters()
     return {
         "mount": FakeMount(bus),
         "gps": FakeGps(bus),
         "network": FakeNetwork(bus),
         "system": FakeSystemInfo(bus),
         "tracking": FakeTracking(bus),
-        "adxl_mount": fake_adxl_mount,
-        "adxl_tube": fake_adxl_tube,
         "lis3mdl": fake_lis3mdl,
     }
 
@@ -208,18 +199,12 @@ def build_app(
 
         calibration_service = CalibrationServiceImpl(
             db=db_conn,
-            adxl_mount=services["adxl_mount"],
-            adxl_tube=services["adxl_tube"],
             lis3mdl=services["lis3mdl"],
         )
         _app.state.calibration_service = calibration_service
 
-        _app.state.adxl_mount = services["adxl_mount"]
-        _app.state.adxl_tube = services["adxl_tube"]
         _app.state.lis3mdl = services["lis3mdl"]
 
-        _app.state.lazy_adxl_mount = _LazySensor(services["adxl_mount"])
-        _app.state.lazy_adxl_tube = _LazySensor(services["adxl_tube"])
         _app.state.lazy_lis3mdl = _LazySensor(services["lis3mdl"])
 
         sensors_bridge = _AlignmentSensorsBridge(bus)

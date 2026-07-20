@@ -3,9 +3,9 @@
 Pure functions, zero I/O, zero state.
 
 Sensor frame: +x forward, +y right, +z down. Convention: +x = magnetic
-north → 0°, +y = east → 90°. No tilt compensation is applied — the mount
-ADXL345 that used to provide pitch/roll for tilt compensation has been
-removed; heading is derived directly from the (corrected) magnetometer
+north → 0°, +y = east → 90°. No tilt compensation is applied — the
+accelerometer that used to provide pitch/roll for tilt compensation has
+been removed; heading is derived directly from the (corrected) magnetometer
 vector projected onto the sensor's horizontal plane.
 """
 

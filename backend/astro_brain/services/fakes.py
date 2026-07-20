@@ -4,9 +4,9 @@ They are deterministic, synchronous-fast, and programmable — they never
 touch hardware. Use them from tests and when running the backend without
 the ``[hardware]`` extras.
 
-Fake I2C adapters for the calibration service are defined at the bottom of
-this module. They are not exported publicly (leading underscore); access
-them via :func:`make_fake_calibration_adapters`.
+The fake I2C adapter for the calibration service is defined at the bottom
+of this module. It is not exported publicly (leading underscore); access
+it via :func:`make_fake_calibration_adapters`.
 """
 
 from __future__ import annotations
@@ -317,27 +317,8 @@ class FakeSystemInfo:
 
 
 # ---------------------------------------------------------------------------
-# Fake I2C adapters for CalibrationServiceImpl (dev / tests)
+# Fake I2C adapter for CalibrationServiceImpl (dev / tests)
 # ---------------------------------------------------------------------------
-
-
-class _FakeAdxl345:
-    """Infinite-sequence ADXL345 fake for calibration tests and local dev."""
-
-    def __init__(
-        self, samples: list[tuple[float, float, float]] | None = None
-    ) -> None:
-        self._samples = list(samples) if samples else [(0.0, 0.0, 1.0)] * 1_000_000
-        self._idx = 0
-
-    async def start(self) -> None: ...
-
-    async def stop(self) -> None: ...
-
-    async def read_raw_g(self) -> tuple[float, float, float]:
-        s = self._samples[min(self._idx, len(self._samples) - 1)]
-        self._idx += 1
-        return s
 
 
 class _FakeLis3mdl:
@@ -361,6 +342,6 @@ class _FakeLis3mdl:
         return s
 
 
-def make_fake_calibration_adapters() -> tuple[_FakeAdxl345, _FakeAdxl345, _FakeLis3mdl]:
-    """Return ``(adxl_mount, adxl_tube, lis3mdl)`` fakes for local dev."""
-    return _FakeAdxl345(), _FakeAdxl345(), _FakeLis3mdl()
+def make_fake_calibration_adapters() -> _FakeLis3mdl:
+    """Return the LIS3MDL fake for local dev."""
+    return _FakeLis3mdl()

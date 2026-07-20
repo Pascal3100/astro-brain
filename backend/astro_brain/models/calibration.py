@@ -1,15 +1,9 @@
-"""Pydantic payload models for sensor calibrations (ADXL345, LIS3MDL)."""
+"""Pydantic payload models for sensor calibrations (LIS3MDL)."""
 
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
-
-
-class Adxl345Offsets(BaseModel):
-    bias: tuple[float, float, float]
-    sigma: float
-    zero_alt_deg: float | None = None
 
 
 class Lis3mdlOffsets(BaseModel):
@@ -35,4 +29,4 @@ class CalibrationProgress(BaseModel):
 class CalibrationStatus(BaseModel):
     sensor_id: str
     calibrated_at: datetime | None
-    payload: Adxl345Offsets | Lis3mdlOffsets | None
+    payload: Lis3mdlOffsets | None
