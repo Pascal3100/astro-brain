@@ -6,6 +6,7 @@ on:
     - cron: "17 4 * * 1"   # weekly, Monday 04:17 UTC (best-effort)
   workflow_dispatch: {}
   push:
+    branches: [main]   # only main publishes the rolling release; use workflow_dispatch on branches
     paths:
       - "oracle/**"
       - ".github/workflows/oracle.yml"
