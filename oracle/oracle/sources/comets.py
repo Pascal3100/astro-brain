@@ -1,10 +1,17 @@
 """Load comet orbital elements from an MPC CometEls.txt file."""
 
+import shutil
+import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 import pandas as pd
 from skyfield.api import load
 from skyfield.data import mpc
+
+import oracle
+
+COMET_ELS_URL = "https://www.minorplanetcenter.net/iau/MPCORB/CometEls.txt"
 
 
 def _latest_orbit_per_comet(comets: pd.DataFrame) -> pd.DataFrame:
@@ -33,3 +40,25 @@ def load_comets(path: Path) -> pd.DataFrame:
     with load.open(str(path)) as f:
         comets = mpc.load_comets_dataframe(f)
     return _latest_orbit_per_comet(comets)
+
+
+def fetch_comet_els(
+    dest: Path,
+    url: str = COMET_ELS_URL,
+    *,
+    opener: Callable[[str], object] = urllib.request.urlopen,
+) -> Path:
+    """Fetch fresh comet elements to ``dest``; fall back to the bundled snapshot.
+
+    A build must never fail because the MPC is unreachable.
+    """
+    try:
+        with opener(url) as response:  # type: ignore[attr-defined]
+            body = response.read()
+        if not body:
+            raise OSError("empty response body")
+        dest.write_bytes(body)
+    except Exception:
+        fallback = oracle.data_dir() / "CometEls.fallback.txt"
+        shutil.copyfile(fallback, dest)
+    return dest
