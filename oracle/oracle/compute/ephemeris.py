@@ -2,7 +2,7 @@
 
 import math
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -39,6 +39,11 @@ def compute_ephemeris(
     days: int = 60,
 ) -> list[EphemRow]:
     """Daily apparent RA/Dec (of-date) for each comet over ``days`` days."""
+    if start_utc.tzinfo is None:
+        start_utc = start_utc.replace(tzinfo=timezone.utc)
+    else:
+        start_utc = start_utc.astimezone(timezone.utc)
+
     loader = Loader(str(kernel_path.parent))
     eph = loader(kernel_path.name)
     ts = loader.timescale()
@@ -69,7 +74,7 @@ def compute_ephemeris(
                 EphemRow(
                     comet_id=str(designation),
                     sample_utc=when.isoformat().replace("+00:00", "Z"),
-                    ra_deg=ra._degrees % 360.0,
+                    ra_deg=ra.degrees % 360.0,
                     dec_deg=dec.degrees,
                     earth_dist_au=delta.au,
                     sun_dist_au=r.au,
