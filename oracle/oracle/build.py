@@ -32,7 +32,7 @@ def build(
     rows = compute_ephemeris(comets, kernel_path, start_utc, days=days)
 
     now_iso = start_utc.isoformat().replace("+00:00", "Z")
-    end_iso = (start_utc + timedelta(days=days)).isoformat().replace("+00:00", "Z")
+    end_iso = (start_utc + timedelta(days=days - 1)).isoformat().replace("+00:00", "Z")
     meta = BuildMeta(
         schema_version=SCHEMA_VERSION,
         generated_at=now_iso,
