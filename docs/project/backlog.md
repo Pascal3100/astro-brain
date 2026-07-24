@@ -42,6 +42,7 @@ Vue d'ensemble pour éviter la dispersion au fil des specs.
 **Transverse (tout du long)**
 - Overlay mode nuit rouge
 - Indicateur global d'état (connecté Pi + mode actif : idle/focus/guide/image), bloque les actions incompatibles
+- *Oracle / Éphémères* — liste comètes + événements observables, notifs locales, alimenté par le plan de référence autonome (`reference.sqlite`, module `oracle/`). Fil transverse, tranche 1 = infra + comètes (voir [ADR 2026-07-24](decisions.md))
 
 ## Page "Réglages techniques monture"
 
@@ -155,13 +156,14 @@ Cette décision remplace la piste IMU 9DOF évoquée ci-dessous : on n'a pas bes
 
 ## Night planner offline (post-Macro 2)
 
-Décision d'archi : **catalogue + calculs astro côté backend** (skyfield/astropy sur le Pi). Inconvénient identifié pour le futur night planner : impossible de planifier une soirée sans Pi allumé / accessible (canapé, bureau, déplacement).
+Problème identifié : impossible de planifier une soirée sans Pi allumé / accessible (canapé, bureau, déplacement), alors que le catalogue + les calculs astro étaient côté Pi (ADR 2026-04-29).
 
-**Piste préférée** : pattern **snapshot/cache**. Quand l'app est connectée au Pi, elle télécharge un *planning bundle* pré-calculé (catalogue + courbes Alt/Az pour la nuit demandée à un site donné). L'app peut ensuite ouvrir le night planner offline sur ce snapshot. Pi reste source de vérité, l'app a juste un cache.
+**Résolu par le plan de référence Oracle** ([ADR 2026-07-24](decisions.md)). Le night planner s'appuiera sur le bundle **`reference.sqlite`** (généré hors-Pi par GitHub Actions, mis en cache localement par l'app) → planification **hors ligne, Pi éteint**, avec projection alt/az côté client.
 
-**Alternative écartée** : embarquer une lib éphémérides Dart (Meeus/VSOP côté client) — duplication de logique astro, moins précis que skyfield, pas justifié.
+- **Snapshot/cache-depuis-le-Pi** (ancienne piste préférée) : **supersédé** — un snapshot exige le Pi allumé, or on planifie justement Pi éteint (API à contre-sens du flux de données).
+- **Lib éphémérides Dart** (Meeus/VSOP côté client) : **reste écartée** — duplication de la logique astro ; l'astro reste unique en Python/skyfield côté `oracle/`, l'app ne fait que la projection alt/az triviale.
 
-À spécifier quand on attaquera la macro qui héberge le night planner.
+À spécifier quand on attaquera la macro qui héberge le night planner (bâti sur le socle Oracle).
 
 ## Ops & déploiement (à automatiser post-Macro 0)
 

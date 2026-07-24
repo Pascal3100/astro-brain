@@ -4,6 +4,38 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 
 ---
 
+## 2026-07-24 — Plan de données de référence indépendant du Pi + module `oracle/`
+
+**Contexte** : le besoin « proposer à l'utilisateur les événements éphémères observables (comètes, conjonctions, appulses, novæ…) selon sa position et son matériel » a fait apparaître une limite d'architecture de fond. L'app Flutter a un mode offline, mais il est inutile pour la **planification** : toutes les données astro sont servies par le Pi (ADR [2026-04-29](decisions.md) « catalogue + calculs astro côté backend »), or **le Pi n'est allumé qu'en session d'observation**. Planifier une soirée, consulter les éphémères, recevoir des alertes se fait typiquement **loin du télescope, Pi éteint** (canapé, bureau, déplacement) — exactement quand la source de données est indisponible. Le pattern *snapshot/cache-depuis-le-Pi* envisagé dans [`backlog.md`](backlog.md) pour le night planner **ne survit pas** à ce constat : pour obtenir un snapshot il faut le Pi allumé. Faire transiter la planification par le Pi est une **API à contre-sens du flux de données**. Sans plan de planification autonome, l'app ne fait que singer la raquette Celestron.
+
+Une distinction structure la solution : on avait conflaté **trois natures de données** sous un seul « serveur Pi ». (1) **Live/contrôle** (monture, slew, capteurs, SSE) — le Pi seul peut la servir, Pi allumé, OK. (2) **Config/calibration** (compass, IP, courses, tube, modèle d'alignement) — écrite/lue au télescope, spécifique à la monture physique, vit dans `state.db` sur le Pi. (3) **Référence** (catalogue, comètes, événements, éphémérides) — read-mostly, identique pour tous, générée centralement, nécessaire **loin du Pi (planif) comme au télescope (session)**.
+
+**Décision** :
+
+1. **Extraire un plan de données de référence (nature 3) autonome du Pi.** Il est **généré hors-Pi** par un job **GitHub Actions** (skyfield + fetch MPC), qui publie un artefact **`reference.sqlite`** (fichier SQLite indexé, versionné) + un `manifest.json`. Coût 0 € (Actions gratuit + Release/Pages).
+2. **Distribution = fichier mis en cache localement, pas BDD interrogée en direct.** L'app **et** le Pi téléchargent `reference.sqlite` (sync conditionnelle sur version/etag) et l'interrogent **en local, hors ligne**. Une BDD hébergée interrogée en direct est **rejetée** : elle réintroduit la dépendance qu'on supprime (« besoin Internet » au lieu de « besoin Pi »), or un site d'observation sombre n'a souvent aucun réseau ; et la fraîcheur des éphémères est à l'échelle du jour → une sync locale quotidienne = « toujours frais » pour ce domaine.
+3. **Répartition du calcul** : le CI pré-calcule le dur (éléments orbitaux → échantillons RA/Dec, magnitude prédite, événements). Les consommateurs font la **projection alt/az** triviale pour leur site/heure. Aucune réimplémentation de mécanique orbitale en Dart (l'astro reste **unique, en Python/skyfield**).
+4. **Nouveau module `oracle/`** dans le monorepo (pair de `backend/` et `app/`), producteur de `reference.sqlite`. Frontière nette producteur/consommateur : `oracle/` ne dépend de **rien** dans `backend/`/`app/` ; **le schéma SQLite EST l'interface**. Reste dans le monorepo (pas un repo séparé) pour versionner le contrat au même endroit que ses consommateurs ; extraction ultérieure triviale (`git subtree`) si besoin.
+5. **Notifications** : canal par défaut **local programmé** (l'app lit le bundle et programme ses notifs via `flutter_local_notifications`) — couvre tout le prévisible (comète du mois, conjonction, showers), zéro cloud. Canal **FCM optionnel** (gratuit, poussé par le job Actions) **différé**, à greffer si le besoin de transitoire temps réel « ce soir, n'importe où » se confirme.
+6. **Placement roadmap** : nouveau **fil transverse « Oracle / Éphémères »** (comme *safety*, *mode nuit*, *night planner*), livré en tranches — **tranche 1 = infra `oracle/` + comètes** (le seul cas « fetch »), puis événements calculés, puis appulses. Le **discriminant oculaire/photo** se branche au fil des macros : seuil visuel avec le *Setup tube* (Macro 4), seuil photo avec le *Setup caméras* (Macro 5).
+
+**Rationale** :
+1. **C'est ce qui donne sa valeur au système** : un compagnon qui dit quoi/quand/avec quel matos observer, même Pi éteint et hors ligne — ce que la raquette ne fait pas.
+2. **Archi affûtée** : chaque plan de données est servi par la source légitime ; le Pi ne fait plus que ce que lui seul peut faire (la monture). On supprime l'API à contre-sens du flux.
+3. **Logique astro unique** : skyfield reste la seule implémentation ; les consommateurs ne font que projeter/afficher. Pas de duplication Dart (la piste « éphémérides Dart » du backlog reste écartée, pour une meilleure raison).
+4. **Coût nul et git-natif** : Actions gratuit, artefact versionné, aucun serveur à maintenir. Le serverless (Cloud Run/Lambda) et le cloud (Firebase Functions) n'apportent rien de plus pour une charge **périodique** et ajoutent carte bancaire + infra.
+5. **Résilience carte SD** : `reference.sqlite` est **jetable/re-synchronisable** → sa corruption est un non-événement ; seule `state.db` (petite, privée) reste précieuse et sauvegardable.
+
+**Conséquences** :
+- Nouveau répertoire `oracle/` (pyproject.toml, workflow `.github/workflows/oracle.yml`, tests, README propres). `backend/` et `app/` gagnent un consommateur de `reference.sqlite` (cache local + sync conditionnelle + projection alt/az).
+- **Nuance l'ADR [2026-04-29](decisions.md)** (« catalogue + calculs astro côté backend ») : le *live* (visibilité à l'instant courant via GPS) reste calculable côté Pi, mais la **donnée de référence** (catalogue, éphémères) n'est plus servie **exclusivement** par le Pi — elle a une source autonome que le Pi consomme aussi.
+- **À répercuter** (prochaine étape, hors de cet ADR) : `roadmap.md` (ajout du fil transverse « Oracle / Éphémères » + couplage Macro 4/5) ; `backlog.md` (section *Night planner offline* → le snapshot-depuis-le-Pi est **supersédé** par le plan de référence oracle ; l'alternative « éphémérides Dart » reste écartée).
+- Spec de la tranche 1 : [`docs/superpowers/specs/2026-07-24-oracle-ephemeres-design.md`](../superpowers/specs/2026-07-24-oracle-ephemeres-design.md).
+
+**Cross-références** : nuance l'ADR [2026-04-29](decisions.md) (catalogue/astro backend) et touche l'ADR [2026-04-29](decisions.md) (Hub central listait « Night planner » parmi les entrées agrégées — la source de ses données change). Indépendant de la chaîne monture (ADR 2026-07-05 pont ESP32).
+
+---
+
 ## 2026-04-15 — Pas d'Arduino dans la chaîne
 
 **Contexte** : design initial prévoyait un Arduino comme intermédiaire entre Pi et monture pour temps-réel.

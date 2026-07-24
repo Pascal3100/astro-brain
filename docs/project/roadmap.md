@@ -145,7 +145,8 @@ Pas dans le train ; courent en continu et se densifient avec les macros.
 - **Mode nuit rouge** : généralisé sur tous les écrans à mesure de leur livraison.
 - **Indicateur global d'état** : pastille `overall` dans l'AppBar, déjà amorcée — étendue à `idle/focusing/guiding/imaging` dès Macro 5.
 - **Ops** : `deploy.sh` SSH → `git pull && systemctl restart`, build APK Flutter. À enrichir au fil de l'eau.
-- **Night planner offline** (snapshot/cache) : à cliper sur la macro qui héberge le planner — à déterminer.
+- **Oracle / Éphémères** : plan de données de référence **autonome du Pi** — module `oracle/` généré par GitHub Actions (skyfield + MPC) → `reference.sqlite`, consommé par l'app et le Pi (cache local, hors ligne). **Tranche 1 = infra + comètes**, puis événements calculés (conjonctions/oppositions/éclipses/showers), puis appulses. Discriminant oculaire/photo couplé **Macro 4** (seuil visuel via Setup tube) / **Macro 5** (seuil photo via Setup caméras). Notifs locales d'abord, FCM différé. Voir [ADR 2026-07-24](decisions.md) + [spec](../superpowers/specs/2026-07-24-oracle-ephemeres-design.md).
+- **Night planner offline** : s'appuie désormais sur le **plan de référence Oracle** (bundle `reference.sqlite` local, dispo Pi éteint). Le pattern *snapshot/cache-depuis-le-Pi* est **supersédé** (ADR 2026-07-24 : un snapshot exige le Pi allumé, or on planifie Pi éteint). À cliper sur la macro qui héberge le planner.
 
 ---
 
