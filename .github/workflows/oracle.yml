@@ -1,0 +1,38 @@
+# .github/workflows/oracle.yml
+name: oracle-reference
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"   # weekly, Monday 04:17 UTC (best-effort)
+  workflow_dispatch: {}
+  push:
+    paths:
+      - "oracle/**"
+      - ".github/workflows/oracle.yml"
+
+permissions:
+  contents: write   # required to update the Release asset
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Sync deps
+        working-directory: oracle
+        run: uv sync
+      - name: Build reference artifact
+        working-directory: oracle
+        env:
+          ORACLE_OUT_DIR: build_output
+          ORACLE_SQLITE_URL: >-
+            https://github.com/${{ github.repository }}/releases/download/almanac-latest/reference.sqlite
+        run: uv run python -m oracle
+      - name: Publish to rolling release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: almanac-latest
+          files: |
+            oracle/build_output/reference.sqlite
+            oracle/build_output/manifest.json
