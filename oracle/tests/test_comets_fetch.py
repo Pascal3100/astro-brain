@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import oracle
 from oracle.sources.comets import fetch_comet_els
 
 
@@ -36,5 +37,5 @@ def test_fetch_falls_back_on_error(tmp_path: Path) -> None:
 
     result = fetch_comet_els(dest, opener=opener)
     assert result == dest
-    # fell back to the bundled snapshot -> non-empty file
-    assert dest.stat().st_size > 0
+    # fell back to the bundled snapshot -> bytes match exactly
+    assert dest.read_bytes() == (oracle.data_dir() / "CometEls.fallback.txt").read_bytes()

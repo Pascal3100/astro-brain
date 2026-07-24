@@ -1,5 +1,6 @@
 """Load comet orbital elements from an MPC CometEls.txt file."""
 
+import logging
 import shutil
 import urllib.request
 from collections.abc import Callable
@@ -10,6 +11,8 @@ from skyfield.api import load
 from skyfield.data import mpc
 
 import oracle
+
+logger = logging.getLogger(__name__)
 
 COMET_ELS_URL = "https://www.minorplanetcenter.net/iau/MPCORB/CometEls.txt"
 
@@ -58,7 +61,8 @@ def fetch_comet_els(
         if not body:
             raise OSError("empty response body")
         dest.write_bytes(body)
-    except Exception:
+    except Exception as exc:
+        logger.warning("comet fetch failed, using bundled fallback: %s", exc)
         fallback = oracle.data_dir() / "CometEls.fallback.txt"
         shutil.copyfile(fallback, dest)
     return dest
