@@ -29,6 +29,20 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 
 ## Session en cours
 
+### Session 42 — Oracle tranche 1 : producteur `oracle/` + CI de référence (livré 2026-07-24, journalisé 2026-08-08)
+
+> Entrée **rétroactive** : le chantier a été livré le 2026-07-24 (13 commits, `5c3d6b4`→`827ba1a`) mais jamais journalé sur le moment ; comblé le 2026-08-08 après vérification du CI en prod.
+
+Objectif : poser le **plan de données de référence autonome du Pi** (fil transverse « Oracle / Éphémères », hors train de macros — [ADR 2026-07-24](decisions.md) + [spec](../superpowers/specs/2026-07-24-oracle-ephemeres-design.md)) sur son premier cas utile, les **comètes**. Plan suivi : [`2026-07-24-oracle-producer.md`](../superpowers/plans/2026-07-24-oracle-producer.md), **9 tâches, TDD**.
+
+**Livré — module `oracle/` (producteur, tourne en CI, jamais sur le Pi).** Projet Python indépendant (`uv`, zéro dépendance vers `backend/`/`app/`) : fetch MPC `CometEls.txt` avec **fallback bundlé** (le build ne casse jamais si le fetch échoue) → dédup par ligne entière (pas `groupby.last` qui mélangeait les époques) → **éphémérides skyfield** RA/Dec **apparentes of-date (JNow)** + magnitude prédite sur une **fenêtre glissante 60 j** (kernel `de421.bsp` commité → build offline et déterministe) → `reference.sqlite` (**schéma versionné v1**, `schema.sql` = contrat) → `manifest.json` (`sha256`, `sqlite_url`, fenêtre). Entrée CLI `python -m oracle`. **13 tests verts** (`uv run pytest tests/` — pas de `testpaths`, passer `tests/` explicitement).
+
+**Livré — CI `.github/workflows/oracle.yml`.** Cron hebdo (lundi 04:17 UTC) + push `main` sur `oracle/**` + `workflow_dispatch` ; publie une **release rolling `almanac-latest`** (assets `reference.sqlite` + `manifest.json`). Branch filter : seul `main` publie.
+
+**Vérifié en prod (2026-08-08, lecture seule).** 3 runs `oracle-reference` **tous verts** ; release `almanac-latest` bien publiée par `github-actions[bot]`, les 2 assets présents. Le **cron hebdo tourne réellement** : manifest publié le plus récent `generated_at 2026-08-03T07:50Z` (postérieur aux commits du 24 → run cron), `schema_version 1`, fenêtre `2026-08-03`→`2026-10-01` (60 j), `sha256` renseigné. **Contrat consommateur opérationnel.**
+
+**Reste (hors cette tranche producteur) :** les **consommateurs** — app Flutter + Pi (cache local `reference.sqlite`, interrogation hors-ligne, notifs locales) — et les tranches suivantes (événements calculés, appulses). Le discriminant oculaire/photo est couplé Setup tube (Macro 4) / caméras (Macro 5), hooks laissés. Roadmap : ligne « Oracle / Éphémères » marquée « tranche 1 producteur livrée ».
+
 ### Session 41 — Macro 2 refermée : backlash mount-side différé en Macro 5 (2026-07-08)
 
 Objectif : finaliser Macro 2 Setup (dernier item = backlash mount-side ALT/AZ, historiquement bloqué liaison, débloqué depuis S37). **Inventaire d'abord** (agent Explore) puis **vérification du seul fait qui décide du scope**.
