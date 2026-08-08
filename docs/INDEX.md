@@ -12,6 +12,7 @@ Point d'entrée de la documentation du projet. Trois angles de lecture, chacun a
 
 - **État actuel & prochaine étape** : [project/journal.md](project/journal.md) — section "État du projet" en tête.
 - **Roadmap canonique** : [project/roadmap.md](project/roadmap.md).
+- **Genèse d'Oracle** : [project/oracle-genese.md](project/oracle-genese.md) — idées et contraintes qui ont mené au module `oracle/`.
 - **Spec design en cours** : voir [superpowers/specs/](superpowers/specs/).
 - **Plan d'implémentation en cours** : voir [superpowers/plans/](superpowers/plans/).
 
