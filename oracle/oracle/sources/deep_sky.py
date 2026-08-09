@@ -8,10 +8,13 @@ from pathlib import Path
 
 import pandas as pd
 
-from oracle.sources._fetch import fetch_with_fallback
+from oracle.sources._fetch import with_fallback
 
 OPEN_NGC_URL = (
     "https://raw.githubusercontent.com/mattiaverga/OpenNGC/master/database_files/NGC.csv"
+)
+OPEN_NGC_ADDENDUM_URL = (
+    "https://raw.githubusercontent.com/mattiaverga/OpenNGC/master/database_files/addendum.csv"
 )
 
 # OpenNGC Type codes → coarse object_type used by the catalogue.
@@ -72,6 +75,19 @@ def _float_or_none(value: object) -> float | None:
     return float(value) if pd.notna(value) and str(value).strip() != "" else None
 
 
+def _merge_ngc_addendum(main: bytes, addendum: bytes) -> bytes:
+    """Append the addendum's body (its header dropped) to the main NGC CSV.
+
+    Both files share the same 32-column header; the addendum carries
+    Messier/Caldwell objects with no NGC/IC number (M40, M45, M102). This
+    mirrors how the bundled fallback file was assembled.
+    """
+    add_body = addendum.split(b"\n", 1)[1] if b"\n" in addendum else b""
+    if main and not main.endswith(b"\n"):
+        main += b"\n"
+    return main + add_body
+
+
 def _messier_number(name: str, m_column: str) -> str | None:
     """Return the Messier id ("M42"), preferring a self-identifying ``Name``.
 
@@ -96,10 +112,10 @@ def load_deep_sky(path: Path) -> list[OpenNgcRecord]:
         messier = _messier_number(row["Name"].strip(), row["M"].strip())
         # A row carrying an M number is always a valid catalogue target (it is
         # one of the 110 Messier objects), even when its OpenNGC Type is a
-        # bookkeeping code (Dup/NonEx/Other) or otherwise unmapped — e.g. M24
-        # (star cloud), M40 (double star), M73 (asterism), M102 (disputed
-        # duplicate). Such rows are kept and coarsely typed as "other"
-        # instead of being dropped by the skip/unmapped-type filters below.
+        # bookkeeping code (Dup/NonEx/Other) or otherwise unmapped — e.g. M73
+        # (Type "Other", asterism) or M102 (Type "Dup", disputed duplicate).
+        # Such rows are kept and coarsely typed as "other" instead of being
+        # dropped by the skip/unmapped-type filters below.
         if messier is None:
             if type_code in _SKIP_TYPES:
                 continue
@@ -137,8 +153,25 @@ def load_deep_sky(path: Path) -> list[OpenNgcRecord]:
 def fetch_open_ngc(
     dest: Path,
     url: str = OPEN_NGC_URL,
+    addendum_url: str = OPEN_NGC_ADDENDUM_URL,
     *,
     opener: Callable[[str], object] = urllib.request.urlopen,
 ) -> Path:
-    """Fetch fresh OpenNGC to ``dest``; fall back to the bundled snapshot on failure."""
-    return fetch_with_fallback(dest, url, "OpenNGC.fallback.csv", opener=opener)
+    """Fetch fresh OpenNGC + addendum to ``dest`` (merged); fall back to the bundled snapshot.
+
+    The addendum carries Messier/Caldwell objects without an NGC/IC number
+    (M40, M45, M102), so the live path stays as complete as the bundled
+    fallback. Any fetch error or empty response copies the complete bundled
+    ``OpenNGC.fallback.csv`` instead.
+    """
+
+    def produce() -> bytes:
+        with opener(url) as response:  # type: ignore[attr-defined]
+            main = response.read()
+        with opener(addendum_url) as response:  # type: ignore[attr-defined]
+            addendum = response.read()
+        if not main or not addendum:
+            raise OSError("empty response body")
+        return _merge_ngc_addendum(main, addendum)
+
+    return with_fallback(dest, "OpenNGC.fallback.csv", produce)
