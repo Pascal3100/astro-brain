@@ -32,7 +32,7 @@ def test_compute_ephemeris_shape_and_ranges(kernel_path, fallback_comets_path) -
         assert -90.0 <= r.dec_deg <= 90.0
         assert r.earth_dist_au > 0.0
         assert r.sun_dist_au > 0.0
-        assert r.comet_id in set(comets.index)
+        assert r.object_id in set(comets.index)
         assert r.sample_utc.endswith("Z")
 
 
@@ -68,4 +68,4 @@ def test_ephemeris_missing_magnitude_yields_none(kernel_path, fallback_comets_pa
     start = datetime(2026, 8, 1, tzinfo=timezone.utc)
     rows = compute_ephemeris(comets, kernel_path, start, days=1)
     assert len(rows) == 1
-    assert rows[0].predicted_mag is None
+    assert rows[0].apparent_mag is None

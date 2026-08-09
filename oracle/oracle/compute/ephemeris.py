@@ -1,7 +1,6 @@
 """Compute daily apparent (of-date) comet ephemeris with skyfield."""
 
 import math
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -10,19 +9,9 @@ from skyfield.api import Loader, load_constellation_map, position_of_radec
 from skyfield.constants import GM_SUN_Pitjeva_2005_km3_s2 as GM_SUN
 from skyfield.data import mpc
 
+from oracle.records import EphemRow
 
-@dataclass(frozen=True)
-class EphemRow:
-    """One daily apparent-position sample for a single comet."""
-
-    comet_id: str
-    sample_utc: str  # ISO-8601 UTC
-    ra_deg: float
-    dec_deg: float
-    earth_dist_au: float
-    sun_dist_au: float
-    predicted_mag: float | None
-    constellation: str | None
+__all__ = ["EphemRow", "predicted_magnitude", "compute_ephemeris"]
 
 
 def predicted_magnitude(
@@ -72,13 +61,14 @@ def compute_ephemeris(
                 const = None
             rows.append(
                 EphemRow(
-                    comet_id=str(designation),
+                    object_id=str(designation),
                     sample_utc=when.isoformat().replace("+00:00", "Z"),
                     ra_deg=ra.degrees % 360.0,
                     dec_deg=dec.degrees,
                     earth_dist_au=delta.au,
                     sun_dist_au=r.au,
-                    predicted_mag=mag,
+                    apparent_mag=mag,
+                    illumination=None,
                     constellation=const,
                 )
             )

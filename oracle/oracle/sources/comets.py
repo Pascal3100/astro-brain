@@ -11,6 +11,8 @@ from skyfield.api import load
 from skyfield.data import mpc
 
 import oracle
+from oracle.build_db import _opt
+from oracle.records import CometElements, ObjectRow
 
 logger = logging.getLogger(__name__)
 
@@ -66,3 +68,38 @@ def fetch_comet_els(
         fallback = oracle.data_dir() / "CometEls.fallback.txt"
         shutil.copyfile(fallback, dest)
     return dest
+
+
+def comet_objects(comets: pd.DataFrame) -> tuple[list[ObjectRow], list[CometElements]]:
+    """Split a comet DataFrame into identity rows + orbital-element rows.
+
+    The id is the MPC designation (also used as the ephemeris ``object_id``),
+    so ephemeris FK integrity holds against ``objects``.
+    """
+    objs: list[ObjectRow] = []
+    elems: list[CometElements] = []
+    for designation, row in comets.iterrows():
+        oid = str(designation)
+        name = str(row["name"]) if pd.notna(row.get("name")) else None
+        objs.append(
+            ObjectRow(
+                id=oid,
+                kind="comet",
+                name=name,
+                designation=str(row.get("designation", designation)),
+            )
+        )
+        elems.append(
+            CometElements(
+                object_id=oid,
+                epoch_jd=_opt(row, "epoch_jd"),
+                perihelion_q_au=float(row["perihelion_distance_au"]),
+                eccentricity=float(row["eccentricity"]),
+                inclination_deg=float(row["inclination_degrees"]),
+                arg_perihelion_deg=float(row["argument_of_perihelion_degrees"]),
+                node_deg=float(row["longitude_of_ascending_node_degrees"]),
+                mag_h=_opt(row, "magnitude_g"),
+                mag_k=_opt(row, "magnitude_k"),
+            )
+        )
+    return objs, elems

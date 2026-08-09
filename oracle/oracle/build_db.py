@@ -1,4 +1,4 @@
-"""Build the reference.sqlite artifact from comets + ephemeris rows."""
+"""Build the reference.sqlite v2 artifact from the unified record model."""
 
 import sqlite3
 from dataclasses import asdict, dataclass
@@ -7,9 +7,9 @@ from pathlib import Path
 import pandas as pd
 
 import oracle
-from oracle.compute.ephemeris import EphemRow
+from oracle.records import CometElements, EphemRow, FixedRow, ObjectRow
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -37,11 +37,13 @@ def _opt(row: pd.Series, key: str) -> float | None:
 
 def build_reference_db(
     out_path: Path,
-    comets: pd.DataFrame,
-    ephem_rows: list[EphemRow],
+    objects: list[ObjectRow],
+    fixed: list[FixedRow],
+    ephem: list[EphemRow],
+    comet_elements: list[CometElements],
     meta: BuildMeta,
 ) -> Path:
-    """Write comets + ephemeris rows into a fresh ``reference.sqlite`` at ``out_path``."""
+    """Write the full unified catalogue into a fresh ``reference.sqlite`` at ``out_path``."""
     if out_path.exists():
         out_path.unlink()
     con = sqlite3.connect(out_path)
@@ -56,42 +58,43 @@ def build_reference_db(
             asdict(meta),
         )
         con.executemany(
-            "INSERT INTO comets (id, designation, name, epoch_jd, perihelion_q_au, "
-            "eccentricity, inclination_deg, arg_perihelion_deg, node_deg, mag_h, "
-            "mag_k) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO objects (id, kind, name, designation) VALUES (?,?,?,?)",
+            [(o.id, o.kind, o.name, o.designation) for o in objects],
+        )
+        con.executemany(
+            "INSERT INTO fixed_object (object_id, ra_deg, dec_deg, apparent_mag, "
+            "object_type, size_arcmin, constellation, messier, ngc_ic) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
             [
                 (
-                    str(designation),
-                    str(row.get("designation", designation)),
-                    (str(row["name"]) if pd.notna(row.get("name")) else None),
-                    _opt(row, "epoch_jd"),
-                    _opt(row, "perihelion_distance_au"),
-                    _opt(row, "eccentricity"),
-                    _opt(row, "inclination_degrees"),
-                    _opt(row, "argument_of_perihelion_degrees"),
-                    _opt(row, "longitude_of_ascending_node_degrees"),
-                    _opt(row, "magnitude_g"),
-                    _opt(row, "magnitude_k"),
+                    f.object_id, f.ra_deg, f.dec_deg, f.apparent_mag, f.object_type,
+                    f.size_arcmin, f.constellation, f.messier, f.ngc_ic,
                 )
-                for designation, row in comets.iterrows()
+                for f in fixed
             ],
         )
         con.executemany(
-            "INSERT INTO comet_ephemeris (comet_id, sample_utc, ra_deg, dec_deg, "
-            "earth_dist_au, sun_dist_au, predicted_mag, constellation) "
-            "VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO ephemeris (object_id, sample_utc, ra_deg, dec_deg, "
+            "earth_dist_au, sun_dist_au, apparent_mag, illumination, constellation) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
             [
                 (
-                    r.comet_id,
-                    r.sample_utc,
-                    r.ra_deg,
-                    r.dec_deg,
-                    r.earth_dist_au,
-                    r.sun_dist_au,
-                    r.predicted_mag,
-                    r.constellation,
+                    r.object_id, r.sample_utc, r.ra_deg, r.dec_deg, r.earth_dist_au,
+                    r.sun_dist_au, r.apparent_mag, r.illumination, r.constellation,
                 )
-                for r in ephem_rows
+                for r in ephem
+            ],
+        )
+        con.executemany(
+            "INSERT INTO comet_elements (object_id, epoch_jd, perihelion_q_au, "
+            "eccentricity, inclination_deg, arg_perihelion_deg, node_deg, mag_h, mag_k) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            [
+                (
+                    c.object_id, c.epoch_jd, c.perihelion_q_au, c.eccentricity,
+                    c.inclination_deg, c.arg_perihelion_deg, c.node_deg, c.mag_h, c.mag_k,
+                )
+                for c in comet_elements
             ],
         )
         con.commit()
