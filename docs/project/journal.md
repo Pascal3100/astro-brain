@@ -30,6 +30,22 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 
 ## Session en cours
 
+### Session 44 — Oracle SP1 : base commune schéma v2 (toutes familles) (2026-08-09)
+
+Objectif : faire de `reference.sqlite` la **source unique du catalogue complet** — toutes les familles d'objets (comètes, planètes, Lune, Soleil, deep-sky Messier/NGC/IC, étoiles nommées) sous un **schéma v2 unifié**, **tube-agnostique**, sans filtrage côté producteur. Deux directives cadres de l'utilisateur : « on ne fait pas coexister deux sources et deux codes différents » (source unique) et « LA base reste complète » (aucun pré-filtre magnitude/taille/type au build). Plan suivi : [`2026-08-09-oracle-base-commune.md`](../superpowers/plans/2026-08-09-oracle-base-commune.md), **8 tâches, TDD**, exécuté en **Subagent-Driven Development** (implémenteur frais par tâche → revue spec+qualité → boucle de fix → revue finale whole-branch sur Opus). Branche `feat/oracle-base-commune` (`9ca4d76`→`14aa69f`, 16 commits).
+
+**Modèle de données v2 (2 natures).** Deux tables cibles selon la nature de l'objet : **FIXE** (deep-sky + étoiles → une seule RA/Dec **apparente of-date/JNow** dans `fixed_object`) vs **ÉPHÉMÈRE** (comètes + planètes + Lune + Soleil → échantillons journaliers dans `ephemeris`, fenêtre 60 j). Tables : `meta`, `objects(id, kind, name, designation)`, `fixed_object`, `ephemeris`, `comet_elements` ; `kind ∈ {comet, planet, moon, sun, dso, star}`. `schema_version=2`. **`schema.sql` reste la source DDL unique** (`build_db._schema_sql()` → `executescript`, zéro duplication Python → zéro dérive). Les comètes v1 sont migrées dans ce modèle unifié (objects + comet_elements + ephemeris).
+
+**Familles ajoutées (sources = wrappers fins sur un helper fetch+fallback partagé).** (1) Helper `sources/_fetch.py` `fetch_with_fallback` réutilisé par les 3 sources fetchables (comètes, deep-sky, étoiles) — le build ne casse jamais si le fetch échoue (fallbacks bundlés). (2) **Deep-sky OpenNGC** : Messier=110 (fusion `addendum.csv` réelle pour M40/M45/M102 sans n° NGC/IC ; `fetch_open_ngc` tire NGC+addendum → live == fallback). (3) **Étoiles IAU-CSN** nommées (lecture colonne fixe `line[:18]`, IAU-CSN est fixed-width — corrigé après une troncature des noms multi-mots repérée en revue de tâche). (4) **Projection J2000→of-date** vectorisée via skyfield `Star` (`compute/fixed.py`, un instant N objets). (5) **Éphéméride planètes/Lune/Soleil** depuis `de421.bsp` (`compute/planets.py`, 9 corps ; magnitude via `planetary_magnitude` pour les 7 planètes, illumination Mercure/Vénus/Lune, Pluton exclu). (6) **Orchestration `build.py`** réécrite : pipeline unifié fetch(3 sources)+load+compute(comètes+planètes+projection fixes)+writer v2+manifest ; `build(fetch=False)` 100 % offline et déterministe.
+
+**Genèse tenue.** Les consommateurs ne font **que** LST→alt/az (jamais de mécanique orbitale ni précession) → toutes les RA/Dec sont stockées apparentes of-date, calculées au build ; `de421.bsp` commité ; `schema_version` garde la compatibilité ; README v2 = contrat consommateur (ne lit que README + `schema.sql`).
+
+**Qualité.** Revue finale whole-branch (Opus) **PASS** : 0 collision d'id cross-familles, 0 orphelin FK sur les 3 tables filles, les 2 directives tenues, aucun import `backend/`/`app/`, Messier=110 online+offline, manifest/CI cohérents v2. Fix-wave finale (`14aa69f`) : gate **PEP 8 line-length via ruff** ajouté à `oracle/pyproject.toml` (`select` étroit `E4/E7/E9/F/E501`, `line-length=100`) + wrap des lignes >100 + minors de revue (`__all__`, notes de contrat `ngc_ic`/`mpc_epoch`). `ruff check .` = All checks passed ; **suite = 37 tests verts**. Branche poussée sur origin.
+
+**Reste (hors SP1) :** SP2/SP3 = bascule des **consommateurs** (suppression de `backend/.../seed_stars.sql`, lecture de `reference.sqlite` par le backend/l'app). Après merge, un run manuel CI (`workflow_dispatch`) validera le build v2 réel (fetch en ligne des 3 sources).
+
+> ⚠️ Journal à **7 sessions actives** (38→44) = plafond dépassé. Archiver par milestone au prochain jalon (candidat : le fil Macro 1 liaison est déjà archivé ; regrouper 38→41 « déploiement + refermeture Macro 2 » à la prochaine session).
+
 ### Session 43 — Oracle tranche 1 : producteur `oracle/` + CI de référence (livré 2026-07-24, journalisé 2026-08-08)
 
 > Entrée **rétroactive** : le chantier a été livré le 2026-07-24 (13 commits, `5c3d6b4`→`827ba1a`) mais jamais journalé sur le moment ; comblé le 2026-08-08 après vérification du CI en prod.
