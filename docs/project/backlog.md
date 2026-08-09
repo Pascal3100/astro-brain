@@ -152,6 +152,14 @@ Problème identifié : impossible de planifier une soirée sans Pi allumé / acc
 
 À spécifier quand on attaquera la macro qui héberge le night planner (bâti sur le socle Oracle).
 
+## Oracle — dette technique producteur (post-tranche 1)
+
+Minors relevés à la revue finale du plan producteur ([ADR 2026-07-24](decisions.md)), différés car non bloquants pour un artefact correct. À arbitrer quand Oracle gagne des sources (tranche 2) ou avant d'y adosser un consommateur critique.
+
+- **M-2 — Pas de plancher sur le nombre de comètes.** Une réponse HTTP-200 malformée du MPC (tronquée, vide, garbage) passerait le fetch sans lever d'erreur et produirait un artefact appauvri. Piste : asserter `len(comets) >= seuil_plancher` avant de publier, sinon retomber sur le snapshot bundlé.
+- **M-4 — `epoch_jd` / `mpc_epoch` toujours NULL.** Les colonnes existent au schéma mais ne sont jamais peuplées (l'époque orbitale du MPC n'est pas propagée jusqu'à l'insert). Sans impact tant que le consommateur ne s'en sert pas ; à brancher si on expose l'époque.
+- **M-5 — Drift d'environnement local.** Le venv local a tourné en Python 3.14 alors que la cible est 3.13 ; DeprecationWarnings skyfield / NumPy 2.5 (hors notre code) bruitent les runs. Aligner le local sur 3.13 et surveiller les deprecations avant une montée de version skyfield.
+
 ## Ops & déploiement (à automatiser post-Macro 0)
 
 - **Service systemd** pour le backend — livré (`astro-brain.service`).
