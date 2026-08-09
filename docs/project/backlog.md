@@ -160,6 +160,10 @@ Minors relevés à la revue finale du plan producteur ([ADR 2026-07-24](decision
 - **M-4 — `epoch_jd` / `mpc_epoch` toujours NULL.** Les colonnes existent au schéma mais ne sont jamais peuplées (l'époque orbitale du MPC n'est pas propagée jusqu'à l'insert). Sans impact tant que le consommateur ne s'en sert pas ; à brancher si on expose l'époque.
 - **M-5 — Drift d'environnement local.** Le venv local a tourné en Python 3.14 alors que la cible est 3.13 ; DeprecationWarnings skyfield / NumPy 2.5 (hors notre code) bruitent les runs. Aligner le local sur 3.13 et surveiller les deprecations avant une montée de version skyfield.
 
+## Oracle — unifier la source d'étoiles du wizard 3 étoiles (post-SP2)
+
+Le wizard d'alignement 3 étoiles garde sa **source propre** (`backend/astro_brain/services/_alignment_stars.json`), indépendante du catalogue. Depuis SP2, le catalogue vient de `reference.sqlite` (étoiles IAU-CSN incluses) → deux sources d'étoiles cohabitent, entorse au principe « une seule source ». Laissé tel quel en SP2 (autre sous-système, hors mandat « bascule catalogue »). Piste : faire dériver les candidats du wizard de `reference.sqlite` (`kind=star`, filtre magnitude/répartition ciel) et retirer le JSON. À arbitrer après SP2/SP3.
+
 ## Ops & déploiement (à automatiser post-Macro 0)
 
 - **Service systemd** pour le backend — livré (`astro-brain.service`).
