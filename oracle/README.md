@@ -26,6 +26,9 @@ de421 kernel (planets/Moon/Sun) → skyfield → SQLite v2 → manifest.
 - The **base is complete and tube-agnostic**: no magnitude/size/type pre-filter
   is applied by the producer. Filtering "what my tube shows" is a consumer
   decision.
+- `ngc_ic` and `designation` are **opaque catalogue ids**: do not assume they
+  parse as `NGC<n>` / `IC<n>` — some rows are Messier-only or other-catalogue
+  designations (e.g. M40, Mel22, ESO/PGC/UGC…).
 
 ## Run locally
 ```bash

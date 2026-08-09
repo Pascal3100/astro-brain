@@ -37,9 +37,15 @@ def build(
     kernel_path = oracle.data_dir() / "de421.bsp"
 
     # --- fetch (3 sources; each falls back to a bundled snapshot) ---
-    els_path = _fetch_or_copy(fetch, fetch_comet_els, out_dir / "CometEls.txt", "CometEls.fallback.txt")
-    ngc_path = _fetch_or_copy(fetch, fetch_open_ngc, out_dir / "OpenNGC.csv", "OpenNGC.fallback.csv")
-    csn_path = _fetch_or_copy(fetch, fetch_iau_csn, out_dir / "IAU-CSN.txt", "IAU-CSN.fallback.txt")
+    els_path = _fetch_or_copy(
+        fetch, fetch_comet_els, out_dir / "CometEls.txt", "CometEls.fallback.txt"
+    )
+    ngc_path = _fetch_or_copy(
+        fetch, fetch_open_ngc, out_dir / "OpenNGC.csv", "OpenNGC.fallback.csv"
+    )
+    csn_path = _fetch_or_copy(
+        fetch, fetch_iau_csn, out_dir / "IAU-CSN.txt", "IAU-CSN.fallback.txt"
+    )
 
     # --- load ---
     comets = load_comets(els_path)

@@ -4,7 +4,8 @@
 CREATE TABLE meta (
   schema_version   INTEGER NOT NULL,   -- 2 ; a consumer refuses a version it does not know
   generated_at     TEXT    NOT NULL,   -- ISO-8601 UTC
-  mpc_epoch        TEXT,               -- MPC elements epoch (comets)
+  mpc_epoch        TEXT,               -- MPC elements epoch (comets); currently unset —
+                                       --  per-comet epoch lives in comet_elements.epoch_jd
   window_start     TEXT    NOT NULL,   -- ephemeris window start (UTC)
   window_end       TEXT    NOT NULL,   -- ephemeris window end (UTC) ; ~60 rolling days
   skyfield_kernel  TEXT                -- "de421.bsp"
@@ -29,7 +30,8 @@ CREATE TABLE fixed_object (
   size_arcmin   REAL,                  -- apparent size (nullable, e.g. stars)
   constellation TEXT,
   messier       TEXT,                  -- "M42" if applicable (nullable)
-  ngc_ic        TEXT                   -- "NGC1976" / "IC434" (nullable)
+  ngc_ic        TEXT                   -- OpenNGC primary designation: usually NGC/IC,
+                                       --  occasionally M40/Mel/ESO/PGC… (opaque id, nullable)
 );
 
 -- ephemeral objects: precomputed samples (comets + planets + Moon + Sun)

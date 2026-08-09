@@ -43,7 +43,9 @@ def test_unified_writer_populates_all_tables(tmp_path: Path) -> None:
         CometElements("C/2023 A3", 2460000.5, 0.39, 1.0001, 139.1, 308.5, 21.6, 5.0, 4.0),
     ]
 
-    out = build_reference_db(tmp_path / "reference.sqlite", objects, fixed, ephem, elements, _meta())
+    out = build_reference_db(
+        tmp_path / "reference.sqlite", objects, fixed, ephem, elements, _meta()
+    )
     assert out.exists()
 
     con = sqlite3.connect(out)
@@ -55,7 +57,11 @@ def test_unified_writer_populates_all_tables(tmp_path: Path) -> None:
         assert con.execute("SELECT COUNT(*) FROM ephemeris").fetchone()[0] == 3
         assert con.execute("SELECT COUNT(*) FROM comet_elements").fetchone()[0] == 1
         # FK integrity: every child row references an existing object
-        for child, col in (("fixed_object", "object_id"), ("ephemeris", "object_id"), ("comet_elements", "object_id")):
+        for child, col in (
+            ("fixed_object", "object_id"),
+            ("ephemeris", "object_id"),
+            ("comet_elements", "object_id"),
+        ):
             (orphans,) = con.execute(
                 f"SELECT COUNT(*) FROM {child} c "
                 f"LEFT JOIN objects o ON c.{col} = o.id WHERE o.id IS NULL"

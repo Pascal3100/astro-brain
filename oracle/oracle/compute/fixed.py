@@ -6,6 +6,8 @@ from pathlib import Path
 import numpy as np
 from skyfield.api import Loader, Star
 
+__all__ = ["project_to_of_date"]
+
 
 def project_to_of_date(
     points: list[tuple[str, float, float]],
