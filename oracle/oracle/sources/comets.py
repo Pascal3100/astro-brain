@@ -1,7 +1,5 @@
 """Load comet orbital elements from an MPC CometEls.txt file."""
 
-import logging
-import shutil
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
@@ -10,10 +8,8 @@ import pandas as pd
 from skyfield.api import load
 from skyfield.data import mpc
 
-import oracle
 from oracle.records import CometElements, ObjectRow
-
-logger = logging.getLogger(__name__)
+from oracle.sources._fetch import fetch_with_fallback
 
 COMET_ELS_URL = "https://www.minorplanetcenter.net/iau/MPCORB/CometEls.txt"
 
@@ -58,21 +54,8 @@ def fetch_comet_els(
     *,
     opener: Callable[[str], object] = urllib.request.urlopen,
 ) -> Path:
-    """Fetch fresh comet elements to ``dest``; fall back to the bundled snapshot.
-
-    A build must never fail because the MPC is unreachable.
-    """
-    try:
-        with opener(url) as response:  # type: ignore[attr-defined]
-            body = response.read()
-        if not body:
-            raise OSError("empty response body")
-        dest.write_bytes(body)
-    except Exception as exc:
-        logger.warning("comet fetch failed, using bundled fallback: %s", exc)
-        fallback = oracle.data_dir() / "CometEls.fallback.txt"
-        shutil.copyfile(fallback, dest)
-    return dest
+    """Fetch fresh comet elements to ``dest``; fall back to the bundled snapshot."""
+    return fetch_with_fallback(dest, url, "CometEls.fallback.txt", opener=opener)
 
 
 def comet_objects(comets: pd.DataFrame) -> tuple[list[ObjectRow], list[CometElements]]:
