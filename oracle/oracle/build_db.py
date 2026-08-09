@@ -4,8 +4,6 @@ import sqlite3
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-import pandas as pd
-
 import oracle
 from oracle.records import CometElements, EphemRow, FixedRow, ObjectRow
 
@@ -27,12 +25,6 @@ class BuildMeta:
 def _schema_sql() -> str:
     """Return the DDL from ``oracle/schema.sql`` (one level above the package)."""
     return (Path(oracle.__file__).resolve().parent.parent / "schema.sql").read_text()
-
-
-def _opt(row: pd.Series, key: str) -> float | None:
-    """Return ``row[key]`` as a float, or ``None`` when missing/NaN."""
-    value = row.get(key)
-    return float(value) if pd.notna(value) else None
 
 
 def build_reference_db(

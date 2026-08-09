@@ -11,12 +11,17 @@ from skyfield.api import load
 from skyfield.data import mpc
 
 import oracle
-from oracle.build_db import _opt
 from oracle.records import CometElements, ObjectRow
 
 logger = logging.getLogger(__name__)
 
 COMET_ELS_URL = "https://www.minorplanetcenter.net/iau/MPCORB/CometEls.txt"
+
+
+def _opt(row: pd.Series, key: str) -> float | None:
+    """Return ``row[key]`` as a float, or ``None`` when missing/NaN."""
+    value = row.get(key)
+    return float(value) if pd.notna(value) else None
 
 
 def _latest_orbit_per_comet(comets: pd.DataFrame) -> pd.DataFrame:
