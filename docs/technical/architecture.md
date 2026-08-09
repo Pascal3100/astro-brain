@@ -11,7 +11,7 @@ App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[pyin
                                                        │                                           ▼
                                                        │                                  bus AUX (HC RJ12) ─▶ Monture Celestron
                                                        ▼
-                                                 GPS DroTek + LIS3MDL + ADXL345
+                                                 GPS DroTek + LIS3MDL
                                                        │
                                                        ▼
                                               aiosqlite ─▶ /var/lib/astro-brain/state.db
@@ -33,7 +33,7 @@ App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[pyin
 
 - Python 3.13, gestion des deps avec `uv` (lockfile par projet)
 - FastAPI + Uvicorn, SSE via `sse-starlette`
-- `pyindi-client` (monture, via `indiserver` local), `gpsd-py3` (GPS), `smbus2` (I2C compass + accelerometers)
+- `pyindi-client` (monture, via `indiserver` local), `gpsd-py3` (GPS), `smbus2` (I2C compass)
 - `aiosqlite` + `numpy` (calibration capteurs Macro 2 — DB persistante hors bus santé, calculs bias/ellipsoid)
 - Flutter 3.41+ / Dart 3.11+, `flutter_bloc`, `equatable`, `google_fonts`, `phosphor_flutter`, `shared_preferences`
 - Style UI : Material Design 3, thème bleu (jour) / rouge (nuit)
@@ -52,13 +52,13 @@ Le service FastAPI déclare `Requires=indiserver.service` pour garantir que le b
 
 ## État persistant — `state.db`
 
-À partir de Macro 2, le backend persiste les calibrations capteurs et les courses ALT dans une base SQLite locale (`aiosqlite`).
+À partir de Macro 2, le backend persiste les calibrations capteurs dans une base SQLite locale (`aiosqlite`).
 
 - Chemin : `/var/lib/astro-brain/state.db` (override via `ASTRO_BRAIN_STATE_DIR`).
 - Géré par `astro-brain.service` via `StateDirectory=astro-brain` (création + permissions automatiques).
-- Schéma initial : 3 tables (`schema_version`, `calibration_sensor`, `mount_limits`) — voir migration `_001_initial.py`.
+- Schéma initial : 3 tables (`schema_version`, `calibration_sensor`, `mount_limits`) — voir migration `_001_initial.py`. La table `mount_limits` est **inutilisée depuis le retrait de la feature Courses ALT** (2026-07-17, voir [ADR](../project/decisions.md)) ; conservée telle quelle (pas de migration de suppression).
 - La connexion vit sur `app.state.db`, ouverte au startup du lifespan FastAPI (migrations appliquées avant le démarrage des services), fermée au shutdown.
-- **Calibration et limits ne sont pas sur le bus santé.** Lecture à la demande via REST (`GET /calibration/status`, `GET /limits/alt`).
+- **Calibration hors bus santé.** Lecture à la demande via REST (`GET /calibration/status`).
 
 ## Workflow de dev
 

@@ -17,6 +17,7 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 - ✅ **Slice B Courses ALT livré** (Session 19, 2026-05-07) : item #4. Backend `/limits/alt` GET/PUT + écran Flutter capture ALT_min/max via `TiltStreamService`. Tests : 183 backend + 130 frontend.
 - ✅ **Slice C About livré** (Session 19, 2026-05-07) : item #9. Backend `GET /about` (versions, IP/SSID, uptime, started_at) + écran Flutter read-only avec bouton RAFRAÎCHIR. Tests : 191 backend + 133 frontend.
 - ➡️ **Backlash mount-side déplacé en Macro 5** (Session 41, 2026-07-08) : le driver `indi-celestronaux` v1.5 n'expose pas `MOUNT_AXIS_BACKLASH` → nécessite un fork/patch C++ ; valeur réelle en imaging seulement. Macro 2 déclarée **done** sans lui. Cf. ADR 2026-07-08.
+- ➡️ **Retrait des 2× ADXL345 + feature Courses ALT** (Session 42, 2026-07-17) : items niveau monture (#1), zéro ALT (#3) et Courses ALT (#4) ci-dessus **retirés** (capteurs jamais installés physiquement, hors chemin de pointage depuis l'ADR 2026-05-10, garde-fou ALT jamais enforcé). Compass LIS3MDL (#2) conservé, désormais en heading non tilt-compensé. Cf. ADR 2026-07-17.
 
 **Macro 3 — Mise en station + GoTo basique 🚧** :
 - ✅ Item #1 Hub central (Session 20).
@@ -29,7 +30,7 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 
 ## Session en cours
 
-### Session 42 — Oracle tranche 1 : producteur `oracle/` + CI de référence (livré 2026-07-24, journalisé 2026-08-08)
+### Session 43 — Oracle tranche 1 : producteur `oracle/` + CI de référence (livré 2026-07-24, journalisé 2026-08-08)
 
 > Entrée **rétroactive** : le chantier a été livré le 2026-07-24 (13 commits, `5c3d6b4`→`827ba1a`) mais jamais journalé sur le moment ; comblé le 2026-08-08 après vérification du CI en prod.
 
@@ -42,6 +43,18 @@ Objectif : poser le **plan de données de référence autonome du Pi** (fil tran
 **Vérifié en prod (2026-08-08, lecture seule).** 3 runs `oracle-reference` **tous verts** ; release `almanac-latest` bien publiée par `github-actions[bot]`, les 2 assets présents. Le **cron hebdo tourne réellement** : manifest publié le plus récent `generated_at 2026-08-03T07:50Z` (postérieur aux commits du 24 → run cron), `schema_version 1`, fenêtre `2026-08-03`→`2026-10-01` (60 j), `sha256` renseigné. **Contrat consommateur opérationnel.**
 
 **Reste (hors cette tranche producteur) :** les **consommateurs** — app Flutter + Pi (cache local `reference.sqlite`, interrogation hors-ligne, notifs locales) — et les tranches suivantes (événements calculés, appulses). Le discriminant oculaire/photo est couplé Setup tube (Macro 4) / caméras (Macro 5), hooks laissés. Roadmap : ligne « Oracle / Éphémères » marquée « tranche 1 producteur livrée ».
+
+### Session 42 — Retrait ADXL345 + Courses ALT (2026-07-17)
+
+**Décision** : retirer les 2× ADXL345 (`0x53` tube, `0x1D` monture) et la feature Courses ALT — code, endpoints, écrans Flutter, câblage, docs. Garder le compass LIS3MDL (`0x1E`) et le GPS. Cf. **ADR 2026-07-17** dans [`decisions.md`](decisions.md) (supersède l'ADR 2026-04-24).
+
+**Contexte de la décision** : l'installation physique du tube sur la monture n'a jamais été faite. La faire maintenant imposerait de concevoir/imprimer 2 boîtiers 3D pour des capteurs dont la valeur s'est effritée : le modèle SVD/sync natif (ADR 2026-05-10) a mis les ADXL hors du chemin de pointage depuis mai, et un audit de code mené pendant ce retrait a confirmé que la feature Courses ALT n'a **jamais gardé** un slew réel (aucun code de commande n'était conditionné par une lecture tilt) — retrait doc-only sur ce point, pas une régression de sécurité active.
+
+**Périmètre** : backend (services + routes + adapters ADXL), app Flutter (écrans calibration ADXL ×2, courses ALT, bulle virtuelle), schémas de câblage (Task 6, hors scope de cette session docs), et cette passe de documentation (ADR, hardware, roadmap, backlog, CLAUDE.md, README, api/state-model/architecture).
+
+**Conséquence principale** : le compass LIS3MDL passe en heading **non tilt-compensé** (plus d'ADXL co-localisé pour fusionner l'inclinaison) ; la mise à niveau redevient **bulle physique** trépied ; l'anti-collision ALT est repoussée en **Macro 3** via la position monture rapportée par le driver.
+
+**Backlog** : 5 pistes prospectives capturées dans [`backlog.md`](backlog.md#reprise--résilience--aide-au-pré-pointage-post-retrait-adxl-macro-3) (résilience reboot Pi en priorité, home/parking + seed-sync, set-zéro ALT à la bulle, compass déporté + déclinaison, coupure totale non gérée).
 
 ### Session 41 — Macro 2 refermée : backlash mount-side différé en Macro 5 (2026-07-08)
 

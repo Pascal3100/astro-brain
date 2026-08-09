@@ -332,7 +332,6 @@ class MountIndiAdapter:
         ``TELESCOPE_MOTION_NS`` or ``TELESCOPE_MOTION_WE`` switch.
         Replaces any prior slew on the same axis (joystick semantics).
         """
-        # TODO v0.3: read alt limits from app.state.db, clamp slew("alt", "+") near max_deg
         if self._device is None:
             return
         # Replace any existing slew on the same axis.

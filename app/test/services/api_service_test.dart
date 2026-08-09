@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:astro_brain/models/calibration.dart';
-import 'package:astro_brain/models/limits.dart';
 import 'package:astro_brain/services/api_service.dart';
 import 'package:astro_brain/services/pi_host.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -105,7 +104,7 @@ void main() {
       final client = MockClient((_) async => http.Response('not found', 400));
       final api = ApiService(host: host, client: client);
       expect(
-        api.getCalibrationStatus('adxl345_mount'),
+        api.getCalibrationStatus('lis3mdl'),
         throwsA(isA<ApiException>()),
       );
     });
@@ -115,12 +114,12 @@ void main() {
     test('POST /calibration/:id/start retourne session_id (202)', () async {
       final client = MockClient((req) async {
         expect(req.method, 'POST');
-        expect(req.url.path, '/calibration/adxl345_mount/start');
+        expect(req.url.path, '/calibration/lis3mdl/start');
         return http.Response('{"session_id": "abc123"}', 202,
             headers: {'content-type': 'application/json'});
       });
       final api = ApiService(host: host, client: client);
-      final sessionId = await api.startCalibration('adxl345_mount');
+      final sessionId = await api.startCalibration('lis3mdl');
       expect(sessionId, 'abc123');
     });
 
@@ -128,7 +127,7 @@ void main() {
       final client = MockClient((_) async => http.Response('conflict', 409));
       final api = ApiService(host: host, client: client);
       expect(
-        api.startCalibration('adxl345_mount'),
+        api.startCalibration('lis3mdl'),
         throwsA(isA<ApiException>()),
       );
     });
@@ -159,85 +158,23 @@ void main() {
     });
   });
 
-  group('ApiService.getAltLimits', () {
-    test('GET /limits/alt 200 retourne AltLimits', () async {
-      final client = MockClient((req) async {
-        expect(req.method, 'GET');
-        expect(req.url.path, '/limits/alt');
-        return http.Response(
-          '{"min_deg": -5.0, "max_deg": 87.0}',
-          200,
-          headers: {'content-type': 'application/json'},
-        );
-      });
-      final api = ApiService(host: host, client: client);
-      final limits = await api.getAltLimits();
-      expect(limits, isNotNull);
-      expect(limits!.minDeg, -5.0);
-      expect(limits.maxDeg, 87.0);
-    });
-
-    test('GET /limits/alt 404 retourne null', () async {
-      final client = MockClient((_) async => http.Response('not set', 404));
-      final api = ApiService(host: host, client: client);
-      expect(await api.getAltLimits(), isNull);
-    });
-
-    test('GET /limits/alt status != 200/404 jette ApiException', () async {
-      final client = MockClient((_) async => http.Response('boom', 500));
-      final api = ApiService(host: host, client: client);
-      expect(api.getAltLimits(), throwsA(isA<ApiException>()));
-    });
-  });
-
-  group('ApiService.putAltLimits', () {
-    test('PUT /limits/alt 200 envoie body et retourne AltLimits', () async {
-      var captured = <String, dynamic>{};
-      final client = MockClient((req) async {
-        expect(req.method, 'PUT');
-        expect(req.url.path, '/limits/alt');
-        captured = jsonDecode(req.body) as Map<String, dynamic>;
-        return http.Response(req.body, 200);
-      });
-      final api = ApiService(host: host, client: client);
-      final result = await api.putAltLimits(
-        const AltLimits(minDeg: -3.2, maxDeg: 87.0),
-      );
-      expect(captured, {'min_deg': -3.2, 'max_deg': 87.0});
-      expect(result.minDeg, -3.2);
-      expect(result.maxDeg, 87.0);
-    });
-
-    test('PUT /limits/alt 422 jette ApiException(statusCode: 422)', () async {
-      final client =
-          MockClient((_) async => http.Response('{"detail":"x"}', 422));
-      final api = ApiService(host: host, client: client);
-      expect(
-        api.putAltLimits(const AltLimits(minDeg: 0, maxDeg: 10)),
-        throwsA(
-          isA<ApiException>().having((e) => e.statusCode, 'statusCode', 422),
-        ),
-      );
-    });
-  });
-
   group('ApiService.abortCalibration', () {
     test('POST /calibration/:id/abort réussit (200)', () async {
       final client = MockClient((req) async {
         expect(req.method, 'POST');
-        expect(req.url.path, '/calibration/adxl345_mount/abort');
+        expect(req.url.path, '/calibration/lis3mdl/abort');
         return http.Response('{"ok": true}', 200);
       });
       final api = ApiService(host: host, client: client);
       // Doit compléter sans exception.
-      await api.abortCalibration('adxl345_mount');
+      await api.abortCalibration('lis3mdl');
     });
 
     test('jette ApiException sur status != 200', () async {
       final client = MockClient((_) async => http.Response('error', 500));
       final api = ApiService(host: host, client: client);
       expect(
-        api.abortCalibration('adxl345_mount'),
+        api.abortCalibration('lis3mdl'),
         throwsA(isA<ApiException>()),
       );
     });

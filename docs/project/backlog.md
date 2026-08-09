@@ -14,7 +14,7 @@ Vue d'ensemble pour éviter la dispersion au fil des specs.
 
 **Macro 2 — Setup**
 - *Page Setup* (hub des cards) — scaffold déjà en place
-- *Niveau monture*, *Calibration ADXL345 monture*, *Calibration ADXL345 tube*, *Calibration compass*, *Courses ALT/AZ*, *Backlash*, *Network/IP* (livré), *À propos*
+- *Calibration compass*, *Backlash*, *Network/IP* (livré), *À propos* (niveau monture, calibrations ADXL345 ×2 et courses ALT/AZ retirés le 2026-07-17, voir [ADR](decisions.md))
 
 **Macro 3 — Mise en station + GoTo basique**
 - *Hub central* — agrégateur post-Splash
@@ -48,7 +48,7 @@ Vue d'ensemble pour éviter la dispersion au fil des specs.
 
 Paramétrage persistant côté Pi, exposé par l'app. La majorité atterrit dans la **Macro 2 — Setup** (courses, backlash). Les caractéristiques tube atterrissent dans **Macro 4** car elles conditionnent le filtrage catalogue.
 
-- **Courses min/max ALT/AZ** — safety pour éviter collision tube/trépied. Côté ALT : alimenté par l'ADXL345 tube. Côté AZ : soft via position monture, pas de capteur dédié.
+- **Courses min/max AZ** — safety pour éviter la torsion des câbles ; soft via position monture, pas de capteur dédié. (Le volet **ALT** — anti-collision tube/trépied, alimenté par l'ADXL345 tube — a été **retiré le 2026-07-17** ; repoussé en Macro 3 via la position monture rapportée par le driver, voir [ADR](decisions.md).)
 - **Caractéristiques du tube** (focale, diamètre, obstruction) — prérequis pour filtrage catalogue (Macro 4) et calculs FOV astrophoto (Macro 5).
 - **Compensation de backlash** — améliore tracking et GoTo (Macro 2).
 - **TODO : auditer la raquette Celestron** — passer en revue tous les menus/réglages techniques exposés par le hand controller (backlash, anti-backlash, cone error, PEC, filter limits, custom slew rates, etc.) pour identifier ce qu'il faut exposer/récupérer côté app et/ou lire/écrire via NexStar.
@@ -115,39 +115,26 @@ Procédure casse-pieds à faire manuellement, typiquement en début de session, 
 - Probablement une sous-section de la page "Setup" ou un onglet dédié dans le wizard de mise en station
 - À refaire "sporadiquement" (pas à chaque session), donc n'a pas besoin d'être au premier plan
 
-## Capteurs d'inclinaison tube + monture (ADXL345 × 2)
+## Capteurs d'inclinaison tube + monture (ADXL345 × 2) — retiré
 
-**Décision 2026-04-24** : ajout de 2 accéléromètres **ADXL345** (I2C) au setup. Commandés.
-
-**Rôles distincts**
-- **ADXL345 tube** (adresse `0x53`, SDO=VCC) — mesure l'inclinaison du tube par rapport à l'horizontale. Sert à :
-    - Définir/retrouver le **zéro ALT** (tube à plat)
-    - Détecter l'approche des **butées ALT** (safety, complément des courses min/max de la page "Réglages techniques monture")
-- **ADXL345 monture** (adresse `0x1D`, SDO=GND) — mesure la planéité de l'embase. Sert à :
-    - **Mise à niveau pré-session** (remplace/complète la bulle physique sur trépied)
-    - Alimenter une page "Niveau monture" style HUD (bulle virtuelle XY, feedback < 0.5°)
-
-**Justification du choix** : usage statique pur, la gravité suffit (`atan2(ay, az)`). Pas besoin de fusion 9DOF ni de gyro. L'ADXL345 = accéléromètre simple ~2-3 €, très courant, **deux adresses I2C sélectionnables via la pin SDO** → les 2 modules cohabitent sur le même bus sans multiplexeur. Précision typique < 0.5° brute, < 0.1° après calibration statique — largement suffisant pour retrouver le zéro et poser des butées soft.
-
-**Bus I2C1 final**
-| Device | Adresse |
-|---|---|
-| LIS3MDL (compass DroTek) | `0x1E` |
-| ADXL345 tube | `0x53` |
-| ADXL345 monture | `0x1D` |
-
-**Pages UI associées** (à détailler dans les specs correspondants quand on y arrivera)
-- **Page "Niveau monture"** — bulle virtuelle XY, feedback rouge/vert < 0.5°. Intégrée à Macro 2 (Setup).
-- **Page "Calibration tube"** — bouton "définir le zéro" quand tube horizontal + affichage live de l'angle + alerte à l'approche des butées. Probablement rattachée à la page "Setup tube" (Macro 4) ou à la Macro 2.
-
-Cette décision remplace la piste IMU 9DOF évoquée ci-dessous : on n'a pas besoin d'un cap tilt-compensé pour le pointage, le plate solve (Macro 5) prendra le relais avec bien plus de précision.
+**Décision 2026-04-24** : ajout de 2 accéléromètres ADXL345 (I2C) au setup, pour le zéro ALT/butées (tube) et la mise à niveau (monture). **Retiré le 2026-07-17** — voir [ADR](decisions.md) pour le contexte et les conséquences (compass en heading non tilt-compensé, niveau = bulle physique, anti-collision ALT repoussée en Macro 3). Les pistes de reprise identifiées à ce retrait sont capturées dans la section [« Reprise / résilience & aide au pré-pointage »](#reprise--résilience--aide-au-pré-pointage-post-retrait-adxl-macro-3) plus bas.
 
 ## Position persistante + retour à l'origine (Macro 5+)
 
 - "Home position" définie physiquement par capteurs (distincte de l'alignement logique Celestron)
 - Utilité : reprise après coupure, commande "retour à l'origine"
 - À clarifier : peut-on lire directement la position depuis la monture via NexStar (`get_position`) une fois alignée, ou faut-il des encodeurs/capteurs externes indépendants ? Lien avec le plate solving (Macro 5) qui donnera aussi une position absolue.
-- **Inclinaison** : tranché (cf. section "Capteurs d'inclinaison tube + monture" plus haut) → 2 × ADXL345. La piste IMU 9DOF (MPU6050/ICM-20948/BNO055) pour un cap tilt-compensé est écartée : le plate solve fournira le pointage précis, on n'a pas besoin de reconstituer un cap absolu par capteurs.
+- **Inclinaison** : la piste 2 × ADXL345 envisagée ici a été retirée le 2026-07-17 (voir ADR) — hors chemin de pointage depuis l'ADR 2026-05-10, jamais enforcée. La piste IMU 9DOF (MPU6050/ICM-20948/BNO055) pour un cap tilt-compensé reste écartée pour la même raison : le plate solve fournira le pointage précis, on n'a pas besoin de reconstituer un cap absolu par capteurs.
+
+## Reprise / résilience & aide au pré-pointage (post-retrait ADXL, Macro 3+)
+
+Distillation de la discussion de retrait des ADXL345 (ADR 2026-07-17) : le vrai problème à résoudre n'était pas capteur, mais résilience logicielle et pré-pointage. Pistes capturées ici pour arbitrage futur.
+
+1. **⭐ Résilience reboot Pi (priorité)** — persister/restaurer l'alignement à chaud. Contexte : un reboot Pi n'affecte pas la monture (alims séparées Pi ≠ monture) → la monture ne bouge pas, ses encodeurs restent dans le même repère. C'est donc un problème de **persistance logicielle** (le driver perd son modèle en mémoire), **pas** un problème de capteur. Approche : persister le modèle/points de sync (déjà partiellement fait, ADR 2026-05-10) ; au redémarrage, si on détecte que la monture est restée sous tension (cohérence de la position rapportée vs dernière position trackée), restaurer l'alignement sans ré-aligner. **À vérifier d'abord (Macro 3)** : `indi_celestron_aux` stocke-t-il le modèle en mémoire driver (perdu au reboot → restauration nécessaire) ou dans les contrôleurs moteur (survit nativement) ?
+2. **Home = pose de parking motorisée + seed-sync au boot** — fin de séance : GoTo park motorisé (nord + 45°). Boot : **seed-sync** = convertir (alt 45° de la pose de parking + azimut compass + lat/lon/heure GPS) → RA/Dec → `EQUATORIAL_EOD_COORD` avec `ON_COORD_SET=SYNC` (même chemin que le wizard 3 étoiles). Donne un modèle 1-point grossier suffisant pour amener la 1ʳᵉ étoile dans le chercheur. Altitude portable (pose tenue au transport, trépied de niveau) ; azimut au compass (trépied reposé différemment). Prérequis : monture alignée en fin de séance pour parker.
+3. **« Set 0° tube au niveau »** — calibration ponctuelle / bootstrap de la référence d'altitude au niveau à bulle (sync ALT à 0°). Pas un geste par séance : utile la 1ʳᵉ fois ou si la pose de parking est perdue.
+4. **Support compass déporté + correction de déclinaison** — éloigner le magnétomètre (co-localisé GPS) des moteurs/acier (source dominante d'erreur azimut, le vrai goulot du pré-pointage) ; corriger magnétique → vrai nord via la position GPS (modèle WMM) ; calibration soft/hard-iron in situ. Contrainte : longueur de câble I2C (~30-50 cm, sinon soin câblage / horloge réduite).
+5. **Coupure totale (Pi + monture) = non gérée** — décision assumée. Recovery : re-home manuel vers une pose connue (maintenant) → plate-solve (Macro 5), qui résout ce cas mieux qu'un capteur (position exacte depuis l'image, sans re-home).
 
 ## Safety & robustesse (Macro 2+, continu)
 
@@ -193,7 +180,7 @@ Scindé en deux livraisons :
 
 **Macro 3 — version minimale (intégrée à l'alignement 3 étoiles)**
 - **Cap nord** via compass (LIS3MDL DroTek) pour pré-pointer la première étoile
-- **Niveau** : via l'ADXL345 monture (cf. section "Capteurs d'inclinaison tube + monture"). Bulle virtuelle dans l'UI, feedback < 0.5°. La bulle physique sur trépied reste un fallback manuel.
+- **Niveau** : bulle physique du trépied (l'ADXL345 monture envisagé pour une bulle virtuelle logicielle a été retiré le 2026-07-17, voir [ADR](decisions.md)).
 - **Alignement 3 étoiles** procédure NexStar assistée (le backend pilote le slew vers l'étoile proposée, l'utilisateur centre manuellement, valide, passe à la suivante)
 
 **Macro 6 — wizard complet**

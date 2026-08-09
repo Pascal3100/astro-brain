@@ -17,11 +17,9 @@ import 'widgets/calibration_progress.dart';
 
 const _sensorId = 'lis3mdl';
 
-/// Écran de calibration « compass » (item #2 du Setup).
+/// Écran de calibration « compass » (item #1 du Setup).
 ///
-/// Spécificités vs. ADXL mount :
-/// - Soft warning au démarrage si `adxl345_mount` n'est pas calibré (le
-///   heading sera moins précis, mais on peut quand même calibrer).
+/// Spécificités :
 /// - Après `done`, on n'auto-pop pas : on affiche un preview heading via
 ///   [CompassStreamService] à 5 Hz et un bouton FERMER.
 class Lis3mdlScreen extends StatelessWidget {
@@ -55,37 +53,9 @@ class _Lis3mdlView extends StatefulWidget {
 }
 
 class _Lis3mdlViewState extends State<_Lis3mdlView> {
-  /// `null` tant que la requête n'a pas répondu, `true` si l'ADXL mount
-  /// est calibré, `false` sinon (status payload null OU erreur réseau —
-  /// le warning est best-effort).
-  bool? _mountCalibrated;
-
   /// Service du preview heading post-finalize. Instancié au passage en
   /// `done`, fermé à `dispose()`.
   CompassStreamService? _compass;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkMountCalibration();
-  }
-
-  Future<void> _checkMountCalibration() async {
-    try {
-      final status = await context.read<ApiService>().getCalibrationStatus(
-        'adxl345_mount',
-      );
-      if (!mounted) return;
-      setState(() => _mountCalibrated = status.payload != null);
-    } catch (_) {
-      // Best-effort : si le Pi est injoignable, on laisse `_mountCalibrated`
-      // à `null` — le warning n'apparaît pas (évite de masquer le vrai
-      // souci par un faux signal positif) et l'utilisateur peut quand
-      // même calibrer.
-      if (!mounted) return;
-      setState(() => _mountCalibrated = null);
-    }
-  }
 
   void _ensureCompassStarted() {
     if (_compass != null) return;
@@ -160,9 +130,6 @@ class _Lis3mdlViewState extends State<_Lis3mdlView> {
                             color: colors.textMuted,
                           ),
                         ),
-                        const SizedBox(height: DesignTokens.spaceMD),
-                        if (_mountCalibrated == false)
-                          const _MountNotCalibratedWarning(),
                         const SizedBox(height: DesignTokens.spaceLG),
                         const _ProgressPanel(),
                         const SizedBox(height: DesignTokens.spaceLG),
@@ -179,48 +146,6 @@ class _Lis3mdlViewState extends State<_Lis3mdlView> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Bandeau soft warning — affiché uniquement quand l'ADXL mount n'est pas
-/// calibré. Pas de blocage : la calibration LIS3MDL fonctionne sans, mais
-/// le preview heading sera "naïve" plutôt que "tilt-compensé".
-class _MountNotCalibratedWarning extends StatelessWidget {
-  const _MountNotCalibratedWarning();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final text = context.textStyles;
-    return Container(
-      padding: const EdgeInsets.all(DesignTokens.spaceMD),
-      decoration: BoxDecoration(
-        color: colors.dotWarn.withValues(alpha: 0.12),
-        border: Border.all(
-          color: colors.dotWarn.withValues(alpha: 0.6),
-          width: DesignTokens.strokeThin,
-        ),
-        borderRadius: BorderRadius.circular(DesignTokens.radiusMD),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.warning_amber_rounded,
-            color: colors.dotWarn,
-            size: DesignTokens.iconSizeMD,
-          ),
-          const SizedBox(width: DesignTokens.spaceSM),
-          Expanded(
-            child: Text(
-              'Niveau monture non calibré — le heading sera moins précis. '
-              'Recommandé : faire d\'abord l\'item #1.',
-              style: text.hudCaption.copyWith(color: colors.textPrimary),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -416,9 +341,7 @@ class _HeadingPreview extends StatelessWidget {
               ],
             );
           }
-          final qualifier = reading.tiltCompensated
-              ? 'tilt-compensé'
-              : 'naïve — niveau monture non calibré';
+          const qualifier = 'cap magnétique (non tilt-compensé)';
           return Row(
             children: [
               Icon(

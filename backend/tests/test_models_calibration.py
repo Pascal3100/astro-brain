@@ -6,32 +6,10 @@ import pytest
 from pydantic import ValidationError
 
 from astro_brain.models.calibration import (
-    Adxl345Offsets,
-    AltLimits,
     CalibrationProgress,
     CalibrationStatus,
     Lis3mdlOffsets,
 )
-
-
-def test_adxl345_offsets_round_trip_without_zero_alt() -> None:
-    payload = Adxl345Offsets(bias=(0.01, -0.02, 0.03), sigma=0.005)
-    json_str = payload.model_dump_json()
-    parsed = Adxl345Offsets.model_validate_json(json_str)
-    assert parsed == payload
-    assert parsed.zero_alt_deg is None
-
-
-def test_adxl345_offsets_round_trip_with_zero_alt() -> None:
-    payload = Adxl345Offsets(
-        bias=(0.10, 0.20, 0.30),
-        sigma=0.012,
-        zero_alt_deg=1.4,
-    )
-    json_str = payload.model_dump_json()
-    parsed = Adxl345Offsets.model_validate_json(json_str)
-    assert parsed == payload
-    assert parsed.zero_alt_deg == 1.4
 
 
 def test_lis3mdl_offsets_round_trip() -> None:
@@ -49,25 +27,6 @@ def test_lis3mdl_offsets_round_trip() -> None:
     parsed = Lis3mdlOffsets.model_validate_json(json_str)
     assert parsed == payload
     assert parsed.scale_matrix[2][2] == 1.02
-
-
-def test_alt_limits_valid() -> None:
-    limits = AltLimits(min_deg=0.0, max_deg=90.0)
-    json_str = limits.model_dump_json()
-    parsed = AltLimits.model_validate_json(json_str)
-    assert parsed == limits
-
-
-def test_alt_limits_rejects_too_narrow_range() -> None:
-    with pytest.raises(ValidationError):
-        AltLimits(min_deg=20.0, max_deg=25.0)
-
-
-def test_alt_limits_rejects_min_ge_max() -> None:
-    with pytest.raises(ValidationError):
-        AltLimits(min_deg=80.0, max_deg=10.0)
-    with pytest.raises(ValidationError):
-        AltLimits(min_deg=50.0, max_deg=50.0)
 
 
 def test_calibration_progress_round_trip_with_residual_none() -> None:
@@ -110,18 +69,6 @@ def test_calibration_progress_rejects_invalid_state() -> None:
         )
 
 
-def test_calibration_status_round_trip_with_adxl_payload() -> None:
-    status = CalibrationStatus(
-        sensor_id="adxl_tube",
-        calibrated_at=datetime(2026, 5, 5, 10, 0, 0, tzinfo=UTC),
-        payload=Adxl345Offsets(bias=(0.0, 0.0, 0.0), sigma=0.001, zero_alt_deg=0.5),
-    )
-    json_str = status.model_dump_json()
-    parsed = CalibrationStatus.model_validate_json(json_str)
-    assert parsed == status
-    assert isinstance(parsed.payload, Adxl345Offsets)
-
-
 def test_calibration_status_round_trip_with_lis3mdl_payload() -> None:
     status = CalibrationStatus(
         sensor_id="compass",
@@ -145,7 +92,7 @@ def test_calibration_status_round_trip_with_lis3mdl_payload() -> None:
 
 def test_calibration_status_round_trip_with_no_payload() -> None:
     status = CalibrationStatus(
-        sensor_id="adxl_base",
+        sensor_id="unknown_sensor",
         calibrated_at=None,
         payload=None,
     )

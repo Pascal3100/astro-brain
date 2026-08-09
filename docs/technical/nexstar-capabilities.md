@@ -73,8 +73,8 @@ Source de vérité sur ce que la **lib `nexstarpy` 0.1.0** expose. Évite les hy
 | Item | Implémentation | Source |
 |---|---|---|
 | Calibration LIS3MDL (compass) | Off-mount, full Pi-side (lecture I2C, persistance disque). | Indépendant de NexStar. |
-| Calibration ADXL345 ×2 | Off-mount, full Pi-side. | Indépendant de NexStar. |
-| Courses ALT min/max | Lecture position via **ADXL345 tube**. Stockées Pi-side, appliquées en software (clamp côté backend avant émission slew/goto). | Pas de slew limits dans le protocole. |
+| ~~Calibration ADXL345 ×2~~ | ~~Off-mount, full Pi-side.~~ (capteurs retirés — voir ADR 2026-07-17) | Indépendant de NexStar. |
+| ~~Courses ALT min/max~~ | ~~Lecture position via ADXL345 tube. Stockées Pi-side, appliquées en software (clamp côté backend avant émission slew/goto).~~ (feature retirée — voir ADR 2026-07-17) | Pas de slew limits dans le protocole. |
 | **Cordwrap protection AZ** | **Côté monture, via AUX** : `MC_CWRAP_ENABLE/DISABLE` (msgId 0x38/0x39), `MC_CWRAP_GET_POS/SET_POS` (0x3B/0x3C). On expose un toggle dans Setup + une position de cordwrap. | AUX pass-through, AZM motor (0x10). |
 | **Backlash ALT/AZ** | **Côté monture, via AUX** : `MC_GET/SET_POS_BACKLASH` (msgId 0x40/0x10), `MC_GET/SET_NEG_BACKLASH` (0x41/0x11), valeur 0-99 par axe par direction. La monture gère le préambule elle-même. La routine de calibration mesure puis push la valeur. | AUX pass-through, motor 0x10 (AZ) et 0x11 (ALT). |
 | Network/IP config | Côté Pi (config réseau / hotspot). | Indépendant de NexStar. |

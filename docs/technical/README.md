@@ -5,7 +5,7 @@ Comment Astro-Brain est construit : architecture, matériel, modèle d'état, AP
 ## Sommaire
 
 - [architecture.md](architecture.md) — vue d'ensemble Pi ↔ App, protocoles, choix de stack.
-- [hardware.md](hardware.md) — câblage GPIO, capteurs (GPS, compass, ADXL345), périphériques USB.
+- [hardware.md](hardware.md) — câblage GPIO, capteurs (GPS, compass), périphériques USB.
 - [state-model.md](state-model.md) — bus interne, sous-systèmes, agrégateur, format SSE.
 - [api.md](api.md) — endpoints REST + flux SSE par macro-étape.
 - [deployment.md](deployment.md) — installation Pi OS, dépendances, service systemd.
@@ -19,7 +19,7 @@ Pages autonomes (SVG inline, thème sombre) décrivant le **câblage fonctionnel
 
 - [cablage-global.html](cablage-global.html) — **schéma bloc du système complet** : 3 alimentations, Pi ↔ capteurs, Pi ↔ WiFi ↔ ESP32 ↔ bus AUX ↔ monture, masses communes. Chaque bloc pointe vers sa page de détail.
 - [cablage-alimentation.html](cablage-alimentation.html) — les 3 sources (Pi 220→5 V/2,5 A ; rail 12→5 V ; 3,3 V du Pi), ce que chacune alimente, masses communes. ✓ validé.
-- [cablage-capteurs-pi.html](cablage-capteurs-pi.html) — header GPIO, GPS UART0, I2C1 (compass LIS3MDL `0x1E` + 2× ADXL345 `0x53`/`0x1D`), VCC depuis le rail 5 V. ✓ validé.
+- [cablage-capteurs-pi.html](cablage-capteurs-pi.html) — header GPIO, GPS UART0, I2C1 (compass LIS3MDL `0x1E`), VCC depuis le rail 5 V. ✓ validé.
 - [cablage-pont-esp32.html](cablage-pont-esp32.html) — pont ESP32 STA WiFi / TCP:2000, `Serial2` GPIO16/17 + GPIO32 (/OE), rôles firmware (relais, écho, turnaround). ✓ pont · 🔬 OE.
 - [cablage-interface-aux.html](cablage-interface-aux.html) — interface single-wire : RX comparateur LM2902 (✓ prouvé S33) + TX buffer tri-state 74AHCT125 (✓ validé S36, round-trip 30/30), brochage RJ-12. **Référence de câblage du bus AUX.**
 - [cablage-carte-aux-pcb.html](cablage-carte-aux-pcb.html) — consolidation **PCB** de l'interface AUX (netlist + brochages en vue carte). Voir aussi `hardware/aux-bridge/` (spec + BOM).

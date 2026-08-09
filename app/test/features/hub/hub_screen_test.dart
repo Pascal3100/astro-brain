@@ -179,8 +179,6 @@ void main() {
     final apiMock = _MockApi();
     when(() => apiMock.getCalibrationStatus(any()))
         .thenAnswer((_) async => throw Exception('not under test'));
-    when(() => apiMock.getAltLimits())
-        .thenAnswer((_) async => throw Exception('not under test'));
 
     await tester.pumpWidget(
       _wrap(const HubScreen(), bloc, theme, host, api: apiMock),

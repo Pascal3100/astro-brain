@@ -27,7 +27,7 @@ Détails dans la spec Setup : [`docs/superpowers/specs/2026-05-01-astro-brain-v0
 
 ### Calibration capteurs (livré)
 
-`sensor_id ∈ { adxl345_mount, adxl345_tube, lis3mdl }`. Une seule session active à la fois (verrou backend) ; conflit → `409`.
+`sensor_id ∈ { lis3mdl }`. Une seule session active à la fois (verrou backend) ; conflit → `409`.
 
 ```
 POST /calibration/{sensor_id}/start          # 202 { session_id }
@@ -38,7 +38,6 @@ GET  /calibration/{sensor_id}                # 200 CalibrationStatus | 404 (jama
 ```
 
 Payloads par capteur :
-- `adxl345_*` : `{ bias: [x,y,z], sigma: float }`
 - `lis3mdl` : `{ offsets: [x,y,z], scale_matrix: [[…]×3], coverage_pct: float, residual: float }`
 
 Stream `progress` : `{ state: "sampling"|"computing", samples_n, coverage_pct, sigma, hint? }`. `end` : payload `CalibrationStatus` (succès) ou `{ error }` (échec).
@@ -46,19 +45,18 @@ Stream `progress` : `{ state: "sampling"|"computing", samples_n, coverage_pct, s
 ### Streams capteurs live (livré)
 
 ```
-GET /sensors/tilt/stream?hz=5                # SSE TiltReading { pitch_deg, roll_deg, magnitude_deg }
 GET /sensors/compass/stream?hz=5             # SSE CompassReading { heading_deg, tilt_compensated, magnitude_uT }
 ```
 
 `hz` ∈ [1, 20]. Hors borne → `422`. Streams lazy : aucun I2C lu tant qu'aucun client connecté.
 
-### Courses ALT + à-propos (livré)
+### À propos (livré)
 
 ```
-GET  /limits/alt             # 200 { alt_min_deg, alt_max_deg }
-PUT  /limits/alt             { alt_min_deg, alt_max_deg }        # 422 hors borne
 GET  /about                  # 200 versions, IP/SSID, uptime, started_at
 ```
+
+_(Les endpoints Courses ALT `GET`/`PUT /limits/alt` ont été retirés le 2026-07-17 avec la feature Courses ALT — voir [ADR](../project/decisions.md).)_
 
 ### Backlash mount-side — reporté Macro 5
 
@@ -93,6 +91,6 @@ Reconnexion : SSE relance auto avec backoff exp `[1s, 2s, 4s, 10s]` côté clien
 
 ## Erreurs
 
-- `409 Conflict` : précondition non remplie (ex: `/goto` sans alignement, `/alignment/advance` sans tilt level). Message explicite dans le body.
+- `409 Conflict` : précondition non remplie (ex: `/goto` sans alignement). Message explicite dans le body.
 - `503 Service Unavailable` : sous-système hardware en `error` (monture déconnectée, I2C fail). Message + `subsystem` dans le body.
 - `400 Bad Request` : payload invalide (RA/Dec hors plage, valeurs incohérentes).

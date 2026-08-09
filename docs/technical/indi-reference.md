@@ -112,7 +112,7 @@ Config minimale AUX (à pousser dans `CONNECTION` + `DEVICE_PORT` + `PORT_TYPE`)
 | `CORDWRAP_POS` (AUX only) | Switch RW (1OFMANY) | `CORDWRAP_N`, `_E`, `_S`, `_W` | **position 24-bit côté monture**, mais l'UI INDI ne propose que les 4 cardinaux (`celestronaux.cpp:330-335`). En backend on peut envoyer un steps 24-bit arbitraire via `setCordWrapPosition(uint32_t)` (`celestronaux.h:241`) → `MC_SET_CORDWRAP_POS/0x3a`. |
 | `CW_BASE` (AUX only) | Switch RW (1OFMANY) | `CW_BASE_ENC`, `CW_BASE_SKY` | référentiel encodeurs (zéro home) vs alignement (zéro sky). |
 | `TELESCOPE_ENCODER_STEPS` (AUX) | Number RW | `AXIS_AZ`, `AXIS_ALT` | 24-bit raw, lecture/écriture directe. |
-| `LIMIT_POS` (AUX only) | Number RW | `SLEW_LIMIT_AXIS{1,2}_{MIN,MAX}` | **courses ALT/AZ** en degrés (`celestronaux.cpp:345-349`). Couvre Macro 2 setup courses. |
+| `LIMIT_POS` (AUX only) | Number RW | `SLEW_LIMIT_AXIS{1,2}_{MIN,MAX}` | **courses ALT/AZ** en degrés (`celestronaux.cpp:345-349`). Propriété driver disponible ; non consommée côté app depuis le retrait de la feature Courses ALT (2026-07-17, voir ADR). |
 | `AXIS1_LIMIT` / `AXIS2_LIMIT` (AUX only) | Switch RW | `INDI_ENABLED`, `INDI_DISABLED` | active/désactive les limites par axe. |
 | `HOME` (AUX only) | Switch RW | `AXIS1`, `AXIS2`, `ALL` | seek home (`celestronaux.cpp:316-319`) — homing physique sur SLT à confirmer (capacité hardware). |
 | `GUIDE_RATE` | Number RW | `GUIDE_RATE_WE`, `GUIDE_RATE_NS` | 0–1 × sidéral, pour pulse guiding. |

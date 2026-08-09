@@ -15,28 +15,15 @@ from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.calibration import router, stream_calibration
 from astro_brain.services.calibration import CalibrationServiceImpl
 
+from ._calibration_samples import full_sphere_samples as _full_sphere_samples
+
 # ---------------------------------------------------------------------------
-# Fake adapters (local — richer than the fakes in fakes.py because we need
+# Fake adapter (local — richer than the fakes in fakes.py because we need
 # to control sample content for threshold tests)
 # ---------------------------------------------------------------------------
 
-_IMMOBILE: list[tuple[float, float, float]] = [(1.0, 0.0, 0.0)] * 1_000_000
-_EMPTY: list[tuple[float, float, float]] = [(1.0, 0.0, 0.0)] * 1_000_000
 
-
-class _Adxl345:
-    def __init__(self, samples: list[tuple[float, float, float]]) -> None:
-        self._samples = samples
-        self._idx = 0
-
-    async def start(self) -> None: ...
-
-    async def stop(self) -> None: ...
-
-    async def read_raw_g(self) -> tuple[float, float, float]:
-        s = self._samples[min(self._idx, len(self._samples) - 1)]
-        self._idx += 1
-        return s
+_GOOD_COVERAGE: list[tuple[float, float, float]] = _full_sphere_samples(1_000)
 
 
 class _Lis3mdl:
@@ -61,7 +48,6 @@ class _Lis3mdl:
 _FAST = {
     "sample_period_s": 0.001,
     "progress_period_s": 0.005,
-    "adxl_min_samples": 100,
 }
 
 
@@ -83,16 +69,14 @@ async def db() -> AsyncIterator[aiosqlite.Connection]:
 def _make_app(
     db: aiosqlite.Connection,
     *,
-    adxl_samples: list[tuple[float, float, float]] | None = None,
+    lis_samples: list[tuple[float, float, float]] | None = None,
     **svc_kwargs,
 ) -> FastAPI:
     """Build a minimal FastAPI app with the calibration router wired."""
-    samples = adxl_samples if adxl_samples is not None else _IMMOBILE
+    samples = lis_samples if lis_samples is not None else _GOOD_COVERAGE
     svc = CalibrationServiceImpl(
         db=db,
-        adxl_mount=_Adxl345(samples),
-        adxl_tube=_Adxl345(samples),
-        lis3mdl=_Lis3mdl([(50.0, 0.0, 30.0)] * 1_000_000),
+        lis3mdl=_Lis3mdl(samples),
         **{**_FAST, **svc_kwargs},
     )
     app = FastAPI()
@@ -112,24 +96,24 @@ async def test_round_trip_start_finalize_status(db: aiosqlite.Connection) -> Non
     app = _make_app(db)
     with TestClient(app) as client:
         # Start
-        r = client.post("/calibration/adxl345_mount/start")
+        r = client.post("/calibration/lis3mdl/start")
         assert r.status_code == 202, r.text
         session_id = r.json()["session_id"]
         assert len(session_id) == 32
 
-        # Let the sampling task accumulate > 100 samples.
-        await asyncio.sleep(0.15)
+        # Let the sampling task accumulate past lis3mdl_min_samples (default 500).
+        await asyncio.sleep(0.7)
 
         # Finalize
-        r2 = client.post("/calibration/adxl345_mount/finalize")
+        r2 = client.post("/calibration/lis3mdl/finalize")
         assert r2.status_code == 200, r2.text
         body = r2.json()
-        assert body["sensor_id"] == "adxl345_mount"
+        assert body["sensor_id"] == "lis3mdl"
         assert body["calibrated_at"] is not None
         assert body["payload"] is not None
 
         # GET status
-        r3 = client.get("/calibration/adxl345_mount")
+        r3 = client.get("/calibration/lis3mdl")
         assert r3.status_code == 200, r3.text
         assert r3.json()["calibrated_at"] is not None
 
@@ -137,13 +121,13 @@ async def test_round_trip_start_finalize_status(db: aiosqlite.Connection) -> Non
 async def test_concurrent_start_returns_409(db: aiosqlite.Connection) -> None:
     app = _make_app(db)
     with TestClient(app) as client:
-        r1 = client.post("/calibration/adxl345_mount/start")
+        r1 = client.post("/calibration/lis3mdl/start")
         assert r1.status_code == 202
-        r2 = client.post("/calibration/adxl345_tube/start")
+        r2 = client.post("/calibration/lis3mdl/start")
         assert r2.status_code == 409
 
         # Clean up
-        client.post("/calibration/adxl345_mount/abort")
+        client.post("/calibration/lis3mdl/abort")
 
 
 def test_invalid_sensor_id_returns_400(db: aiosqlite.Connection) -> None:
@@ -157,17 +141,17 @@ def test_invalid_sensor_id_returns_400(db: aiosqlite.Connection) -> None:
 def test_finalize_no_session_returns_404(db: aiosqlite.Connection) -> None:
     app = _make_app(db)
     with TestClient(app) as client:
-        r = client.post("/calibration/adxl345_mount/finalize")
+        r = client.post("/calibration/lis3mdl/finalize")
         assert r.status_code == 404
 
 
 async def test_finalize_below_threshold_returns_422(db: aiosqlite.Connection) -> None:
     app = _make_app(db)
     with TestClient(app) as client:
-        r = client.post("/calibration/adxl345_mount/start")
+        r = client.post("/calibration/lis3mdl/start")
         assert r.status_code == 202
         # Finalize immediately — zero samples collected → insufficient samples.
-        r2 = client.post("/calibration/adxl345_mount/finalize")
+        r2 = client.post("/calibration/lis3mdl/finalize")
         assert r2.status_code == 422
 
 
@@ -187,19 +171,19 @@ def test_get_status_returns_empty_status_when_uncalibrated(
 async def test_abort_clears_session(db: aiosqlite.Connection) -> None:
     app = _make_app(db)
     with TestClient(app) as client:
-        r1 = client.post("/calibration/adxl345_mount/start")
+        r1 = client.post("/calibration/lis3mdl/start")
         assert r1.status_code == 202
 
-        r2 = client.post("/calibration/adxl345_mount/abort")
+        r2 = client.post("/calibration/lis3mdl/abort")
         assert r2.status_code == 200
         assert r2.json() == {"ok": True}
 
         # Starting again must succeed (no 409).
-        r3 = client.post("/calibration/adxl345_mount/start")
+        r3 = client.post("/calibration/lis3mdl/start")
         assert r3.status_code == 202
 
         # Clean up.
-        client.post("/calibration/adxl345_mount/abort")
+        client.post("/calibration/lis3mdl/abort")
 
 
 async def test_sse_stream_yields_progress_then_end_on_session_clear(
@@ -210,7 +194,7 @@ async def test_sse_stream_yields_progress_then_end_on_session_clear(
     # Extract the calibration service to abort it mid-stream.
     svc = app.state.calibration_service
 
-    session_id = await svc.start("adxl345_mount")
+    session_id = await svc.start("lis3mdl")
 
     # Let a few samples accumulate.
     await asyncio.sleep(0.02)
@@ -220,7 +204,7 @@ async def test_sse_stream_yields_progress_then_end_on_session_clear(
     fake_request.is_disconnected = AsyncMock(return_value=False)
 
     response = await stream_calibration(
-        sensor_id="adxl345_mount",
+        sensor_id="lis3mdl",
         request=fake_request,
         session_id=session_id,
         service=svc,

@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 
 import '../models/about.dart';
 import '../models/calibration.dart';
-import '../models/limits.dart';
 import '../models/system_state.dart';
 import 'pi_host.dart';
 
@@ -207,48 +206,6 @@ class ApiService {
         statusCode: resp.statusCode,
       );
     }
-  }
-
-  // -------------------------------------------------------------------------
-  // Mount limits endpoints (v0.2 : ALT only)
-  // -------------------------------------------------------------------------
-
-  /// Retourne les limites ALT persistées, ou `null` si jamais définies (404).
-  Future<AltLimits?> getAltLimits() async {
-    final resp = await _client
-        .get(host.restUri('/limits/alt'))
-        .timeout(_timeout);
-    if (resp.statusCode == 404) {
-      return null;
-    }
-    if (resp.statusCode != 200) {
-      throw ApiException(
-        'GET /limits/alt failed',
-        statusCode: resp.statusCode,
-      );
-    }
-    return AltLimits.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
-  }
-
-  /// Persiste les limites ALT et retourne la valeur enregistrée.
-  ///
-  /// Le backend valide `min < max` et un écart minimum de 30° et renvoie
-  /// `422` sur violation — propagé via [ApiException].
-  Future<AltLimits> putAltLimits(AltLimits limits) async {
-    final resp = await _client
-        .put(
-          host.restUri('/limits/alt'),
-          headers: const {'content-type': 'application/json'},
-          body: jsonEncode(limits.toJson()),
-        )
-        .timeout(_timeout);
-    if (resp.statusCode != 200) {
-      throw ApiException(
-        'PUT /limits/alt failed',
-        statusCode: resp.statusCode,
-      );
-    }
-    return AltLimits.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
   }
 
   // -------------------------------------------------------------------------
