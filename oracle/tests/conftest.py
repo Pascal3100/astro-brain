@@ -18,3 +18,8 @@ def fallback_comets_path() -> Path:
 @pytest.fixture
 def fallback_open_ngc_path() -> Path:
     return oracle.data_dir() / "OpenNGC.fallback.csv"
+
+
+@pytest.fixture
+def fallback_iau_csn_path() -> Path:
+    return oracle.data_dir() / "IAU-CSN.fallback.txt"
