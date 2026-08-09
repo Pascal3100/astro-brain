@@ -10,6 +10,11 @@ from oracle.sources._fetch import fetch_with_fallback
 
 IAU_CSN_URL = "https://www.pas.rochester.edu/~emamajek/WGSN/IAU-CSN.txt"
 
+# IAU-CSN.txt is fixed-width; the Name/ASCII field occupies characters [0:18]
+# (the next field, Name/Diacritics, begins at column 18). Splitting on
+# whitespace would truncate multi-word names like "Alula Australis".
+_NAME_ASCII_END = 18
+
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -54,7 +59,7 @@ def load_stars(path: Path) -> list[StarRecord]:
         dec = _float_or_none(toks[date_idx - 1])
         if ra is None or dec is None:
             continue
-        name = toks[0]
+        name = line[:_NAME_ASCII_END].strip()
         hip = _tok_or_none(toks[date_idx - 4])
         mag = _float_or_none(toks[date_idx - 6])
         con = _tok_or_none(toks[date_idx - 9])

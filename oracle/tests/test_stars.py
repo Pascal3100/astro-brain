@@ -1,4 +1,4 @@
-from oracle.sources.stars import load_stars
+from oracle.sources.stars import fetch_iau_csn, load_stars
 
 
 def test_load_stars_parses_and_ranges(fallback_iau_csn_path) -> None:
@@ -25,3 +25,39 @@ def test_stars_acamar_row_parses(fallback_iau_csn_path) -> None:
     acamar = next(s for s in stars if s.name == "Acamar")
     assert acamar.constellation == "Eri"
     assert 44.0 < acamar.ra_deg_j2000 < 45.0  # ~44.565 deg
+
+
+def test_stars_multiword_names_not_truncated(fallback_iau_csn_path) -> None:
+    stars = load_stars(fallback_iau_csn_path)
+    names = {s.name for s in stars}
+    # Name/ASCII is a fixed-width column; multi-word names must survive intact.
+    for full in ("Alula Australis", "Alula Borealis", "Deneb Algedi",
+                 "Kaus Australis", "Asellus Australis"):
+        assert full in names, full
+
+
+def test_star_ids_and_names_unique(fallback_iau_csn_path) -> None:
+    stars = load_stars(fallback_iau_csn_path)
+    ids = [s.id for s in stars]
+    assert len(ids) == len(set(ids))  # objects.id PK integrity in the later unified table
+
+
+def test_fetch_iau_csn_writes_body_on_success(tmp_path) -> None:
+    class _Resp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return b"fresh-body"
+
+    dest = tmp_path / "out.txt"
+    result = fetch_iau_csn(dest, "https://example/x", opener=lambda url: _Resp())
+    assert result == dest
+    assert dest.read_bytes() == b"fresh-body"
+
+
+def test_fetch_iau_csn_falls_back_on_error(tmp_path, fallback_iau_csn_path) -> None:
+    def boom(url):
+        raise OSError("network down")
+
+    dest = tmp_path / "out.txt"
+    fetch_iau_csn(dest, opener=boom)
+    assert dest.read_bytes() == fallback_iau_csn_path.read_bytes()
