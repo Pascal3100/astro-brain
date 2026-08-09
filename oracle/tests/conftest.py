@@ -13,3 +13,8 @@ def kernel_path() -> Path:
 @pytest.fixture
 def fallback_comets_path() -> Path:
     return oracle.data_dir() / "CometEls.fallback.txt"
+
+
+@pytest.fixture
+def fallback_open_ngc_path() -> Path:
+    return oracle.data_dir() / "OpenNGC.fallback.csv"
