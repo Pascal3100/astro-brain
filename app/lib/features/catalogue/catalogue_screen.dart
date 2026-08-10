@@ -48,14 +48,24 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: const [
-              AstroAppBar(current: AstroScreen.catalogue),
-              _NotAlignedBanner(),
-              _Filters(),
-              Expanded(child: _ObjectList()),
-              _SlewBarSlot(),
-            ],
+          child: BlocListener<CatalogueBloc, CatalogueState>(
+            listenWhen: (p, c) =>
+                c is CatalogueLoaded && c.gotoOutcome is GotoError,
+            listener: (ctx, state) {
+              final outcome = (state as CatalogueLoaded).gotoOutcome as GotoError;
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                SnackBar(content: Text(outcome.message)),
+              );
+            },
+            child: Column(
+              children: const [
+                AstroAppBar(current: AstroScreen.catalogue),
+                _NotAlignedBanner(),
+                _Filters(),
+                Expanded(child: _ObjectList()),
+                _SlewBarSlot(),
+              ],
+            ),
           ),
         ),
       ),
@@ -238,9 +248,7 @@ class _ObjectList extends StatelessWidget {
       builder: (_) => CatalogueDetailSheet(
         object: obj,
         isAligned: isAligned,
-        onGoto: () => bloc.add(
-          GoToRequested(obj.raDeg, obj.decDeg, obj.name),
-        ),
+        onGoto: () => bloc.add(GoToRequested(obj.qualifiedId)),
       ),
     );
   }

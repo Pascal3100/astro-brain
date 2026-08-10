@@ -2,6 +2,7 @@ import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:stream_transform/stream_transform.dart';
 
+import '../../services/api_service.dart';
 import 'catalogue_event.dart';
 import 'catalogue_models.dart';
 import 'catalogue_repository.dart';
@@ -12,6 +13,18 @@ const _debounce = Duration(milliseconds: 300);
 
 EventTransformer<E> _debounced<E>() =>
     (events, mapper) => droppable<E>()(events.debounce(_debounce), mapper);
+
+/// Traduit le `detail` d'une erreur GoTo backend en message FR.
+/// `solar_ack_required` n'a pas de message : il déclenche le dialogue.
+String messageForGotoDetail(String? detail) => switch (detail) {
+      'reference_unavailable' =>
+        'Almanach indisponible — lance une resynchronisation dans Réglages.',
+      'ephemeris_stale' => 'Éphémérides périmées pour cet objet.',
+      'not_aligned' => 'Monture non alignée — aligne d\'abord.',
+      'goto_in_progress' => 'Un GoTo est déjà en cours.',
+      'unknown_id' => 'Objet introuvable côté monture.',
+      _ => 'GoTo impossible.',
+    };
 
 /// Bloc de la page Catalogue : liste/recherche/filtres + déclenchement GoTo.
 /// Les statuts transverses (is_aligned, goto_in_progress, fix GPS) viennent
@@ -112,10 +125,18 @@ class CatalogueBloc extends Bloc<CatalogueEvent, CatalogueState> {
       _query(emit, _filters.copyWith(visibleNow: e.enabled));
 
   Future<void> _onGoTo(GoToRequested e, Emitter<CatalogueState> emit) async {
+    final current = state;
+    if (current is! CatalogueLoaded) return;
     try {
-      await repo.goto(e.raDeg, e.decDeg, e.targetName);
-    } catch (err) {
-      emit(CatalogueError(err.toString(), _filters));
+      await repo.goto(e.id, confirmSolar: e.confirmSolar);
+    } on ApiException catch (err) {
+      // solar_ack_required est intercepté à la Task 4 ; ici → message générique.
+      emit(current.copyWith(gotoOutcome: GotoError(
+          messageForGotoDetail(err.detail))));
+      emit(current.copyWith(clearOutcome: true));
+    } catch (_) {
+      emit(current.copyWith(gotoOutcome: const GotoError('GoTo impossible.')));
+      emit(current.copyWith(clearOutcome: true));
     }
   }
 

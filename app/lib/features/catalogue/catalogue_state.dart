@@ -2,6 +2,30 @@ import 'package:equatable/equatable.dart';
 
 import 'catalogue_models.dart';
 
+/// Résultat transitoire (one-shot) d'un GoTo, consommé par un BlocListener.
+sealed class GotoOutcome extends Equatable {
+  const GotoOutcome();
+  @override
+  List<Object?> get props => [];
+}
+
+/// GoTo rejeté : message FR à afficher (SnackBar). N'efface pas la liste.
+class GotoError extends GotoOutcome {
+  const GotoError(this.message);
+  final String message;
+  @override
+  List<Object?> get props => [message];
+}
+
+/// Le backend exige un acquittement solaire (409 solar_ack_required) pour
+/// l'objet [objectId]. Déclenche le dialogue d'avertissement (Task 4).
+class GotoSolarAck extends GotoOutcome {
+  const GotoSolarAck(this.objectId);
+  final String objectId;
+  @override
+  List<Object?> get props => [objectId];
+}
+
 /// Filtres actifs de la page (recherche, magnitude max, visible maintenant,
 /// constellation). [constellation] est l'abréviation IAU (ex. `CMa`), `null`
 /// = toutes ; ce filtre est appliqué côté app (la liste est déjà chargée).
@@ -57,6 +81,7 @@ class CatalogueLoaded extends CatalogueState {
     required this.objects,
     required this.filters,
     this.availableConstellations = const [],
+    this.gotoOutcome,
   });
 
   /// Objets affichés (déjà filtrés par constellation côté app).
@@ -67,8 +92,27 @@ class CatalogueLoaded extends CatalogueState {
   /// (avant filtre constellation), triées par nom complet — alimente le menu.
   final List<String> availableConstellations;
 
+  /// Outcome transitoire d'un GoTo (SnackBar / dialogue), `null` au repos.
+  final GotoOutcome? gotoOutcome;
+
+  CatalogueLoaded copyWith({
+    List<CatalogObjectDto>? objects,
+    CatalogueFilters? filters,
+    List<String>? availableConstellations,
+    GotoOutcome? gotoOutcome,
+    bool clearOutcome = false,
+  }) =>
+      CatalogueLoaded(
+        objects: objects ?? this.objects,
+        filters: filters ?? this.filters,
+        availableConstellations:
+            availableConstellations ?? this.availableConstellations,
+        gotoOutcome: clearOutcome ? null : (gotoOutcome ?? this.gotoOutcome),
+      );
+
   @override
-  List<Object?> get props => [objects, filters, availableConstellations];
+  List<Object?> get props =>
+      [objects, filters, availableConstellations, gotoOutcome];
 }
 
 class CatalogueError extends CatalogueState {

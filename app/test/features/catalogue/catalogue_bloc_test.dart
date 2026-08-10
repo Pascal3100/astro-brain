@@ -3,6 +3,7 @@ import 'package:astro_brain/features/catalogue/catalogue_event.dart';
 import 'package:astro_brain/features/catalogue/catalogue_models.dart';
 import 'package:astro_brain/features/catalogue/catalogue_repository.dart';
 import 'package:astro_brain/features/catalogue/catalogue_state.dart';
+import 'package:astro_brain/services/api_service.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -65,16 +66,6 @@ void main() {
   );
 
   blocTest<CatalogueBloc, CatalogueState>(
-    'GoToRequested calls repo.goto',
-    build: () {
-      when(() => repo.goto(any(), any(), any())).thenAnswer((_) async {});
-      return CatalogueBloc(repo: repo);
-    },
-    act: (b) => b.add(const GoToRequested(101.0, -16.0, 'Sirius')),
-    verify: (_) => verify(() => repo.goto(101.0, -16.0, 'Sirius')).called(1),
-  );
-
-  blocTest<CatalogueBloc, CatalogueState>(
     'CatalogueOpened error → CatalogueError',
     build: () {
       when(() => repo.listObjects(
@@ -89,14 +80,57 @@ void main() {
   );
 
   blocTest<CatalogueBloc, CatalogueState>(
-    'GoToRequested failure → CatalogueError',
+    'GoTo OK → aucun CatalogueError, liste préservée',
     build: () {
-      when(() => repo.goto(any(), any(), any()))
-          .thenThrow(Exception('rejected'));
+      when(() => repo.listObjects(
+              search: any(named: 'search'),
+              maxMag: any(named: 'maxMag'),
+              visibleNow: any(named: 'visibleNow')))
+          .thenAnswer((_) async => [_vega()]);
+      when(() => repo.goto(any(), confirmSolar: any(named: 'confirmSolar')))
+          .thenAnswer((_) async {});
       return CatalogueBloc(repo: repo);
     },
-    act: (b) => b.add(const GoToRequested(101.0, -16.0, 'Sirius')),
-    expect: () => [isA<CatalogueError>()],
+    act: (b) async {
+      b.add(const CatalogueOpened());
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      b.add(const GoToRequested('star:vega'));
+    },
+    expect: () => [
+      isA<CatalogueLoading>(),
+      isA<CatalogueLoaded>(),
+    ],
+    verify: (_) => verify(
+        () => repo.goto('star:vega', confirmSolar: false)).called(1),
+  );
+
+  blocTest<CatalogueBloc, CatalogueState>(
+    'GoTo not_aligned → GotoError, liste préservée',
+    build: () {
+      when(() => repo.listObjects(
+              search: any(named: 'search'),
+              maxMag: any(named: 'maxMag'),
+              visibleNow: any(named: 'visibleNow')))
+          .thenAnswer((_) async => [_vega()]);
+      when(() => repo.goto(any(), confirmSolar: any(named: 'confirmSolar')))
+          .thenThrow(ApiException('POST /goto failed',
+              statusCode: 409, detail: 'not_aligned'));
+      return CatalogueBloc(repo: repo);
+    },
+    act: (b) async {
+      b.add(const CatalogueOpened());
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      b.add(const GoToRequested('star:vega'));
+    },
+    expect: () => [
+      isA<CatalogueLoading>(),
+      isA<CatalogueLoaded>().having((s) => s.gotoOutcome, 'outcome', isNull),
+      isA<CatalogueLoaded>().having(
+          (s) => (s.gotoOutcome as GotoError?)?.message,
+          'msg',
+          contains('non alignée')),
+      isA<CatalogueLoaded>().having((s) => s.gotoOutcome, 'cleared', isNull),
+    ],
   );
 
   CatalogObjectDto sirius() => const CatalogObjectDto(

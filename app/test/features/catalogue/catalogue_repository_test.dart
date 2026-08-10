@@ -41,12 +41,20 @@ void main() {
     expect(query['limit'], '500');
   });
 
-  test('goto posts ra/dec/target_name', () async {
+  test('goto posts {id, confirm_solar}', () async {
     when(() => api.postJson(any(), any())).thenAnswer((_) async => {});
     final repo = CatalogueRepository(api: api);
-    await repo.goto(101.0, -16.0, 'Sirius');
-    verify(() => api.postJson('/goto',
-        {'ra_deg': 101.0, 'dec_deg': -16.0, 'target_name': 'Sirius'})).called(1);
+    await repo.goto('star:sirius', confirmSolar: true);
+    verify(() => api.postJson(
+        '/goto', {'id': 'star:sirius', 'confirm_solar': true})).called(1);
+  });
+
+  test('goto défaut confirm_solar=false', () async {
+    when(() => api.postJson(any(), any())).thenAnswer((_) async => {});
+    final repo = CatalogueRepository(api: api);
+    await repo.goto('planet:mars');
+    verify(() => api.postJson(
+        '/goto', {'id': 'planet:mars', 'confirm_solar': false})).called(1);
   });
 
   test('abort posts /stop', () async {

@@ -24,13 +24,11 @@ class CatalogueRepository {
         .toList();
   }
 
-  /// POST /goto — pointe la monture sur les coordonnées de l'objet.
-  Future<void> goto(double raDeg, double decDeg, String? targetName) async {
-    await api.postJson('/goto', {
-      'ra_deg': raDeg,
-      'dec_deg': decDeg,
-      'target_name': targetName,
-    });
+  /// POST /goto — pointe la monture sur l'objet identifié par [id].
+  /// [confirmSolar] à `true` acquitte l'avertissement solaire (cf. flux
+  /// server-driven : n'est envoyé qu'après un 409 `solar_ack_required`).
+  Future<void> goto(String id, {bool confirmSolar = false}) async {
+    await api.postJson('/goto', {'id': id, 'confirm_solar': confirmSolar});
   }
 
   /// Abort : réutilise le POST /stop existant (TELESCOPE_ABORT_MOTION).

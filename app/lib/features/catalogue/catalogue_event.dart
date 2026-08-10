@@ -42,12 +42,11 @@ class ConstellationChanged extends CatalogueEvent {
 }
 
 class GoToRequested extends CatalogueEvent {
-  const GoToRequested(this.raDeg, this.decDeg, this.targetName);
-  final double raDeg;
-  final double decDeg;
-  final String targetName;
+  const GoToRequested(this.id, {this.confirmSolar = false});
+  final String id;
+  final bool confirmSolar;
   @override
-  List<Object?> get props => [raDeg, decDeg, targetName];
+  List<Object?> get props => [id, confirmSolar];
 }
 
 class AbortRequested extends CatalogueEvent {
