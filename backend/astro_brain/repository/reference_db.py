@@ -1,4 +1,3 @@
-# backend/astro_brain/repository/reference_db.py
 """Connexion lecture seule à `reference.sqlite` (artefact SP1, jetable).
 
 Fichier distinct de `state.db` : RO, remplacé en bloc par la sync. Le handle
@@ -101,10 +100,18 @@ class ReferenceDb:
         return conn
 
     async def open(self) -> None:
-        """Open (or replace) the current connection under the instance lock."""
+        """Open (or replace) the current connection under the instance lock.
+
+        `self._conn` is reset to `None` before attempting to open the new
+        connection, so that an unexpected exception from `_open_supported`
+        (bad path, permission error, TOCTOU race where the file disappears
+        between `exists()` and `connect()`) never leaves `ready` reporting
+        `True` while `current()` would return a closed connection.
+        """
         async with self._lock:
             if self._conn is not None:
                 await self._conn.close()
+            self._conn = None
             self._conn = await self._open_supported()
 
     async def reopen(self) -> None:

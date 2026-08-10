@@ -1,9 +1,9 @@
-# backend/tests/test_reference_db.py
 from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
 
+import aiosqlite
 import pytest
 
 from astro_brain.repository.reference_db import (
@@ -59,3 +59,22 @@ async def test_open_future_schema_is_rejected(tmp_path: Path) -> None:
 
 def test_local_sha256_absent_is_none(tmp_path: Path) -> None:
     assert local_sha256(tmp_path / "nope.sqlite") is None
+
+
+async def test_open_failure_after_ready_resets_ready_to_false(tmp_path: Path) -> None:
+    p = tmp_path / "reference.sqlite"
+    _write_min_v2(p, schema_version=2)
+    ref = ReferenceDb(p)
+    await ref.open()
+    assert ref.ready is True
+
+    async def _boom() -> aiosqlite.Connection | None:
+        raise RuntimeError("boom")
+
+    ref._open_supported = _boom  # type: ignore[method-assign]
+
+    with pytest.raises(RuntimeError):
+        await ref.open()
+
+    assert ref.ready is False
+    assert ref.current() is None
