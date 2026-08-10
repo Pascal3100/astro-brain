@@ -21,14 +21,33 @@ enum Direction {
   String toJson() => this == Direction.plus ? '+' : '-';
 }
 
+/// Extrait `detail` d'un corps d'erreur FastAPI (`{"detail": "..."}`).
+/// Best-effort : retourne `null` si le corps n'est pas ce JSON.
+String? _detailOf(String body) {
+  try {
+    final decoded = jsonDecode(body);
+    if (decoded is Map<String, dynamic>) {
+      final d = decoded['detail'];
+      if (d is String) return d;
+    }
+  } catch (_) {
+    // corps non-JSON : pas de detail
+  }
+  return null;
+}
+
 class ApiException implements Exception {
-  ApiException(this.message, {this.statusCode});
+  ApiException(this.message, {this.statusCode, this.detail});
 
   final String message;
   final int? statusCode;
 
+  /// Valeur du champ `detail` du corps JSON d'erreur FastAPI
+  /// (`{"detail": "..."}`), ou `null` si le corps n'est pas ce JSON.
+  final String? detail;
+
   @override
-  String toString() => 'ApiException($statusCode): $message';
+  String toString() => 'ApiException($statusCode): $message${detail != null ? ' [$detail]' : ''}';
 }
 
 /// Client REST vers le backend FastAPI. Un timeout court (3 s) sur toutes
@@ -86,7 +105,8 @@ class ApiService {
         )
         .timeout(_timeout);
     if (resp.statusCode != 200) {
-      throw ApiException('POST $path failed', statusCode: resp.statusCode);
+      throw ApiException('POST $path failed',
+          statusCode: resp.statusCode, detail: _detailOf(resp.body));
     }
   }
 
@@ -102,7 +122,8 @@ class ApiService {
   }) async {
     final resp = await _client.get(host.restUri(path, query)).timeout(_timeout);
     if (resp.statusCode != 200) {
-      throw ApiException('GET $path failed', statusCode: resp.statusCode);
+      throw ApiException('GET $path failed',
+          statusCode: resp.statusCode, detail: _detailOf(resp.body));
     }
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
@@ -120,7 +141,8 @@ class ApiService {
         )
         .timeout(_timeout);
     if (resp.statusCode != 200) {
-      throw ApiException('POST $path failed', statusCode: resp.statusCode);
+      throw ApiException('POST $path failed',
+          statusCode: resp.statusCode, detail: _detailOf(resp.body));
     }
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
