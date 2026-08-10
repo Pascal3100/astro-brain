@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
+from datetime import datetime, timedelta
 from typing import Any, Protocol
 
 import aiosqlite
 
 from astro_brain.repository.reference_db import ReferenceDb
+from astro_brain.services.catalog.interpolation import interpolate_radec, parse_utc
 from astro_brain.services.catalog.models import CatalogFilter, CatalogObject
 
 _SELECT_COLUMNS = (
@@ -181,3 +184,127 @@ class FixedObjectProvider:
         row = await cursor.fetchone()
         await cursor.close()
         return _fixed_row_to_object(row) if row is not None else None
+
+
+class EphemerisProvider:
+    """Objets éphémères (comet/planet/moon/sun), RA/Dec interpolé à `now`."""
+
+    KINDS = ("comet", "planet", "moon", "sun")
+
+    def __init__(
+        self, reference: ReferenceDb, *, now_utc: Callable[[], datetime]
+    ) -> None:
+        """Store the `ReferenceDb` handle and the injected "now" clock."""
+        self._reference = reference
+        self._now_utc = now_utc
+
+    def _kinds_clause(self, filter: CatalogFilter) -> tuple[str, list[Any]]:
+        """Return a `(sql_fragment, params)` pair restricting `o.kind`."""
+        if filter.kind in self.KINDS:
+            return "o.kind = ?", [filter.kind]
+        placeholders = ", ".join("?" for _ in self.KINDS)
+        return f"o.kind IN ({placeholders})", list(self.KINDS)
+
+    async def _rows_for(
+        self, conn: aiosqlite.Connection, where: str, params: list[Any]
+    ) -> dict[str, list[tuple[Any, ...]]]:
+        """Fetch ephemeris rows matching `where`, grouped by `object_id`."""
+        cursor = await conn.execute(
+            "SELECT e.object_id, o.kind, o.name, o.designation, e.sample_utc,"
+            " e.ra_deg, e.dec_deg, e.apparent_mag, e.illumination,"
+            " e.constellation FROM ephemeris e JOIN objects o"
+            f" ON o.id = e.object_id WHERE {where} ORDER BY e.object_id,"
+            " e.sample_utc",
+            tuple(params),
+        )
+        rows = await cursor.fetchall()
+        await cursor.close()
+        grouped: dict[str, list[tuple[Any, ...]]] = {}
+        for r in rows:
+            grouped.setdefault(r[0], []).append(r)
+        return grouped
+
+    def _build(
+        self, samples: list[tuple[Any, ...]], now: datetime
+    ) -> CatalogObject | None:
+        """Build a `CatalogObject` interpolated at `now` from `samples`."""
+        if not samples:
+            return None
+        parsed = [(parse_utc(s[4]), s) for s in samples]
+        before = [p for p in parsed if p[0] <= now]
+        after = [p for p in parsed if p[0] >= now]
+        stale = not (before and after)
+        if not stale:
+            b, a = before[-1], after[0]
+            ra, dec = interpolate_radec(
+                (b[0], b[1][5], b[1][6]), (a[0], a[1][5], a[1][6]), now
+            )
+            src = b[1]
+        else:
+            # échantillon-frontière le plus proche de `now`
+            src = min(parsed, key=lambda p: abs((p[0] - now).total_seconds()))[1]
+            ra, dec = src[5], src[6]
+        return CatalogObject(
+            qualified_id=src[0],
+            kind=src[1],
+            name=src[2] if src[2] is not None else (src[3] or src[0]),
+            designation=src[3],
+            ra_deg=ra,
+            dec_deg=dec,
+            mag=src[7],
+            illumination=src[8],
+            constellation=src[9],
+            ephemeris_stale=stale,
+        )
+
+    async def list_objects(self, filter: CatalogFilter) -> list[CatalogObject]:
+        """Return interpolated ephemeris objects matching `filter`.
+
+        Only objects with a sample before *and* after `now` (within the
+        query window) are returned; out-of-window objects are omitted.
+        """
+        conn = self._reference.current()
+        if conn is None:
+            return []
+        now = self._now_utc()
+        clause, params = self._kinds_clause(filter)
+        lo = (now - timedelta(days=1, hours=12)).isoformat()
+        hi = (now + timedelta(days=1, hours=12)).isoformat()
+        where = f"{clause} AND e.sample_utc BETWEEN ? AND ?"
+        grouped = await self._rows_for(conn, where, params + [lo, hi])
+        objs: list[CatalogObject] = []
+        for samples in grouped.values():
+            obj = self._build(samples, now)
+            if obj is None or obj.ephemeris_stale:
+                continue  # list n'affiche que du plaçable
+            if filter.max_mag is not None and (
+                obj.mag is None or obj.mag > filter.max_mag
+            ):
+                continue
+            if filter.search:
+                needle = filter.search.lower()
+                hay = f"{obj.name} {obj.designation or ''}".lower()
+                if needle not in hay:
+                    continue
+            objs.append(obj)
+        objs.sort(key=lambda o: (o.mag if o.mag is not None else float("inf"),
+                                 o.name))
+        return objs[filter.offset : filter.offset + filter.limit]
+
+    async def get_object(self, obj_id: str) -> CatalogObject | None:
+        """Return the ephemeris object `obj_id`, interpolated or stale.
+
+        `None` if the id has no ephemeris sample at all; otherwise
+        interpolated (`ephemeris_stale=False`) when `now` falls within its
+        samples, or the nearest boundary sample with `ephemeris_stale=True`
+        when `now` is outside the sampled window.
+        """
+        conn = self._reference.current()
+        if conn is None:
+            return None
+        now = self._now_utc()
+        grouped = await self._rows_for(conn, "e.object_id = ?", [obj_id])
+        samples = grouped.get(obj_id)
+        if not samples:
+            return None
+        return self._build(samples, now)
