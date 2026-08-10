@@ -85,3 +85,11 @@ def get_visibility_enricher(request: Request) -> Any:
 def get_position_provider(request: Request) -> Any:
     """Fournit le provider de position (fix Pi → téléphone → None)."""
     return request.app.state.position_provider
+
+
+def get_reference_db(request: Request) -> Any:
+    return request.app.state.reference_db
+
+
+def get_reference_sync(request: Request) -> Any:
+    return request.app.state.reference_sync
