@@ -13,11 +13,15 @@ class CatalogueRepository {
     String? search,
     double? maxMag,
     bool visibleNow = false,
+    String? kind,
+    bool messier = false,
   }) async {
     final params = <String, String>{'limit': '500'};
     if (search != null && search.isNotEmpty) params['search'] = search;
     if (maxMag != null) params['max_mag'] = maxMag.toString();
     if (visibleNow) params['visible_now'] = 'true';
+    if (kind != null) params['kind'] = kind;
+    if (messier) params['messier'] = 'true';
     final j = await api.getJson('/catalog/objects', query: params);
     return (j['objects'] as List)
         .map((e) => CatalogObjectDto.fromJson(e as Map<String, dynamic>))

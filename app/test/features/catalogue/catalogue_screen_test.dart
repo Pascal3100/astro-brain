@@ -103,6 +103,8 @@ void main() {
         search: any(named: 'search'),
         maxMag: any(named: 'maxMag'),
         visibleNow: any(named: 'visibleNow'),
+        kind: any(named: 'kind'),
+        messier: any(named: 'messier'),
       ),
     ).thenAnswer((_) async => <CatalogObjectDto>[]);
 

@@ -35,20 +35,27 @@ class CatalogueFilters extends Equatable {
     this.maxMag,
     this.visibleNow = true,
     this.constellation,
+    this.kind,
+    this.messierOnly = false,
   });
 
   final String search;
   final double? maxMag;
   final bool visibleNow;
   final String? constellation;
+  final String? kind;
+  final bool messierOnly;
 
   CatalogueFilters copyWith({
     String? search,
     double? maxMag,
     bool? visibleNow,
     String? constellation,
+    String? kind,
+    bool? messierOnly,
     bool clearMaxMag = false,
     bool clearConstellation = false,
+    bool clearKind = false,
   }) =>
       CatalogueFilters(
         search: search ?? this.search,
@@ -56,10 +63,13 @@ class CatalogueFilters extends Equatable {
         visibleNow: visibleNow ?? this.visibleNow,
         constellation:
             clearConstellation ? null : (constellation ?? this.constellation),
+        kind: clearKind ? null : (kind ?? this.kind),
+        messierOnly: messierOnly ?? this.messierOnly,
       );
 
   @override
-  List<Object?> get props => [search, maxMag, visibleNow, constellation];
+  List<Object?> get props =>
+      [search, maxMag, visibleNow, constellation, kind, messierOnly];
 }
 
 /// États de la page Catalogue.

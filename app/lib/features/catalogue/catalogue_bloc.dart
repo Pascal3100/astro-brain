@@ -37,6 +37,8 @@ class CatalogueBloc extends Bloc<CatalogueEvent, CatalogueState> {
     on<MagFilterChanged>(_onMag);
     on<VisibleNowToggled>(_onVisible);
     on<ConstellationChanged>(_onConstellation);
+    on<KindFilterChanged>(_onKind);
+    on<MessierToggled>(_onMessier);
     on<GoToRequested>(_onGoTo);
     on<AbortRequested>(_onAbort);
   }
@@ -91,6 +93,8 @@ class CatalogueBloc extends Bloc<CatalogueEvent, CatalogueState> {
         search: filters.search,
         maxMag: filters.maxMag,
         visibleNow: filters.visibleNow,
+        kind: filters.kind,
+        messier: filters.messierOnly,
       );
       _emitLoaded(emit, filters);
     } catch (e) {
@@ -123,6 +127,16 @@ class CatalogueBloc extends Bloc<CatalogueEvent, CatalogueState> {
 
   Future<void> _onVisible(VisibleNowToggled e, Emitter<CatalogueState> emit) =>
       _query(emit, _filters.copyWith(visibleNow: e.enabled));
+
+  Future<void> _onKind(KindFilterChanged e, Emitter<CatalogueState> emit) =>
+      _query(
+          emit,
+          e.kind == null
+              ? _filters.copyWith(clearKind: true)
+              : _filters.copyWith(kind: e.kind));
+
+  Future<void> _onMessier(MessierToggled e, Emitter<CatalogueState> emit) =>
+      _query(emit, _filters.copyWith(messierOnly: e.enabled));
 
   Future<void> _onGoTo(GoToRequested e, Emitter<CatalogueState> emit) async {
     final current = state;
