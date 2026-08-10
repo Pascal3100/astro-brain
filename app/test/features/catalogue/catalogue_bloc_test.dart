@@ -133,6 +133,33 @@ void main() {
     ],
   );
 
+  blocTest<CatalogueBloc, CatalogueState>(
+    'GoTo solar_ack_required → GotoSolarAck(id)',
+    build: () {
+      when(() => repo.listObjects(
+              search: any(named: 'search'),
+              maxMag: any(named: 'maxMag'),
+              visibleNow: any(named: 'visibleNow')))
+          .thenAnswer((_) async => [_vega()]);
+      when(() => repo.goto(any(), confirmSolar: any(named: 'confirmSolar')))
+          .thenThrow(ApiException('POST /goto failed',
+              statusCode: 409, detail: 'solar_ack_required'));
+      return CatalogueBloc(repo: repo);
+    },
+    act: (b) async {
+      b.add(const CatalogueOpened());
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      b.add(const GoToRequested('sun:sun'));
+    },
+    expect: () => [
+      isA<CatalogueLoading>(),
+      isA<CatalogueLoaded>(),
+      isA<CatalogueLoaded>().having(
+          (s) => (s.gotoOutcome as GotoSolarAck?)?.objectId, 'id', 'sun:sun'),
+      isA<CatalogueLoaded>().having((s) => s.gotoOutcome, 'cleared', isNull),
+    ],
+  );
+
   CatalogObjectDto sirius() => const CatalogObjectDto(
         qualifiedId: 'star:sirius',
         kind: 'star',

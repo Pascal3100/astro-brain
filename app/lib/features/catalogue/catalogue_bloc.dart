@@ -130,7 +130,11 @@ class CatalogueBloc extends Bloc<CatalogueEvent, CatalogueState> {
     try {
       await repo.goto(e.id, confirmSolar: e.confirmSolar);
     } on ApiException catch (err) {
-      // solar_ack_required est intercepté à la Task 4 ; ici → message générique.
+      if (err.detail == 'solar_ack_required') {
+        emit(current.copyWith(gotoOutcome: GotoSolarAck(e.id)));
+        emit(current.copyWith(clearOutcome: true));
+        return;
+      }
       emit(current.copyWith(gotoOutcome: GotoError(
           messageForGotoDetail(err.detail))));
       emit(current.copyWith(clearOutcome: true));

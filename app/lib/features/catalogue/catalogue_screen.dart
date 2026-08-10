@@ -15,6 +15,7 @@ import 'constellations.dart';
 import 'widgets/catalogue_detail_sheet.dart';
 import 'widgets/catalogue_object_card.dart';
 import 'widgets/goto_slew_bar.dart';
+import 'widgets/solar_warning_dialog.dart';
 
 /// Page Catalogue — Macro 3 #5. Liste cherchable/filtrable d'objets célestes
 /// avec GoTo conditionné à l'alignement.
@@ -50,12 +51,22 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
         child: SafeArea(
           child: BlocListener<CatalogueBloc, CatalogueState>(
             listenWhen: (p, c) =>
-                c is CatalogueLoaded && c.gotoOutcome is GotoError,
-            listener: (ctx, state) {
-              final outcome = (state as CatalogueLoaded).gotoOutcome as GotoError;
-              ScaffoldMessenger.of(ctx).showSnackBar(
-                SnackBar(content: Text(outcome.message)),
-              );
+                c is CatalogueLoaded && c.gotoOutcome != null,
+            listener: (ctx, state) async {
+              final outcome = (state as CatalogueLoaded).gotoOutcome;
+              switch (outcome) {
+                case GotoError(:final message):
+                  ScaffoldMessenger.of(ctx)
+                      .showSnackBar(SnackBar(content: Text(message)));
+                case GotoSolarAck(:final objectId):
+                  final confirmed = await showSolarWarningDialog(ctx);
+                  if (confirmed && ctx.mounted) {
+                    ctx.read<CatalogueBloc>().add(
+                        GoToRequested(objectId, confirmSolar: true));
+                  }
+                case null:
+                  break;
+              }
             },
             child: Column(
               children: const [
