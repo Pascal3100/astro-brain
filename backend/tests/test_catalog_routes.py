@@ -99,6 +99,18 @@ def test_list_objects_propagates_query_params() -> None:
     assert f.offset == 10
 
 
+def test_list_objects_propagates_messier_flag() -> None:
+    registry = AsyncMock()
+    registry.list_all = AsyncMock(return_value=[])
+    client = _build_client(registry)
+
+    r = client.get("/catalog/objects", params={"messier": "true"})
+
+    assert r.status_code == 200
+    f = registry.list_all.await_args.args[0]
+    assert f.messier_only is True
+
+
 def test_list_objects_rejects_limit_above_500() -> None:
     registry = AsyncMock()
     client = _build_client(registry)

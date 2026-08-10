@@ -25,6 +25,7 @@ async def list_objects(
     kind: str | None = Query(default=None),
     search: str | None = Query(default=None),
     max_mag: float | None = Query(default=None),
+    messier: bool = Query(default=False),
     visible_now: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
@@ -32,7 +33,8 @@ async def list_objects(
     enricher: Any = Depends(deps.get_visibility_enricher),
 ) -> CatalogListResponse:
     f = CatalogFilter(
-        kind=kind, search=search, max_mag=max_mag, limit=limit, offset=offset,
+        kind=kind, search=search, max_mag=max_mag, messier_only=messier,
+        limit=limit, offset=offset,
     )
     objects = await registry.list_all(f)
     objects = enricher.enrich(objects, visible_now=visible_now)
