@@ -15,6 +15,11 @@ class CatalogObjectDto extends Equatable {
     this.mag,
     this.constellation,
     this.objectType,
+    this.angularSizeArcmin,
+    this.messier,
+    this.ngcIc,
+    this.illumination,
+    this.ephemerisStale = false,
     this.altitudeDeg,
     this.azimuthDeg,
   });
@@ -28,6 +33,11 @@ class CatalogObjectDto extends Equatable {
   final double? mag;
   final String? constellation;
   final String? objectType;
+  final double? angularSizeArcmin;
+  final String? messier;
+  final String? ngcIc;
+  final double? illumination;
+  final bool ephemerisStale;
   final double? altitudeDeg;
   final double? azimuthDeg;
 
@@ -44,6 +54,11 @@ class CatalogObjectDto extends Equatable {
         mag: (j['mag'] as num?)?.toDouble(),
         constellation: j['constellation'] as String?,
         objectType: j['object_type'] as String?,
+        angularSizeArcmin: (j['angular_size_arcmin'] as num?)?.toDouble(),
+        messier: j['messier'] as String?,
+        ngcIc: j['ngc_ic'] as String?,
+        illumination: (j['illumination'] as num?)?.toDouble(),
+        ephemerisStale: (j['ephemeris_stale'] as bool?) ?? false,
         altitudeDeg: (j['altitude_deg'] as num?)?.toDouble(),
         azimuthDeg: (j['azimuth_deg'] as num?)?.toDouble(),
       );
@@ -51,6 +66,7 @@ class CatalogObjectDto extends Equatable {
   @override
   List<Object?> get props => [
         qualifiedId, kind, name, raDeg, decDeg, designation, mag,
-        constellation, objectType, altitudeDeg, azimuthDeg,
+        constellation, objectType, angularSizeArcmin, messier, ngcIc, illumination, ephemerisStale,
+        altitudeDeg, azimuthDeg,
       ];
 }

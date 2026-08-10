@@ -41,13 +41,26 @@ class ConstellationChanged extends CatalogueEvent {
   List<Object?> get props => [constellation];
 }
 
-class GoToRequested extends CatalogueEvent {
-  const GoToRequested(this.raDeg, this.decDeg, this.targetName);
-  final double raDeg;
-  final double decDeg;
-  final String targetName;
+class KindFilterChanged extends CatalogueEvent {
+  const KindFilterChanged(this.kind);
+  final String? kind;
   @override
-  List<Object?> get props => [raDeg, decDeg, targetName];
+  List<Object?> get props => [kind];
+}
+
+class MessierToggled extends CatalogueEvent {
+  const MessierToggled(this.enabled);
+  final bool enabled;
+  @override
+  List<Object?> get props => [enabled];
+}
+
+class GoToRequested extends CatalogueEvent {
+  const GoToRequested(this.id, {this.confirmSolar = false});
+  final String id;
+  final bool confirmSolar;
+  @override
+  List<Object?> get props => [id, confirmSolar];
 }
 
 class AbortRequested extends CatalogueEvent {

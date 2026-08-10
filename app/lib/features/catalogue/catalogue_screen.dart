@@ -15,6 +15,18 @@ import 'constellations.dart';
 import 'widgets/catalogue_detail_sheet.dart';
 import 'widgets/catalogue_object_card.dart';
 import 'widgets/goto_slew_bar.dart';
+import 'widgets/reference_banner.dart';
+import 'widgets/solar_warning_dialog.dart';
+
+/// Libellés FR des familles d'objets, pour le sélecteur de filtre `kind`.
+const Map<String, String> kCatalogKinds = {
+  'planet': 'Planètes',
+  'moon': 'Lune',
+  'sun': 'Soleil',
+  'comet': 'Comètes',
+  'dso': 'Ciel profond',
+  'star': 'Étoiles',
+};
 
 /// Page Catalogue — Macro 3 #5. Liste cherchable/filtrable d'objets célestes
 /// avec GoTo conditionné à l'alignement.
@@ -48,14 +60,35 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: const [
-              AstroAppBar(current: AstroScreen.catalogue),
-              _NotAlignedBanner(),
-              _Filters(),
-              Expanded(child: _ObjectList()),
-              _SlewBarSlot(),
-            ],
+          child: BlocListener<CatalogueBloc, CatalogueState>(
+            listenWhen: (p, c) =>
+                c is CatalogueLoaded && c.gotoOutcome != null,
+            listener: (ctx, state) async {
+              final outcome = (state as CatalogueLoaded).gotoOutcome;
+              switch (outcome) {
+                case GotoError(:final message):
+                  ScaffoldMessenger.of(ctx)
+                      .showSnackBar(SnackBar(content: Text(message)));
+                case GotoSolarAck(:final objectId):
+                  final confirmed = await showSolarWarningDialog(ctx);
+                  if (confirmed && ctx.mounted) {
+                    ctx.read<CatalogueBloc>().add(
+                        GoToRequested(objectId, confirmSolar: true));
+                  }
+                case null:
+                  break;
+              }
+            },
+            child: Column(
+              children: const [
+                AstroAppBar(current: AstroScreen.catalogue),
+                ReferenceBanner(),
+                _NotAlignedBanner(),
+                _Filters(),
+                Expanded(child: _ObjectList()),
+                _SlewBarSlot(),
+              ],
+            ),
           ),
         ),
       ),
@@ -139,7 +172,7 @@ class _FiltersState extends State<_Filters> {
                 context.read<CatalogueBloc>().add(SearchChanged(v)),
             style: TextStyle(color: colors.textPrimary),
             decoration: const InputDecoration(
-              hintText: 'Rechercher une étoile…',
+              hintText: 'Rechercher un objet…',
               prefixIcon: Icon(Icons.search),
             ),
           ),
@@ -183,6 +216,13 @@ class _FiltersState extends State<_Filters> {
                             .read<CatalogueBloc>()
                             .add(MagFilterChanged(v ? 2.0 : null)),
                       ),
+                      FilterChip(
+                        label: const Text('MESSIER'),
+                        selected: filters.messierOnly,
+                        onSelected: (v) => ctx
+                            .read<CatalogueBloc>()
+                            .add(MessierToggled(v)),
+                      ),
                     ],
                   ),
                   if (available.isNotEmpty) ...[
@@ -192,6 +232,8 @@ class _FiltersState extends State<_Filters> {
                       available: available,
                     ),
                   ],
+                  const SizedBox(height: DesignTokens.spaceSM),
+                  _KindDropdown(value: filters.kind),
                 ],
               );
             },
@@ -238,9 +280,7 @@ class _ObjectList extends StatelessWidget {
       builder: (_) => CatalogueDetailSheet(
         object: obj,
         isAligned: isAligned,
-        onGoto: () => bloc.add(
-          GoToRequested(obj.raDeg, obj.decDeg, obj.name),
-        ),
+        onGoto: () => bloc.add(GoToRequested(obj.qualifiedId)),
       ),
     );
   }
@@ -315,6 +355,51 @@ class _ConstellationDropdown extends StatelessWidget {
           ],
           onChanged: (v) =>
               context.read<CatalogueBloc>().add(ConstellationChanged(v)),
+        ),
+      ),
+    );
+  }
+}
+
+/// Menu déroulant de filtre par famille (`kind`) : `null` = toutes les
+/// familles. Le filtrage est fait côté backend via la query `kind`.
+class _KindDropdown extends StatelessWidget {
+  const _KindDropdown({required this.value});
+  final String? value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = context.textStyles;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: DesignTokens.spaceMD),
+      decoration: BoxDecoration(
+        color: colors.bgGradientTop.withValues(alpha: 0.5),
+        border: Border.all(color: colors.accent.withValues(alpha: 0.22)),
+        borderRadius: BorderRadius.circular(DesignTokens.radiusMD),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String?>(
+          value: value,
+          isExpanded: true,
+          dropdownColor: colors.bgGradientBottom,
+          iconEnabledColor: colors.accent,
+          style: text.hudValue.copyWith(color: colors.textPrimary),
+          items: [
+            DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Toutes les familles',
+                  style: text.hudValue.copyWith(color: colors.textMuted)),
+            ),
+            ...kCatalogKinds.entries.map(
+              (e) => DropdownMenuItem<String?>(
+                value: e.key,
+                child: Text(e.value),
+              ),
+            ),
+          ],
+          onChanged: (v) =>
+              context.read<CatalogueBloc>().add(KindFilterChanged(v)),
         ),
       ),
     );

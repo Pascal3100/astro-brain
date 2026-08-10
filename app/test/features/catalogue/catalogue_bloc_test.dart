@@ -3,6 +3,7 @@ import 'package:astro_brain/features/catalogue/catalogue_event.dart';
 import 'package:astro_brain/features/catalogue/catalogue_models.dart';
 import 'package:astro_brain/features/catalogue/catalogue_repository.dart';
 import 'package:astro_brain/features/catalogue/catalogue_state.dart';
+import 'package:astro_brain/services/api_service.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -29,7 +30,9 @@ void main() {
       when(() => repo.listObjects(
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
-              visibleNow: any(named: 'visibleNow')))
+              visibleNow: any(named: 'visibleNow'),
+              kind: any(named: 'kind'),
+              messier: any(named: 'messier')))
           .thenAnswer((_) async => [_vega()]);
       return CatalogueBloc(repo: repo);
     },
@@ -46,7 +49,9 @@ void main() {
       when(() => repo.listObjects(
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
-              visibleNow: any(named: 'visibleNow')))
+              visibleNow: any(named: 'visibleNow'),
+              kind: any(named: 'kind'),
+              messier: any(named: 'messier')))
           .thenAnswer((_) async => [_vega()]);
       return CatalogueBloc(repo: repo);
     },
@@ -60,18 +65,10 @@ void main() {
       verify(() => repo.listObjects(
           search: any(named: 'search'),
           maxMag: any(named: 'maxMag'),
-          visibleNow: false)).called(1);
+          visibleNow: false,
+          kind: any(named: 'kind'),
+          messier: any(named: 'messier'))).called(1);
     },
-  );
-
-  blocTest<CatalogueBloc, CatalogueState>(
-    'GoToRequested calls repo.goto',
-    build: () {
-      when(() => repo.goto(any(), any(), any())).thenAnswer((_) async {});
-      return CatalogueBloc(repo: repo);
-    },
-    act: (b) => b.add(const GoToRequested(101.0, -16.0, 'Sirius')),
-    verify: (_) => verify(() => repo.goto(101.0, -16.0, 'Sirius')).called(1),
   );
 
   blocTest<CatalogueBloc, CatalogueState>(
@@ -80,7 +77,9 @@ void main() {
       when(() => repo.listObjects(
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
-              visibleNow: any(named: 'visibleNow')))
+              visibleNow: any(named: 'visibleNow'),
+              kind: any(named: 'kind'),
+              messier: any(named: 'messier')))
           .thenThrow(Exception('boom'));
       return CatalogueBloc(repo: repo);
     },
@@ -89,14 +88,90 @@ void main() {
   );
 
   blocTest<CatalogueBloc, CatalogueState>(
-    'GoToRequested failure → CatalogueError',
+    'GoTo OK → aucun CatalogueError, liste préservée',
     build: () {
-      when(() => repo.goto(any(), any(), any()))
-          .thenThrow(Exception('rejected'));
+      when(() => repo.listObjects(
+              search: any(named: 'search'),
+              maxMag: any(named: 'maxMag'),
+              visibleNow: any(named: 'visibleNow'),
+              kind: any(named: 'kind'),
+              messier: any(named: 'messier')))
+          .thenAnswer((_) async => [_vega()]);
+      when(() => repo.goto(any(), confirmSolar: any(named: 'confirmSolar')))
+          .thenAnswer((_) async {});
       return CatalogueBloc(repo: repo);
     },
-    act: (b) => b.add(const GoToRequested(101.0, -16.0, 'Sirius')),
-    expect: () => [isA<CatalogueError>()],
+    act: (b) async {
+      b.add(const CatalogueOpened());
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      b.add(const GoToRequested('star:vega'));
+    },
+    expect: () => [
+      isA<CatalogueLoading>(),
+      isA<CatalogueLoaded>(),
+    ],
+    verify: (_) => verify(
+        () => repo.goto('star:vega', confirmSolar: false)).called(1),
+  );
+
+  blocTest<CatalogueBloc, CatalogueState>(
+    'GoTo not_aligned → GotoError, liste préservée',
+    build: () {
+      when(() => repo.listObjects(
+              search: any(named: 'search'),
+              maxMag: any(named: 'maxMag'),
+              visibleNow: any(named: 'visibleNow'),
+              kind: any(named: 'kind'),
+              messier: any(named: 'messier')))
+          .thenAnswer((_) async => [_vega()]);
+      when(() => repo.goto(any(), confirmSolar: any(named: 'confirmSolar')))
+          .thenThrow(ApiException('POST /goto failed',
+              statusCode: 409, detail: 'not_aligned'));
+      return CatalogueBloc(repo: repo);
+    },
+    act: (b) async {
+      b.add(const CatalogueOpened());
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      b.add(const GoToRequested('star:vega'));
+    },
+    expect: () => [
+      isA<CatalogueLoading>(),
+      isA<CatalogueLoaded>().having((s) => s.gotoOutcome, 'outcome', isNull),
+      isA<CatalogueLoaded>().having(
+          (s) => (s.gotoOutcome as GotoError?)?.message,
+          'msg',
+          contains('non alignée')),
+      isA<CatalogueLoaded>().having((s) => s.gotoOutcome, 'cleared', isNull),
+    ],
+  );
+
+  blocTest<CatalogueBloc, CatalogueState>(
+    'GoTo solar_ack_required → GotoSolarAck(id)',
+    build: () {
+      when(() => repo.listObjects(
+              search: any(named: 'search'),
+              maxMag: any(named: 'maxMag'),
+              visibleNow: any(named: 'visibleNow'),
+              kind: any(named: 'kind'),
+              messier: any(named: 'messier')))
+          .thenAnswer((_) async => [_vega()]);
+      when(() => repo.goto(any(), confirmSolar: any(named: 'confirmSolar')))
+          .thenThrow(ApiException('POST /goto failed',
+              statusCode: 409, detail: 'solar_ack_required'));
+      return CatalogueBloc(repo: repo);
+    },
+    act: (b) async {
+      b.add(const CatalogueOpened());
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      b.add(const GoToRequested('sun:sun'));
+    },
+    expect: () => [
+      isA<CatalogueLoading>(),
+      isA<CatalogueLoaded>(),
+      isA<CatalogueLoaded>().having(
+          (s) => (s.gotoOutcome as GotoSolarAck?)?.objectId, 'id', 'sun:sun'),
+      isA<CatalogueLoaded>().having((s) => s.gotoOutcome, 'cleared', isNull),
+    ],
   );
 
   CatalogObjectDto sirius() => const CatalogObjectDto(
@@ -125,7 +200,9 @@ void main() {
       when(() => repo.listObjects(
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
-              visibleNow: any(named: 'visibleNow')))
+              visibleNow: any(named: 'visibleNow'),
+              kind: any(named: 'kind'),
+              messier: any(named: 'messier')))
           .thenAnswer((_) async => [sirius(), vegaLyr()]);
       return CatalogueBloc(repo: repo);
     },
@@ -146,7 +223,9 @@ void main() {
       when(() => repo.listObjects(
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
-              visibleNow: any(named: 'visibleNow')))
+              visibleNow: any(named: 'visibleNow'),
+              kind: any(named: 'kind'),
+              messier: any(named: 'messier')))
           .thenAnswer((_) async => [sirius(), vegaLyr()]);
       return CatalogueBloc(repo: repo);
     },
@@ -168,7 +247,31 @@ void main() {
       verify(() => repo.listObjects(
           search: any(named: 'search'),
           maxMag: any(named: 'maxMag'),
-          visibleNow: any(named: 'visibleNow'))).called(1);
+          visibleNow: any(named: 'visibleNow'),
+          kind: any(named: 'kind'),
+          messier: any(named: 'messier'))).called(1);
     },
+  );
+
+  blocTest<CatalogueBloc, CatalogueState>(
+    'KindFilterChanged re-query avec kind',
+    build: () {
+      when(() => repo.listObjects(
+              search: any(named: 'search'),
+              maxMag: any(named: 'maxMag'),
+              visibleNow: any(named: 'visibleNow'),
+              kind: any(named: 'kind'),
+              messier: any(named: 'messier')))
+          .thenAnswer((_) async => [_vega()]);
+      return CatalogueBloc(repo: repo);
+    },
+    act: (b) => b.add(const KindFilterChanged('planet')),
+    expect: () => [isA<CatalogueLoading>(), isA<CatalogueLoaded>()],
+    verify: (_) => verify(() => repo.listObjects(
+        search: any(named: 'search'),
+        maxMag: any(named: 'maxMag'),
+        visibleNow: any(named: 'visibleNow'),
+        kind: 'planet',
+        messier: any(named: 'messier'))).called(1),
   );
 }

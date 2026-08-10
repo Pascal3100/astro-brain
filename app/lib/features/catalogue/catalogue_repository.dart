@@ -13,24 +13,26 @@ class CatalogueRepository {
     String? search,
     double? maxMag,
     bool visibleNow = false,
+    String? kind,
+    bool messier = false,
   }) async {
     final params = <String, String>{'limit': '500'};
     if (search != null && search.isNotEmpty) params['search'] = search;
     if (maxMag != null) params['max_mag'] = maxMag.toString();
     if (visibleNow) params['visible_now'] = 'true';
+    if (kind != null) params['kind'] = kind;
+    if (messier) params['messier'] = 'true';
     final j = await api.getJson('/catalog/objects', query: params);
     return (j['objects'] as List)
         .map((e) => CatalogObjectDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
-  /// POST /goto — pointe la monture sur les coordonnées de l'objet.
-  Future<void> goto(double raDeg, double decDeg, String? targetName) async {
-    await api.postJson('/goto', {
-      'ra_deg': raDeg,
-      'dec_deg': decDeg,
-      'target_name': targetName,
-    });
+  /// POST /goto — pointe la monture sur l'objet identifié par [id].
+  /// [confirmSolar] à `true` acquitte l'avertissement solaire (cf. flux
+  /// server-driven : n'est envoyé qu'après un 409 `solar_ack_required`).
+  Future<void> goto(String id, {bool confirmSolar = false}) async {
+    await api.postJson('/goto', {'id': id, 'confirm_solar': confirmSolar});
   }
 
   /// Abort : réutilise le POST /stop existant (TELESCOPE_ABORT_MOTION).

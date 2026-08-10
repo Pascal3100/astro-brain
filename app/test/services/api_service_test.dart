@@ -179,6 +179,35 @@ void main() {
       );
     });
   });
+
+  group('ApiException.detail', () {
+    test('postJson non-200 avec {"detail": x} peuple detail', () async {
+      final client = MockClient(
+        (_) async => http.Response('{"detail": "solar_ack_required"}', 409,
+            headers: {'content-type': 'application/json'}),
+      );
+      final api = ApiService(host: host, client: client);
+      try {
+        await api.postJson('/goto', {'id': 'sun', 'confirm_solar': false});
+        fail('devait jeter');
+      } on ApiException catch (e) {
+        expect(e.statusCode, 409);
+        expect(e.detail, 'solar_ack_required');
+      }
+    });
+
+    test('corps non-JSON → detail null', () async {
+      final client = MockClient((_) async => http.Response('oops', 500));
+      final api = ApiService(host: host, client: client);
+      try {
+        await api.getJson('/catalog/objects');
+        fail('devait jeter');
+      } on ApiException catch (e) {
+        expect(e.detail, isNull);
+        expect(e.statusCode, 500);
+      }
+    });
+  });
 }
 
 const _calibrationStatusAdxlJson = '''

@@ -1,3 +1,5 @@
+import 'package:astro_brain/features/setup/reference/reference_models.dart';
+import 'package:astro_brain/features/setup/reference/reference_repository.dart';
 import 'package:astro_brain/features/setup/setup_screen.dart';
 import 'package:astro_brain/features/setup/widgets/setup_card.dart';
 import 'package:astro_brain/models/calibration.dart';
@@ -19,6 +21,8 @@ class _MockStream extends Mock implements EventStreamService {}
 
 class _MockApi extends Mock implements ApiService {}
 
+class _MockRefRepo extends Mock implements ReferenceRepository {}
+
 ThemeData _testTheme() {
   const color = AppColors.day;
   final styles = AppTextStyles(
@@ -30,13 +34,21 @@ ThemeData _testTheme() {
   return ThemeData(extensions: <ThemeExtension<dynamic>>[color, styles]);
 }
 
-Widget _wrap(Widget child, AppBloc bloc, ThemeCubit theme, {ApiService? api}) {
+Widget _wrap(
+  Widget child,
+  AppBloc bloc,
+  ThemeCubit theme, {
+  ApiService? api,
+  ReferenceRepository? refRepo,
+}) {
   final apiInstance = api ?? _MockApi();
+  final refRepoInstance = refRepo ?? _MockRefRepo();
   return MultiRepositoryProvider(
     providers: [
       RepositoryProvider<PiHost>(create: (_) => const PiHost()),
       RepositoryProvider<ApiService>(create: (_) => apiInstance),
       RepositoryProvider<EventStreamService>(create: (_) => _MockStream()),
+      RepositoryProvider<ReferenceRepository>(create: (_) => refRepoInstance),
     ],
     child: MultiBlocProvider(
       providers: [
@@ -51,6 +63,7 @@ Widget _wrap(Widget child, AppBloc bloc, ThemeCubit theme, {ApiService? api}) {
 void main() {
   late _MockStream mockStream;
   late _MockApi mockApi;
+  late _MockRefRepo refRepo;
   late AppBloc bloc;
   late ThemeCubit theme;
 
@@ -72,6 +85,18 @@ void main() {
         payload: null,
       ),
     );
+
+    refRepo = _MockRefRepo();
+    // Par défaut, almanach prêt (FutureBuilder card #6).
+    when(() => refRepo.getStatus()).thenAnswer(
+      (_) async => const ReferenceStatusDto(
+        ready: true,
+        generatedAt: '2026-08-01T00:00:00+00:00',
+        windowStart: '2026-08-01',
+        windowEnd: '2026-09-30',
+      ),
+    );
+
     bloc = AppBloc(eventStream: mockStream);
 
     SharedPreferences.setMockInitialValues({});
@@ -84,29 +109,31 @@ void main() {
     theme.close();
   });
 
-  testWidgets('renders 5 SetupCards', (tester) async {
-    // Tall viewport so ListView.separated builds all 5 items.
+  testWidgets('renders 6 SetupCards', (tester) async {
+    // Tall viewport so ListView.separated builds all 6 items.
     tester.view.physicalSize = const Size(1080, 4000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(
-      _wrap(const SetupScreen(), bloc, theme, api: mockApi),
+      _wrap(const SetupScreen(), bloc, theme, api: mockApi, refRepo: refRepo),
     );
     // Laisse le FutureBuilder se résoudre sans attendre les animations infinies.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.byType(SetupCard), findsNWidgets(5));
+    expect(find.byType(SetupCard), findsNWidgets(6));
   });
 
-  testWidgets('card #1 (COMPASS) and #5 (RÉSEAU) have onTap', (tester) async {
+  testWidgets(
+      'card #1 (COMPASS), #5 (RÉSEAU) and #6 (ALMANACH) have onTap',
+      (tester) async {
     tester.view.physicalSize = const Size(1080, 4000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(
-      _wrap(const SetupScreen(), bloc, theme, api: mockApi),
+      _wrap(const SetupScreen(), bloc, theme, api: mockApi, refRepo: refRepo),
     );
     // Laisse les FutureBuilder se résoudre sans attendre les animations infinies.
     await tester.pump();
@@ -116,7 +143,7 @@ void main() {
         .widgetList<SetupCard>(find.byType(SetupCard))
         .toList();
     for (var i = 0; i < cards.length; i++) {
-      final isInteractive = (i == 0) || (i == 4);
+      final isInteractive = (i == 0) || (i == 4) || (i == 5);
       expect(
         cards[i].onTap == null,
         !isInteractive,
@@ -135,13 +162,49 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(
-      _wrap(const SetupScreen(), bloc, theme, api: mockApi),
+      _wrap(const SetupScreen(), bloc, theme, api: mockApi, refRepo: refRepo),
     );
     // Laisse les FutureBuilder se résoudre sans attendre les animations infinies.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('Non calibré'), findsOneWidget);
+  });
+
+  testWidgets('tuile ALMANACH affiche la fenêtre couverte quand prête', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 4000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      _wrap(const SetupScreen(), bloc, theme, api: mockApi, refRepo: refRepo),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('ALMANACH'), findsOneWidget);
+    expect(find.textContaining('2026-09-30'), findsOneWidget);
+  });
+
+  testWidgets(
+      'tuile ALMANACH indique « resynchroniser » quand pas prête',
+      (tester) async {
+    tester.view.physicalSize = const Size(1080, 4000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    when(() => refRepo.getStatus())
+        .thenAnswer((_) async => const ReferenceStatusDto(ready: false));
+
+    await tester.pumpWidget(
+      _wrap(const SetupScreen(), bloc, theme, api: mockApi, refRepo: refRepo),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.textContaining('resynchroniser'), findsOneWidget);
   });
 
   test('formatRelativeAge formats durations correctly', () {
