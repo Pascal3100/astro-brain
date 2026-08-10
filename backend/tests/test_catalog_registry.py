@@ -41,13 +41,13 @@ def _star(qid: str, name: str, mag: float | None) -> CatalogObject:
 @pytest.mark.asyncio
 async def test_list_all_dispatches_by_kind() -> None:
     stars = _FakeProvider("star", [_star("star:sirius", "Sirius", -1.46)])
-    messier = _FakeProvider("messier", [_star("messier:m31", "Andromeda", 3.4)])
-    reg = CatalogRegistry({"star": stars, "messier": messier})
+    dso = _FakeProvider("dso", [_star("dso:m31", "Andromeda", 3.4)])
+    reg = CatalogRegistry({"star": stars, "dso": dso})
 
     rows = await reg.list_all(CatalogFilter(kind="star"))
 
     assert [r.qualified_id for r in rows] == ["star:sirius"]
-    assert messier.list_calls == []
+    assert dso.list_calls == []
 
 
 @pytest.mark.asyncio
@@ -65,8 +65,8 @@ async def test_list_all_no_kind_merges_all_providers_and_sorts_by_mag() -> None:
         _star("star:sirius", "Sirius", -1.46),
         _star("star:vega", "Vega", 0.03),
     ])
-    messier = _FakeProvider("messier", [_star("messier:m31", "Andromeda", 3.4)])
-    reg = CatalogRegistry({"star": stars, "messier": messier})
+    dso = _FakeProvider("dso", [_star("dso:m31", "Andromeda", 3.4)])
+    reg = CatalogRegistry({"star": stars, "dso": dso})
 
     rows = await reg.list_all(CatalogFilter(limit=10))
 
@@ -79,11 +79,11 @@ async def test_list_all_no_kind_paginates_globally() -> None:
         _star("star:s1", "S1", 1.0),
         _star("star:s2", "S2", 2.0),
     ])
-    messier = _FakeProvider("messier", [
-        _star("messier:m1", "M1", 1.5),
-        _star("messier:m2", "M2", 2.5),
+    dso = _FakeProvider("dso", [
+        _star("dso:m1", "M1", 1.5),
+        _star("dso:m2", "M2", 2.5),
     ])
-    reg = CatalogRegistry({"star": stars, "messier": messier})
+    reg = CatalogRegistry({"star": stars, "dso": dso})
 
     page1 = await reg.list_all(CatalogFilter(limit=2, offset=0))
     page2 = await reg.list_all(CatalogFilter(limit=2, offset=2))
