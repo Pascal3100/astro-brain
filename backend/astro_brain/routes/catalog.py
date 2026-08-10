@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from astro_brain import deps
 from astro_brain.services.catalog.models import CatalogFilter, CatalogObject
-from astro_brain.services.catalog.registry import CatalogRegistry
+from astro_brain.services.catalog.reference_catalog import ReferenceCatalog
 
 router = APIRouter(tags=["catalog"], prefix="/catalog")
 
@@ -29,7 +29,7 @@ async def list_objects(
     visible_now: bool = Query(default=False),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
-    registry: CatalogRegistry = Depends(deps.get_catalog_registry),
+    registry: ReferenceCatalog = Depends(deps.get_catalog_registry),
     enricher: Any = Depends(deps.get_visibility_enricher),
 ) -> CatalogListResponse:
     f = CatalogFilter(
@@ -46,7 +46,7 @@ async def list_objects(
 @router.get("/objects/{qualified_id:path}", response_model=CatalogObject)
 async def get_object(
     qualified_id: str,
-    registry: CatalogRegistry = Depends(deps.get_catalog_registry),
+    registry: ReferenceCatalog = Depends(deps.get_catalog_registry),
 ) -> Any:
     obj = await registry.get_by_qualified_id(qualified_id)
     if obj is None:
