@@ -31,4 +31,40 @@ void main() {
     expect(dto.altitudeDeg, isNull);
     expect(dto.isVisible, isFalse);
   });
+
+  test('fromJson lit les champs v2 (messier/ngc_ic/illumination/size/stale)',
+      () {
+    final o = CatalogObjectDto.fromJson({
+      'qualified_id': 'dso:m31',
+      'kind': 'dso',
+      'name': 'Andromède',
+      'ra_deg': 10.68,
+      'dec_deg': 41.27,
+      'mag': 3.4,
+      'object_type': 'galaxy',
+      'angular_size_arcmin': 190.0,
+      'messier': 'M31',
+      'ngc_ic': 'NGC 224',
+      'illumination': null,
+      'ephemeris_stale': false,
+    });
+    expect(o.messier, 'M31');
+    expect(o.ngcIc, 'NGC 224');
+    expect(o.angularSizeArcmin, 190.0);
+    expect(o.illumination, isNull);
+    expect(o.ephemerisStale, isFalse);
+  });
+
+  test('fromJson : ephemeris_stale absent → false ; moon illumination', () {
+    final o = CatalogObjectDto.fromJson({
+      'qualified_id': 'moon:moon',
+      'kind': 'moon',
+      'name': 'Lune',
+      'ra_deg': 200.0,
+      'dec_deg': -10.0,
+      'illumination': 0.42,
+    });
+    expect(o.ephemerisStale, isFalse);
+    expect(o.illumination, 0.42);
+  });
 }
