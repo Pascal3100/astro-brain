@@ -6,6 +6,7 @@ from typing import Any, Protocol
 
 import aiosqlite
 
+from astro_brain.repository.reference_db import ReferenceDb
 from astro_brain.services.catalog.models import CatalogFilter, CatalogObject
 
 _SELECT_COLUMNS = (
@@ -100,3 +101,83 @@ class SqliteCatalogProvider:
         if row is None:
             return None
         return _row_to_object(row)
+
+
+_FIXED_COLUMNS = (
+    "o.id, o.kind, o.name, o.designation, f.ra_deg, f.dec_deg, f.apparent_mag,"
+    " f.object_type, f.size_arcmin, f.constellation, f.messier, f.ngc_ic"
+)
+
+
+def _fixed_row_to_object(row: tuple[Any, ...]) -> CatalogObject:
+    (oid, kind, name, designation, ra, dec, mag, otype, size, const, messier,
+     ngc_ic) = row
+    return CatalogObject(
+        qualified_id=oid,
+        kind=kind,
+        name=name if name is not None else (designation or oid),
+        designation=designation,
+        ra_deg=ra,
+        dec_deg=dec,
+        mag=mag,
+        constellation=const,
+        object_type=otype,
+        angular_size_arcmin=size,
+        messier=messier,
+        ngc_ic=ngc_ic,
+    )
+
+
+class FixedObjectProvider:
+    """Objets fixes (dso, star) lus dans `fixed_object` de reference.sqlite."""
+
+    KINDS = ("dso", "star")
+
+    def __init__(self, reference: ReferenceDb) -> None:
+        """Store the `ReferenceDb` handle to query against."""
+        self._reference = reference
+
+    async def list_objects(self, filter: CatalogFilter) -> list[CatalogObject]:
+        """Return fixed objects (dso/star) matching `filter`."""
+        conn = self._reference.current()
+        if conn is None:
+            return []
+        sql = f"SELECT {_FIXED_COLUMNS} FROM fixed_object f" \
+              " JOIN objects o ON o.id = f.object_id WHERE "
+        params: list[Any] = []
+        if filter.kind in self.KINDS:
+            sql += "o.kind = ?"
+            params.append(filter.kind)
+        else:
+            sql += "o.kind IN ('dso', 'star')"
+        if filter.max_mag is not None:
+            sql += " AND f.apparent_mag IS NOT NULL AND f.apparent_mag <= ?"
+            params.append(filter.max_mag)
+        if filter.messier_only:
+            sql += " AND f.messier IS NOT NULL"
+        if filter.search:
+            like = f"%{filter.search}%"
+            sql += (" AND (o.name LIKE ? OR o.designation LIKE ?"
+                    " OR f.messier LIKE ? OR f.ngc_ic LIKE ?)")
+            params.extend([like, like, like, like])
+        sql += (" ORDER BY CASE WHEN f.apparent_mag IS NULL THEN 1 ELSE 0 END,"
+                " f.apparent_mag, o.name LIMIT ? OFFSET ?")
+        params.extend([filter.limit, filter.offset])
+        cursor = await conn.execute(sql, tuple(params))
+        rows = await cursor.fetchall()
+        await cursor.close()
+        return [_fixed_row_to_object(r) for r in rows]
+
+    async def get_object(self, obj_id: str) -> CatalogObject | None:
+        """Return the fixed object with id `obj_id`, or `None` if absent."""
+        conn = self._reference.current()
+        if conn is None:
+            return None
+        cursor = await conn.execute(
+            f"SELECT {_FIXED_COLUMNS} FROM fixed_object f"
+            " JOIN objects o ON o.id = f.object_id WHERE f.object_id = ?",
+            (obj_id,),
+        )
+        row = await cursor.fetchone()
+        await cursor.close()
+        return _fixed_row_to_object(row) if row is not None else None
