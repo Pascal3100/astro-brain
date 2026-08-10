@@ -4,6 +4,10 @@ Calcule l'altitude/azimut courants de chaque objet pour l'observateur
 (position GPS) à l'instant présent, et filtre optionnellement les objets
 sous l'horizon. Sans fix GPS, dégrade gracieusement : ne renseigne pas
 alt/az et ignore le filtre.
+
+Les objets `ephemeris_stale` (éphéméride ne couvrant pas l'instant présent,
+RA/Dec figées sur une valeur de bord) ne sont jamais enrichis en alt/az et
+sont exclus du résultat quand `visible_now=True`.
 """
 from __future__ import annotations
 
@@ -18,7 +22,11 @@ _MIN_VISIBLE_ALT_DEG = 0.0
 
 
 class VisibilityEnricher:
-    """Ajoute alt/az courants aux objets et applique le filtre visible-now."""
+    """Ajoute alt/az courants aux objets et applique le filtre visible-now.
+
+    Les objets marqués `ephemeris_stale` ne sont jamais enrichis (alt/az
+    restent `None`) et sont exclus quand `visible_now=True`.
+    """
 
     def __init__(
         self,
@@ -40,6 +48,11 @@ class VisibilityEnricher:
         t = self._now_utc()
         enriched: list[CatalogObject] = []
         for obj in objects:
+            if obj.ephemeris_stale:
+                if visible_now:
+                    continue
+                enriched.append(obj)
+                continue
             az, alt = sky_az_alt_from_ra_dec(obj.ra_deg, obj.dec_deg, observer, t)
             if visible_now and alt <= _MIN_VISIBLE_ALT_DEG:
                 continue

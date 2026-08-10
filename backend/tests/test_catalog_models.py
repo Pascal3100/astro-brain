@@ -25,8 +25,8 @@ def test_catalog_object_minimal_fields() -> None:
 
 def test_catalog_object_full_fields() -> None:
     obj = CatalogObject(
-        qualified_id="messier:m31",
-        kind="messier",
+        qualified_id="dso:m31",
+        kind="dso",
         name="Andromeda Galaxy",
         designation="M 31",
         ra_deg=10.6847,
@@ -95,3 +95,23 @@ def test_catalog_object_altitude_azimuth_default_none():
     enriched = obj.model_copy(update={"altitude_deg": 34.0, "azimuth_deg": 168.0})
     assert enriched.altitude_deg == 34.0
     assert enriched.azimuth_deg == 168.0
+
+
+def test_catalog_object_accepts_v2_kinds_and_dso_extras() -> None:
+    obj = CatalogObject(
+        qualified_id="NGC1976",
+        kind="dso",
+        name="Orion Nebula",
+        ra_deg=83.82,
+        dec_deg=-5.39,
+        messier="M42",
+        ngc_ic="NGC1976",
+    )
+    assert obj.kind == "dso"
+    assert obj.messier == "M42"
+    assert obj.illumination is None
+    assert obj.ephemeris_stale is False
+
+
+def test_catalog_filter_has_messier_only_default_false() -> None:
+    assert CatalogFilter().messier_only is False

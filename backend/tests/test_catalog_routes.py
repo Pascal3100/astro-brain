@@ -1,21 +1,15 @@
 """Tests for /catalog/objects routes."""
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
-import aiosqlite
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
-from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.catalog import router
 from astro_brain.services.catalog.models import CatalogObject
-from astro_brain.services.catalog.providers import SqliteCatalogProvider
-from astro_brain.services.catalog.registry import CatalogRegistry
 from astro_brain.services.catalog.visibility import VisibilityEnricher
 
 
@@ -28,27 +22,6 @@ def _build_client(registry) -> TestClient:
         now_utc=lambda: datetime.now(UTC),
     )
     return TestClient(app)
-
-
-@pytest.fixture()
-async def visibility_db() -> AsyncIterator[aiosqlite.Connection]:
-    """In-memory DB migrated and seeded with one above-horizon star (Vega)."""
-    conn = await aiosqlite.connect(":memory:")
-    await run_migrations(conn)
-    # Vega: ra=279.23°, dec=+38.78° — above horizon from Paris on 2026-06-21 22:00 UTC
-    await conn.execute(
-        "INSERT INTO catalog_objects"
-        " (id, kind, name, designation, ra_deg, dec_deg, mag,"
-        "  constellation, object_type, angular_size_arcmin, extras_json)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ("star:vega", "star", "Vega", "α Lyr", 279.23, 38.78, 0.03,
-         "Lyr", "star", None, "{}"),
-    )
-    await conn.commit()
-    try:
-        yield conn
-    finally:
-        await conn.close()
 
 
 def _star(qid: str, name: str, mag: float | None = 1.0) -> CatalogObject:
@@ -99,6 +72,18 @@ def test_list_objects_propagates_query_params() -> None:
     assert f.offset == 10
 
 
+def test_list_objects_propagates_messier_flag() -> None:
+    registry = AsyncMock()
+    registry.list_all = AsyncMock(return_value=[])
+    client = _build_client(registry)
+
+    r = client.get("/catalog/objects", params={"messier": "true"})
+
+    assert r.status_code == 200
+    f = registry.list_all.await_args.args[0]
+    assert f.messier_only is True
+
+
 def test_list_objects_rejects_limit_above_500() -> None:
     registry = AsyncMock()
     client = _build_client(registry)
@@ -140,19 +125,37 @@ def test_get_object_returns_404_when_absent() -> None:
     assert r.status_code == 404
 
 
-async def test_visible_now_enriches_altitude_deg(
-    visibility_db: aiosqlite.Connection,
-) -> None:
-    """GET /catalog/objects?visible_now=true must return altitude_deg > 0 for Vega."""
-    # Fixed observer: Paris, summer solstice 22:00 UTC — Vega is well above horizon
+async def test_visible_now_enriches_altitude_deg(tmp_path) -> None:
+    """GET /catalog/objects?visible_now=true → altitude_deg > 0 pour Vega.
+
+    Catalogue monté depuis reference.sqlite v2 (post-bascule SP2). L'heure
+    2026-06-21 est hors fenêtre éphéméride → seuls les objets fixes sortent,
+    donc résultat déterministe (Vega au-dessus, M42/Orion sous l'horizon).
+    """
+    from astro_brain.repository.reference_db import ReferenceDb
+    from astro_brain.services.catalog.providers import (
+        EphemerisProvider,
+        FixedObjectProvider,
+    )
+    from astro_brain.services.catalog.reference_catalog import ReferenceCatalog
+    from tests.reference_fixtures import build_reference_v2
+
     _OBSERVER_GPS: tuple[float, float] = (48.0, 2.35)
     _NOW = datetime(2026, 6, 21, 22, 0, 0, tzinfo=UTC)
 
+    p = tmp_path / "reference.sqlite"
+    build_reference_v2(p)
+    ref = ReferenceDb(p)
+    await ref.open()
+    registry = ReferenceCatalog(
+        fixed=FixedObjectProvider(ref),
+        ephemeris=EphemerisProvider(ref, now_utc=lambda: _NOW),
+        reference=ref,
+    )
+
     app = FastAPI()
     app.include_router(router)
-    app.state.catalog_registry = CatalogRegistry({
-        "star": SqliteCatalogProvider(visibility_db, kind="star"),
-    })
+    app.state.catalog_registry = registry
     app.state.visibility_enricher = VisibilityEnricher(
         gps_fix=lambda: _OBSERVER_GPS,
         now_utc=lambda: _NOW,
@@ -171,3 +174,4 @@ async def test_visible_now_enriches_altitude_deg(
         assert obj["altitude_deg"] > 0.0, (
             f"{obj['name']} altitude_deg={obj['altitude_deg']} should be > 0"
         )
+    await ref.close()

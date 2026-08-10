@@ -164,6 +164,13 @@ Minors relevés à la revue finale du plan producteur ([ADR 2026-07-24](decision
 
 Le wizard d'alignement 3 étoiles garde sa **source propre** (`backend/astro_brain/services/_alignment_stars.json`), indépendante du catalogue. Depuis SP2, le catalogue vient de `reference.sqlite` (étoiles IAU-CSN incluses) → deux sources d'étoiles cohabitent, entorse au principe « une seule source ». Laissé tel quel en SP2 (autre sous-système, hors mandat « bascule catalogue »). Piste : faire dériver les candidats du wizard de `reference.sqlite` (`kind=star`, filtre magnitude/répartition ciel) et retirer le JSON. À arbitrer après SP2/SP3.
 
+## Oracle — dette technique consommateur (post-SP2)
+
+Minors différés à la revue finale du plan SP2 backend (bascule catalogue vers `reference.sqlite`), non bloquants pour un consommateur correct. À arbitrer avant d'y adosser un usage critique ou lors d'une évolution du format d'échantillonnage.
+
+- **M-3 — `ephemeris.sample_utc` : comparaison de bornes lexicale (`BETWEEN`).** Le filtrage de fenêtre éphéméride compare des chaînes ISO ; correct aujourd'hui car les échantillons sont journaliers et au même format que les bornes, mais fragile si le producteur (SP1) émet un jour du `...Z` là où le consommateur attend `+00:00` (ou l'inverse) — l'ordre lexical divergerait. Piste : normaliser le format d'`sample_utc` **des deux côtés** (fixer un format canonique unique dans le contrat SP1↔SP2), ou parser en `datetime` avant comparaison plutôt que comparer les chaînes. Nécessite une coordination de format avec le producteur SP1.
+- **M-6 — Pas de test e2e route sur `reference.sqlite` peuplé via `build_app`.** La logique (interpolation, enrichissement alt, gardes GoTo) est couverte unité par unité via fixtures, mais aucun test ne monte l'app complète (`build_app`) sur un `reference.sqlite` peuplé pour exercer le chemin route→provider→façade de bout en bout. Couverture, pas correctness. Piste : un test d'intégration montant `build_app(db_path_override=...)` + un `reference.sqlite` de fixture, assertant `GET /catalog/objects` et `POST /goto` sur un objet réel.
+
 ## Ops & déploiement (à automatiser post-Macro 0)
 
 - **Service systemd** pour le backend — livré (`astro-brain.service`).

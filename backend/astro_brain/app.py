@@ -19,7 +19,6 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +30,11 @@ from astro_brain.bus import StateBus
 from astro_brain.mount_connection_supervisor import MountConnectionSupervisor
 from astro_brain.orchestrator import Orchestrator
 from astro_brain.repository import alignment_repo
+from astro_brain.repository.reference_db import (
+    ReferenceDb,
+    manifest_url,
+    reference_path,
+)
 from astro_brain.repository.state_db import db_path as _default_db_path
 from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.about import router as about_router
@@ -40,6 +44,7 @@ from astro_brain.routes.catalog import router as catalog_router
 from astro_brain.routes.commands import router as commands_router
 from astro_brain.routes.events import router as events_router
 from astro_brain.routes.goto import router as goto_router
+from astro_brain.routes.reference import router as reference_router
 from astro_brain.routes.sensors import _LazySensor
 from astro_brain.routes.sensors import router as sensors_router
 from astro_brain.routes.state import router as state_router
@@ -51,9 +56,12 @@ from astro_brain.services._alignment_catalog import (
 )
 from astro_brain.services.alignment import AlignmentServiceImpl
 from astro_brain.services.calibration import CalibrationServiceImpl
-from astro_brain.services.catalog.providers import SqliteCatalogProvider
-from astro_brain.services.catalog.registry import CatalogRegistry
-from astro_brain.services.catalog.seed_runner import apply_seeds
+from astro_brain.services.catalog.providers import (
+    EphemerisProvider,
+    FixedObjectProvider,
+)
+from astro_brain.services.catalog.reference_catalog import ReferenceCatalog
+from astro_brain.services.catalog.resolver import TargetResolver
 from astro_brain.services.catalog.visibility import VisibilityEnricher
 from astro_brain.services.fakes import (
     FakeGps,
@@ -63,6 +71,7 @@ from astro_brain.services.fakes import (
     FakeTracking,
     make_fake_calibration_adapters,
 )
+from astro_brain.services.reference.sync import ReferenceSync
 from astro_brain.subsystems import SubsystemState
 
 
@@ -151,6 +160,7 @@ def build_app(
     use_hardware: bool | None = None,
     *,
     db_path_override: str | Path | None = None,
+    sync_on_boot: bool | None = None,
 ) -> FastAPI:
     """Instantiate the FastAPI app with all services and background tasks wired.
 
@@ -164,6 +174,10 @@ def build_app(
         ``":memory:"`` to get a fresh ephemeral database for the duration of
         the lifespan. ``None`` uses the production path from
         :func:`astro_brain.repository.state_db.db_path`.
+    sync_on_boot:
+        Whether to launch a background `reference.sqlite` sync at startup.
+        ``None`` falls back to the ``ASTRO_BRAIN_REFERENCE_SYNC_ON_BOOT`` env
+        var (default: sync).
     """
     if use_hardware is None:
         use_hardware = os.environ.get("ASTRO_BRAIN_HARDWARE", "0") == "1"
@@ -188,12 +202,32 @@ def build_app(
         await run_migrations(db_conn)
         _app.state.db = db_conn
 
-        with as_file(files("astro_brain.data")) as data_dir:
-            await apply_seeds(db_conn, data_dir)
+        # base référence (reference.sqlite) — fichier distinct, RO, jetable
+        if db_path_override in (None, ":memory:") or str(target) == ":memory:":
+            ref_path = reference_path()
+        else:
+            ref_path = Path(target).parent / "reference.sqlite"
+        reference_db = ReferenceDb(ref_path)
+        await reference_db.open()
+        _app.state.reference_db = reference_db
 
-        _app.state.catalog_registry = CatalogRegistry({
-            "star": SqliteCatalogProvider(db_conn, kind="star"),
-        })
+        fixed = FixedObjectProvider(reference_db)
+        ephemeris = EphemerisProvider(reference_db, now_utc=lambda: datetime.now(UTC))
+        catalog = ReferenceCatalog(fixed=fixed, ephemeris=ephemeris,
+                                    reference=reference_db)
+        _app.state.catalog_registry = catalog
+        _app.state.resolver = TargetResolver(catalog)
+
+        reference_sync = ReferenceSync(reference=reference_db,
+                                        manifest_url=manifest_url())
+        _app.state.reference_sync = reference_sync
+
+        do_sync = (sync_on_boot if sync_on_boot is not None
+                   else os.environ.get("ASTRO_BRAIN_REFERENCE_SYNC_ON_BOOT", "1") != "0")
+        if do_sync:
+            background_tasks.append(
+                asyncio.create_task(reference_sync.sync(), name="reference-boot-sync")
+            )
 
         _app.state.started_at = datetime.now(UTC)
 
@@ -266,6 +300,7 @@ def build_app(
             await services["gps"].stop()
             await services["network"].stop()
             await services["system"].stop()
+            await reference_db.close()
             await db_conn.close()
 
     app = FastAPI(title="Astro-Brain", version="0.1.0", lifespan=lifespan)
@@ -284,6 +319,7 @@ def build_app(
     app.include_router(alignment_router)
     app.include_router(catalog_router)
     app.include_router(goto_router)
+    app.include_router(reference_router)
     return app
 
 

@@ -30,6 +30,20 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 
 ## Session en cours
 
+### Session 45 — Oracle SP2 : bascule backend vers `reference.sqlite` (2026-08-10)
+
+Objectif : basculer le **backend** (consommateur) sur l'almanach `reference.sqlite` livré par SP1 — plus plan suivi : [`2026-08-09-oracle-sp2-backend.md`](../superpowers/plans/2026-08-09-oracle-sp2-backend.md), **14 tâches, TDD**, branche `oracle-sp2-backend`. Cette session livre la **tâche 14 (bascule/cutover)**, dernière du plan : câblage `app.py` + migration `_004` + retrait de l'ancienne source seed — le backend ne dépend plus jamais de `catalog_objects`.
+
+**Le catalogue backend vient désormais de `reference.sqlite` pour toutes les familles** (étoiles, deep-sky, comètes, planètes, Lune, Soleil), via une façade `ReferenceCatalog` (fixe + éphémère interpolé, wrap RA, hors-fenêtre géré) posée par les tâches précédentes (T1-T13) et câblée dans `build_app` à cette session : `app.state.reference_db` / `reference_sync` / `catalog_registry` (= `ReferenceCatalog`) / `resolver` (= `TargetResolver`), routes `GET /reference/status` + `POST /reference/sync` incluses.
+
+**GoTo devient id-only** : la cible passe par le catalogue de référence (plus de RA/Dec brut côté route), avec trois garde-fous backend — référence absente/pas prête (409), objet éphémère hors fenêtre (`stale`), et verrou solaire (jamais de pointage direct sur le Soleil). **Sync online-first et non bloquante** : au boot, une tâche de fond tente de rafraîchir `reference.sqlite` (fetch conditionnel par sha256, vérification schéma/hash, swap atomique) sans jamais bloquer le démarrage ni casser le cache existant en cas d'échec réseau.
+
+**Nettoyage** : suppression de `data/seed_stars.sql`, `services/catalog/seed_runner.py`, `services/catalog/registry.py` + l'ancien `SqliteCatalogProvider` dans `providers.py`, et des 5 fichiers de tests devenus obsolètes. Migration `_004` (`DROP TABLE IF EXISTS catalog_objects`) ferme définitivement l'ancienne table dans `state.db`. `routes/catalog.py` retypé sur `ReferenceCatalog` (même contrat `list_all`/`get_by_qualified_id`, donc route inchangée hors ce retypage).
+
+**Qualité** : suite verte (321 tests), `ruff check` sans régression introduite par cette tâche (les 27 erreurs pré-existantes hors périmètre, vérifiées identiques avant/après par `git stash`). Deux écarts d'intégration non anticipés par le plan initial ont été résolus au fil de l'implémentation (signature `build_app` non keyword-only sur `use_hardware`, retypage `routes/catalog.py` + réécriture `tests/test_catalog_routes.py` pour ne plus dépendre de `catalog_objects`), plus un ajustement d'isolation des tests (fixture `conftest.py` pointant `ASTRO_BRAIN_STATE_DIR` sur un répertoire jetable, pour que `reference_path()` ne touche jamais `/var/lib/astro-brain` hors Pi).
+
+**Reste (hors backend)** : la bascule **app Flutter** (consommation de `reference.sqlite` / des nouvelles routes côté client) n'est pas dans ce plan — à cadrer séparément. Roadmap Oracle : producteur (SP1, Session 43-44) + backend (SP2, cette session) livrés ; app à suivre.
+
 ### Session 44 — Oracle SP1 : base commune schéma v2 (toutes familles) (2026-08-09)
 
 Objectif : faire de `reference.sqlite` la **source unique du catalogue complet** — toutes les familles d'objets (comètes, planètes, Lune, Soleil, deep-sky Messier/NGC/IC, étoiles nommées) sous un **schéma v2 unifié**, **tube-agnostique**, sans filtrage côté producteur. Deux directives cadres de l'utilisateur : « on ne fait pas coexister deux sources et deux codes différents » (source unique) et « LA base reste complète » (aucun pré-filtre magnitude/taille/type au build). Plan suivi : [`2026-08-09-oracle-base-commune.md`](../superpowers/plans/2026-08-09-oracle-base-commune.md), **8 tâches, TDD**, exécuté en **Subagent-Driven Development** (implémenteur frais par tâche → revue spec+qualité → boucle de fix → revue finale whole-branch sur Opus). Branche `feat/oracle-base-commune` (`9ca4d76`→`14aa69f`, 16 commits).

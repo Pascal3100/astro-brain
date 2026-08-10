@@ -29,7 +29,7 @@ async def _table_names(db: aiosqlite.Connection) -> set[str]:
 
 async def test_run_migrations_creates_schema(db: aiosqlite.Connection) -> None:
     version = await run_migrations(db)
-    assert version == 3
+    assert version == 4
 
     tables = await _table_names(db)
     assert {
@@ -37,21 +37,21 @@ async def test_run_migrations_creates_schema(db: aiosqlite.Connection) -> None:
         "calibration_sensor",
         "mount_limits",
         "alignment_model",
-        "catalog_objects",
     }.issubset(tables)
+    assert "catalog_objects" not in tables
 
     cursor = await db.execute("SELECT MAX(version) FROM schema_version")
     row = await cursor.fetchone()
     await cursor.close()
     assert row is not None
-    assert row[0] == 3
+    assert row[0] == 4
 
 
 async def test_run_migrations_is_idempotent(db: aiosqlite.Connection) -> None:
     first = await run_migrations(db)
     second = await run_migrations(db)
-    assert first == 3
-    assert second == 3
+    assert first == 4
+    assert second == 4
 
     tables = await _table_names(db)
     assert {
@@ -59,25 +59,29 @@ async def test_run_migrations_is_idempotent(db: aiosqlite.Connection) -> None:
         "calibration_sensor",
         "mount_limits",
         "alignment_model",
-        "catalog_objects",
     }.issubset(tables)
+    assert "catalog_objects" not in tables
 
-    cursor = await db.execute("SELECT COUNT(*) FROM schema_version WHERE version = 3")
+    cursor = await db.execute("SELECT COUNT(*) FROM schema_version WHERE version = 4")
     row = await cursor.fetchone()
     await cursor.close()
     assert row is not None
     assert row[0] == 1
 
 
-async def test_catalog_objects_indexes_present(db: aiosqlite.Connection) -> None:
-    await run_migrations(db)
-    cursor = await db.execute(
-        "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='catalog_objects'"
+async def test_migration_004_drops_catalog_objects(tmp_path) -> None:
+    conn = await aiosqlite.connect(":memory:")
+    await run_migrations(conn)
+    cur = await conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+        " AND name='catalog_objects'"
     )
-    rows = await cursor.fetchall()
-    await cursor.close()
-    names = {row[0] for row in rows}
-    assert {"idx_catalog_kind", "idx_catalog_name", "idx_catalog_mag"}.issubset(names)
+    assert await cur.fetchone() is None
+    await cur.close()
+    cur = await conn.execute("SELECT MAX(version) FROM schema_version")
+    assert (await cur.fetchone())[0] >= 4
+    await cur.close()
+    await conn.close()
 
 
 def test_db_path_honors_env(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
