@@ -2,6 +2,8 @@ import 'package:astro_brain/features/catalogue/catalogue_bloc.dart';
 import 'package:astro_brain/features/catalogue/catalogue_models.dart';
 import 'package:astro_brain/features/catalogue/catalogue_repository.dart';
 import 'package:astro_brain/features/catalogue/catalogue_screen.dart';
+import 'package:astro_brain/features/setup/reference/reference_models.dart';
+import 'package:astro_brain/features/setup/reference/reference_repository.dart';
 import 'package:astro_brain/models/system_state.dart';
 import 'package:astro_brain/services/api_service.dart';
 import 'package:astro_brain/services/event_stream_service.dart';
@@ -22,6 +24,8 @@ class _MockApi extends Mock implements ApiService {}
 
 class _MockRepo extends Mock implements CatalogueRepository {}
 
+class _MockRefRepo extends Mock implements ReferenceRepository {}
+
 ThemeData _testTheme() {
   const color = AppColors.day;
   final styles = AppTextStyles(
@@ -38,13 +42,17 @@ Widget _wrap(
   AppBloc appBloc,
   ThemeCubit theme,
   PiHost host,
-  CatalogueBloc catalogueBloc,
-) {
+  CatalogueBloc catalogueBloc, {
+  ReferenceRepository? refRepo,
+}) {
   return MultiRepositoryProvider(
     providers: [
       RepositoryProvider<PiHost>.value(value: host),
       RepositoryProvider<ApiService>.value(value: _MockApi()),
       RepositoryProvider<EventStreamService>(create: (_) => _MockStream()),
+      RepositoryProvider<ReferenceRepository>.value(
+        value: refRepo ?? _MockRefRepo(),
+      ),
     ],
     child: MultiBlocProvider(
       providers: [
@@ -67,6 +75,7 @@ void main() {
   late PiHost host;
   late _MockRepo mockRepo;
   late CatalogueBloc catalogueBloc;
+  late _MockRefRepo refRepo;
 
   setUpAll(() {
     registerFallbackValue('');
@@ -98,6 +107,11 @@ void main() {
     ).thenAnswer((_) async => <CatalogObjectDto>[]);
 
     catalogueBloc = CatalogueBloc(repo: mockRepo);
+
+    refRepo = _MockRefRepo();
+    // Almanach prêt par défaut → bannière masquée, pas d'effet sur ce test.
+    when(() => refRepo.getStatus())
+        .thenAnswer((_) async => const ReferenceStatusDto(ready: true));
   });
 
   tearDown(() {
@@ -111,7 +125,14 @@ void main() {
     (tester) async {
       // AppBloc initial state has system == null → isAligned == false.
       await tester.pumpWidget(
-        _wrap(const CatalogueScreen(), appBloc, theme, host, catalogueBloc),
+        _wrap(
+          const CatalogueScreen(),
+          appBloc,
+          theme,
+          host,
+          catalogueBloc,
+          refRepo: refRepo,
+        ),
       );
       await tester.pump();
 

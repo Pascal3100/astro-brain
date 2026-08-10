@@ -15,6 +15,7 @@ import 'constellations.dart';
 import 'widgets/catalogue_detail_sheet.dart';
 import 'widgets/catalogue_object_card.dart';
 import 'widgets/goto_slew_bar.dart';
+import 'widgets/reference_banner.dart';
 import 'widgets/solar_warning_dialog.dart';
 
 /// Page Catalogue — Macro 3 #5. Liste cherchable/filtrable d'objets célestes
@@ -71,6 +72,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
             child: Column(
               children: const [
                 AstroAppBar(current: AstroScreen.catalogue),
+                ReferenceBanner(),
                 _NotAlignedBanner(),
                 _Filters(),
                 Expanded(child: _ObjectList()),

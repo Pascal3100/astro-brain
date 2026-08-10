@@ -8,6 +8,7 @@ import 'features/catalogue/catalogue_bloc.dart';
 import 'features/catalogue/catalogue_repository.dart';
 import 'features/hub/hub_screen.dart';
 import 'features/manual/manual_bloc.dart';
+import 'features/setup/reference/reference_repository.dart';
 import 'features/splash/splash_cubit.dart';
 import 'features/splash/splash_screen.dart';
 import 'services/api_service.dart';
@@ -33,6 +34,10 @@ class AstroBrainApp extends StatelessWidget {
         RepositoryProvider<ApiService>(
           create: (_) => ApiService(host: host),
           dispose: (s) => s.dispose(),
+        ),
+        RepositoryProvider<ReferenceRepository>(
+          create: (ctx) =>
+              ReferenceRepository(api: ctx.read<ApiService>()),
         ),
         RepositoryProvider<EventStreamService>(
           create: (_) => EventStreamService(host: host),

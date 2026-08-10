@@ -11,6 +11,8 @@ import 'package:astro_brain/features/hub/hub_screen.dart';
 import 'package:astro_brain/features/hub/widgets/hub_card.dart';
 import 'package:astro_brain/features/manual/manual_bloc.dart';
 import 'package:astro_brain/features/manual/manual_screen.dart';
+import 'package:astro_brain/features/setup/reference/reference_models.dart';
+import 'package:astro_brain/features/setup/reference/reference_repository.dart';
 import 'package:astro_brain/features/setup/setup_screen.dart';
 import 'package:astro_brain/features/system/system_screen.dart';
 import 'package:astro_brain/models/system_state.dart';
@@ -51,6 +53,15 @@ class _MockStream extends Mock implements EventStreamService {}
 
 class _MockApi extends Mock implements ApiService {}
 
+class _MockRefRepo extends Mock implements ReferenceRepository {}
+
+ReferenceRepository _defaultRefRepo() {
+  final repo = _MockRefRepo();
+  when(() => repo.getStatus())
+      .thenAnswer((_) async => const ReferenceStatusDto(ready: true));
+  return repo;
+}
+
 ThemeData _testTheme() {
   const color = AppColors.day;
   final styles = AppTextStyles(
@@ -63,13 +74,16 @@ ThemeData _testTheme() {
 }
 
 Widget _wrap(Widget child, AppBloc bloc, ThemeCubit theme, PiHost host,
-    {ApiService? api}) {
+    {ApiService? api, ReferenceRepository? refRepo}) {
   final apiService = api ?? _MockApi();
   return MultiRepositoryProvider(
     providers: [
       RepositoryProvider<PiHost>.value(value: host),
       RepositoryProvider<ApiService>.value(value: apiService),
       RepositoryProvider<EventStreamService>(create: (_) => _MockStream()),
+      RepositoryProvider<ReferenceRepository>.value(
+        value: refRepo ?? _defaultRefRepo(),
+      ),
     ],
     child: MultiBlocProvider(
       providers: [

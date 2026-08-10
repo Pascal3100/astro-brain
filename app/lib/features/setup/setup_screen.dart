@@ -12,6 +12,9 @@ import '../../theme/design_tokens.dart';
 import '../../widgets/astro_app_bar.dart';
 import 'calibration/lis3mdl_screen.dart';
 import 'network/network_screen.dart';
+import 'reference/almanac_screen.dart';
+import 'reference/reference_models.dart';
+import 'reference/reference_repository.dart';
 import 'widgets/setup_card.dart';
 
 /// Formate une durée écoulée pour le sublabel "Calibré il y a Xs/min/h/j".
@@ -62,6 +65,32 @@ class _SetupScreenState extends State<SetupScreen> {
           sublabel: sublabel,
           dotStatus: dot,
           onTap: _openLis3mdl,
+        );
+      },
+    );
+  }
+
+  Widget _buildAlmanacCard() {
+    return FutureBuilder<ReferenceStatusDto>(
+      future: context.read<ReferenceRepository>().getStatus(),
+      builder: (ctx, snap) {
+        final data = snap.data;
+        final ready = data?.ready ?? false;
+        final sublabel = data == null
+            ? '—'
+            : ready
+                ? 'Couvre ${data.windowStart ?? '?'} → ${data.windowEnd ?? '?'}'
+                : 'Indisponible — resynchroniser';
+        final dot = ready ? OverallStatus.green : OverallStatus.gray;
+        return SetupCard(
+          index: 6,
+          icon: PhosphorIconsBold.database,
+          label: 'ALMANACH',
+          sublabel: sublabel,
+          dotStatus: dot,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const AlmanacScreen()),
+          ),
         );
       },
     );
@@ -120,7 +149,8 @@ class _SetupScreenState extends State<SetupScreen> {
           ).push(MaterialPageRoute(builder: (_) => const NetworkScreen())),
         ),
       ),
-      _ => throw RangeError('index $n hors plage 1–5'),
+      6 => _buildAlmanacCard(),
+      _ => throw RangeError('index $n hors plage 1–6'),
     };
   }
 
@@ -158,7 +188,7 @@ class _SetupScreenState extends State<SetupScreen> {
                     horizontal: DesignTokens.spaceLG,
                     vertical: DesignTokens.spaceSM,
                   ),
-                  itemCount: 5,
+                  itemCount: 6,
                   separatorBuilder: (context, index) =>
                       const SizedBox(height: DesignTokens.spaceMD),
                   itemBuilder: (ctx, i) => _cardForIndex(ctx, i + 1),
