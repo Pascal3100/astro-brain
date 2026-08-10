@@ -100,3 +100,21 @@ async def test_reopen_does_not_close_in_flight_handle(tmp_path: Path) -> None:
     await ref.reopen()
     assert ref.ready is True
     await ref.close()
+
+
+async def test_reopen_on_vanished_file_degrades_without_raising(
+    tmp_path: Path,
+) -> None:
+    """reopen() after the file disappears → ready False, no exception, clean close."""
+    p = tmp_path / "reference.sqlite"
+    build_reference_v2(p)
+    ref = ReferenceDb(p)
+    await ref.open()
+    assert ref.ready is True
+
+    p.unlink()  # file vanishes between the exists()-based cycles
+    await ref.reopen()  # must NOT raise
+    assert ref.ready is False
+    assert ref.current() is None
+
+    await ref.close()  # must be clean (no leaked/half-open handle)

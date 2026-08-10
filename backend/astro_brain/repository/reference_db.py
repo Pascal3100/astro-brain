@@ -83,11 +83,19 @@ class ReferenceDb:
         return self._conn
 
     async def _open_supported(self) -> aiosqlite.Connection | None:
-        """Open a RO connection to `self._path` if present and schema-supported."""
+        """Open a RO connection to `self._path` if present and schema-supported.
+
+        Never raises: an absent, locked, or corrupt file (the file may even
+        vanish between the exists() check and connect()) yields `None`, so
+        `open()` degrades cleanly to `ready=False` instead of propagating.
+        """
         if not self._path.exists():
             return None
         uri = f"file:{self._path}?mode=ro&immutable=1"
-        conn = await aiosqlite.connect(uri, uri=True)
+        try:
+            conn = await aiosqlite.connect(uri, uri=True)
+        except Exception:
+            return None
         try:
             cursor = await conn.execute("SELECT schema_version FROM meta LIMIT 1")
             row = await cursor.fetchone()
@@ -108,16 +116,19 @@ class ReferenceDb:
         on it. We swap `self._conn` to the freshly-opened handle and defer the
         old one's close by one cycle (`self._stale_conn`) — the handle retired
         at the *previous* `open()` is idle by now and is the one closed here.
-        `self._conn` is set to `None` before `_open_supported()` so that an
-        unexpected failure never leaves `ready` True while `current()` is None.
+        The handoff runs in a `finally` so the retired handle is never leaked
+        even on an unexpected failure; `self._conn` is set to `None` before
+        `_open_supported()` so `ready` never lies while `current()` is None.
         """
         async with self._lock:
             retired = self._conn
             self._conn = None
-            self._conn = await self._open_supported()
-            stale, self._stale_conn = self._stale_conn, retired
-            if stale is not None:
-                await stale.close()
+            try:
+                self._conn = await self._open_supported()
+            finally:
+                stale, self._stale_conn = self._stale_conn, retired
+                if stale is not None:
+                    await stale.close()
 
     async def reopen(self) -> None:
         """Re-open the connection, e.g. after a sync replaced the file on disk."""
