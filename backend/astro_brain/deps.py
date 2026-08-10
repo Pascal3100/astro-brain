@@ -93,3 +93,7 @@ def get_reference_db(request: Request) -> Any:
 
 def get_reference_sync(request: Request) -> Any:
     return request.app.state.reference_sync
+
+
+def get_resolver(request: Request) -> Any:
+    return request.app.state.resolver
