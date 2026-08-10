@@ -18,6 +18,7 @@ def parse_utc(s: str) -> datetime:
 
 
 def lerp(a: float, b: float, frac: float) -> float:
+    """Interpole linéairement entre ``a`` et ``b`` à la fraction ``frac``."""
     return a + (b - a) * frac
 
 

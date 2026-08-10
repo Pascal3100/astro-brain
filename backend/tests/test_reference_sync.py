@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import sqlite3
 from pathlib import Path
 
 import httpx
@@ -86,6 +87,31 @@ async def test_rejects_future_schema(tmp_path: Path) -> None:
     result = await sync.sync()
     assert result.status == "rejected_schema"
     assert local_sha256(ref.path) is None  # rien n'a été écrit
+
+
+async def test_rejects_downloaded_file_schema_mismatch(tmp_path: Path) -> None:
+    # Le manifeste MENT : il annonce schema_version=2 avec le sha256 correct
+    # d'un payload en réalité schema_version=3 (bascule le guard manifeste et
+    # le hash check ; seul le guard sur le fichier téléchargé doit rejeter).
+    p = tmp_path / "src.sqlite"
+    build_reference_v2(p)
+    con = sqlite3.connect(p)
+    con.execute("UPDATE meta SET schema_version = 3")
+    con.commit()
+    con.close()
+    data = p.read_bytes()
+    sha = hashlib.sha256(data).hexdigest()
+    manifest = {"schema_version": 2, "generated_at": "x",
+                "sqlite_url": "https://h/reference.sqlite", "sqlite_sha256": sha,
+                "window_start": "x", "window_end": "y"}
+    ref = ReferenceDb(tmp_path / "reference.sqlite")
+    await ref.open()
+    sync = ReferenceSync(reference=ref, manifest_url="https://h/manifest.json",
+                         client_factory=_client_factory(manifest, data))
+    result = await sync.sync()
+    assert result.status == "rejected_schema"
+    assert local_sha256(ref.path) is None  # le mauvais fichier n'a pas remplacé le cache
+    assert not ref.path.with_suffix(".sqlite.tmp").exists()  # tmp nettoyé
 
 
 async def test_rejects_hash_mismatch(tmp_path: Path) -> None:

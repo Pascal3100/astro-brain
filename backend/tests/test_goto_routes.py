@@ -73,27 +73,31 @@ def test_reference_unavailable_409():
 
 
 def test_unknown_id_404():
-    client, _ = _client(target=None)
+    client, mount = _client(target=None)
     r = client.post("/goto", json={"id": "nope"})
     assert r.status_code == 404 and r.json()["detail"] == "unknown_id"
+    assert mount.goto_calls == []
 
 
 def test_ephemeris_stale_409():
-    client, _ = _client(target=_STALE)
+    client, mount = _client(target=_STALE)
     r = client.post("/goto", json={"id": "planet:mars"})
     assert r.status_code == 409 and r.json()["detail"] == "ephemeris_stale"
+    assert mount.goto_calls == []
 
 
 def test_not_aligned_409():
-    client, _ = _client(aligned=False, target=_M42)
+    client, mount = _client(aligned=False, target=_M42)
     r = client.post("/goto", json={"id": "NGC1976"})
     assert r.status_code == 409 and r.json()["detail"] == "not_aligned"
+    assert mount.goto_calls == []
 
 
 def test_goto_in_progress_409():
-    client, _ = _client(in_progress=True, target=_M42)
+    client, mount = _client(in_progress=True, target=_M42)
     r = client.post("/goto", json={"id": "NGC1976"})
     assert r.status_code == 409 and r.json()["detail"] == "goto_in_progress"
+    assert mount.goto_calls == []
 
 
 def test_solar_requires_ack():

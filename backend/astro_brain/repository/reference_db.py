@@ -65,6 +65,7 @@ class ReferenceDb:
         """Store the target `path`; no connection is opened until `open()`."""
         self._path = path
         self._conn: aiosqlite.Connection | None = None
+        self._stale_conn: aiosqlite.Connection | None = None
         self._lock = asyncio.Lock()
 
     @property
@@ -102,17 +103,21 @@ class ReferenceDb:
     async def open(self) -> None:
         """Open (or replace) the current connection under the instance lock.
 
-        `self._conn` is reset to `None` before attempting to open the new
-        connection, so that an unexpected exception from `_open_supported`
-        (bad path, permission error, TOCTOU race where the file disappears
-        between `exists()` and `connect()`) never leaves `ready` reporting
-        `True` while `current()` would return a closed connection.
+        The connection being replaced is NOT closed eagerly: an in-flight
+        request may have read it via `current()` and still be awaiting a query
+        on it. We swap `self._conn` to the freshly-opened handle and defer the
+        old one's close by one cycle (`self._stale_conn`) — the handle retired
+        at the *previous* `open()` is idle by now and is the one closed here.
+        `self._conn` is set to `None` before `_open_supported()` so that an
+        unexpected failure never leaves `ready` True while `current()` is None.
         """
         async with self._lock:
-            if self._conn is not None:
-                await self._conn.close()
+            retired = self._conn
             self._conn = None
             self._conn = await self._open_supported()
+            stale, self._stale_conn = self._stale_conn, retired
+            if stale is not None:
+                await stale.close()
 
     async def reopen(self) -> None:
         """Re-open the connection, e.g. after a sync replaced the file on disk."""
@@ -139,8 +144,10 @@ class ReferenceDb:
         )
 
     async def close(self) -> None:
-        """Close the current connection, if any, under the instance lock."""
+        """Close the current and any retired connection, under the instance lock."""
         async with self._lock:
-            if self._conn is not None:
-                await self._conn.close()
-                self._conn = None
+            for conn in (self._conn, self._stale_conn):
+                if conn is not None:
+                    await conn.close()
+            self._conn = None
+            self._stale_conn = None

@@ -8,6 +8,8 @@ from astro_brain.services.catalog.reference_catalog import ReferenceCatalog
 
 @dataclass(frozen=True)
 class ResolvedTarget:
+    """Cible GoTo résolue : coordonnées + métadonnées d'affichage."""
+
     id: str
     kind: str
     name: str
@@ -17,10 +19,14 @@ class ResolvedTarget:
 
 
 class TargetResolver:
+    """Résout un `id` catalogue en `ResolvedTarget` via `ReferenceCatalog`."""
+
     def __init__(self, catalog: ReferenceCatalog) -> None:
+        """Bind the resolver to the `catalog` it queries."""
         self._catalog = catalog
 
     async def resolve(self, obj_id: str) -> ResolvedTarget | None:
+        """Return the `ResolvedTarget` for `obj_id`, or `None` if unknown."""
         obj = await self._catalog.get_by_qualified_id(obj_id)
         if obj is None:
             return None

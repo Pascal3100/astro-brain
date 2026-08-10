@@ -10,6 +10,8 @@ from astro_brain.services.catalog.providers import (
 
 
 class ReferenceCatalog:
+    """Façade catalogue combinant objets fixes et éphémères de `reference.sqlite`."""
+
     def __init__(
         self,
         *,
@@ -17,11 +19,13 @@ class ReferenceCatalog:
         ephemeris: EphemerisProvider,
         reference: ReferenceDb,
     ) -> None:
+        """Bind the catalog to its providers and the `reference.sqlite` handle."""
         self._fixed = fixed
         self._ephemeris = ephemeris
         self._reference = reference
 
     async def list_all(self, filter: CatalogFilter) -> list[CatalogObject]:
+        """Return objects matching `filter`, merged and sorted by magnitude."""
         if not self._reference.ready:
             return []
         if filter.kind is not None:
@@ -42,6 +46,7 @@ class ReferenceCatalog:
         return merged[filter.offset : filter.offset + filter.limit]
 
     async def get_by_qualified_id(self, obj_id: str) -> CatalogObject | None:
+        """Return the object identified by `obj_id`, or `None` if not found."""
         if not self._reference.ready:
             return None
         obj = await self._fixed.get_object(obj_id)

@@ -11,6 +11,7 @@ from astro_brain.repository.reference_db import (
     ReferenceDb,
     local_sha256,
 )
+from tests.reference_fixtures import build_reference_v2
 
 
 def _write_min_v2(path: Path, schema_version: int = 2) -> None:
@@ -78,3 +79,24 @@ async def test_open_failure_after_ready_resets_ready_to_false(tmp_path: Path) ->
 
     assert ref.ready is False
     assert ref.current() is None
+
+
+async def test_reopen_does_not_close_in_flight_handle(tmp_path: Path) -> None:
+    p = tmp_path / "reference.sqlite"
+    build_reference_v2(p)
+    ref = ReferenceDb(p)
+    await ref.open()
+    assert ref.ready is True
+
+    conn = ref.current()
+    assert conn is not None
+
+    await ref.reopen()
+    assert ref.ready is True
+    # L'ancien handle, potentiellement en cours de lecture, reste utilisable :
+    # il n'est retiré qu'au reopen SUIVANT (lazy-close à un cycle de retard).
+    await conn.execute("SELECT 1")
+
+    await ref.reopen()
+    assert ref.ready is True
+    await ref.close()
