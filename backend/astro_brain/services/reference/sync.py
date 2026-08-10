@@ -10,6 +10,7 @@ import os
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 import httpx
@@ -48,7 +49,7 @@ class ReferenceSync:
         self._manifest_url = manifest_url
         self._client_factory = client_factory or _default_client
 
-    def _temp_schema_version(self, path) -> int | None:
+    def _temp_schema_version(self, path: Path) -> int | None:
         con = sqlite3.connect(path)
         try:
             cur = con.execute("SELECT schema_version FROM meta LIMIT 1")
