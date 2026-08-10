@@ -43,8 +43,11 @@ class AlmanacSync {
     try {
       final resp = await client.get(Uri.parse(manifestUrl));
       if (resp.statusCode != 200) return const AlmanacSyncResult(AlmanacSyncStatus.offline);
-      manifest = AlmanacManifest.fromJson(
-          jsonDecode(resp.body) as Map<String, dynamic>);
+      final decoded = jsonDecode(resp.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('manifest: corps JSON non objet');
+      }
+      manifest = AlmanacManifest.fromJson(decoded);
       if (manifest.schemaVersion > kSupportedSchemaVersion) {
         return AlmanacSyncResult(AlmanacSyncStatus.rejectedSchema,
             schemaVersion: manifest.schemaVersion);

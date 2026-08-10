@@ -97,4 +97,22 @@ void main() {
     final r = await sync(client).sync();
     expect(r.status, AlmanacSyncStatus.offline);
   });
+
+  test('manifest schema_version mal typé (string) → offline, ne throw pas',
+      () async {
+    final client = MockClient((req) async => http.Response(
+        jsonEncode({'schema_version': 'deux', 'generated_at': 'g',
+          'sqlite_url': 'https://x/db', 'sqlite_sha256': 'x',
+          'window_start': 's', 'window_end': 'e'}), 200));
+    final r = await sync(client).sync();
+    expect(r.status, AlmanacSyncStatus.offline);
+  });
+
+  test('corps manifest JSON non-objet (array) → offline, ne throw pas',
+      () async {
+    final client =
+        MockClient((req) async => http.Response(jsonEncode([1, 2, 3]), 200));
+    final r = await sync(client).sync();
+    expect(r.status, AlmanacSyncStatus.offline);
+  });
 }

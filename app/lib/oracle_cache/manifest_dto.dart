@@ -22,7 +22,11 @@ class AlmanacManifest {
     T req<T>(String k) {
       final v = j[k];
       if (v == null) throw FormatException('manifest: clé manquante "$k"');
-      return v as T;
+      if (v is! T) {
+        throw FormatException(
+            'manifest: type invalide pour "$k" (${v.runtimeType})');
+      }
+      return v;
     }
 
     return AlmanacManifest(
