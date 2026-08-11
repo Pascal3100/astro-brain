@@ -289,3 +289,15 @@ Cette approche entre en contradiction directe avec le rationale de la migration 
 - Wiring dans `app.py` (`build_app`) : `services["gps"]` (le même GPS déjà injecté ailleurs) est passé aux deux constructeurs.
 - Tests `test_orchestrator.py` / `test_alignment_sensors_bridge.py` réécrits avec un stub `GpsSource` minimal ; le test orchestrator prouve la provenance typée en donnant au stub des lat/lon différentes de celles publiées dans les `details` du bus.
 - Aucune migration DB, aucun changement Flutter/pydantic ; le bus continue de publier exactement ce qu'il publiait avant.
+
+---
+
+## 2026-08-11 — `is_aligned` réhydraté depuis le modèle SQLite persisté (source de vérité)
+
+**Contexte.** `finalize()` persiste le modèle d'alignement en SQLite (`alignment_repo.save`, migration `_002_alignment_model`) et `alignment_repo.load()` implémentait déjà les garde-fous de fraîcheur (Δt > 12 h OU déplacement GPS > 20 m → `None`). Mais `load()` n'avait **aucun appelant de production** : au redémarrage du backend, `AlignmentServiceImpl` réinitialisait `_is_aligned = False`, forçant un re-wizard 3 étoiles alors qu'un modèle valide était sur disque — redondance « code mort correct + booléen RAM volatil ».
+
+**Décision.** La **source de vérité de `is_aligned` au démarrage est le modèle SQLite persisté**. Au boot, une coroutine one-shot (`_rehydrate_alignment_once`) attend le premier fix GPS puis appelle `AlignmentServiceImpl.rehydrate()`, qui consulte `alignment_repo.load()` (mêmes garde-fous 12 h / 20 m) et remet `is_aligned = True` si le modèle est encore valide. `AlignmentInvalidator` conserve son rôle distinct : invalider sur perte du modèle natif (reconnexion monture / redémarrage driver observés pendant que le backend tourne).
+
+**Rationale.** (1) Réutilise du code déjà écrit et testé plutôt que d'ajouter un flag ; (2) entièrement testable hors Pi avec des fakes ; (3) évite une introspection du driver INDI `indi_celestron_aux`, qui n'expose aucun flag d'alignement lisible (le modèle natif est construit par SYNC répétés sur `EQUATORIAL_EOD_COORD`) — route jugée fragile et non vérifiable hors Pi live.
+
+**Conséquences / limitation acceptée.** Si la monture est éteinte/rallumée **pendant que le backend est down**, dans la fenêtre de 12 h et au même lieu (< 20 m), SQLite peut rapporter « aligné » alors que le driver a perdu son modèle natif → faux positif « aligné », non détectable sans introspection driver. Jugé acceptable au regard du coût de la route INDI. L'`AlignmentInvalidator` couvre en revanche toutes les pertes de connexion **observées** en fonctionnement. Cas mineur : en mode position-client-seule (pas de fix GPS Pi), le modèle est persisté sans GPS → `load()` renvoie `None` → pas de réhydratation (comportement honnête : aucune référence de position pour valider le « même lieu »).

@@ -30,6 +30,7 @@ class AlignmentServiceImpl:
         mount: Any,
         sensors: Any,
         repo_save: Callable[..., Any],
+        repo_load: Callable[..., Any],
         db: Any,
         now_utc: Callable[[], datetime],
     ) -> None:
@@ -37,6 +38,7 @@ class AlignmentServiceImpl:
         self._mount = mount
         self._sensors = sensors
         self._repo_save = repo_save
+        self._repo_load = repo_load
         self._db = db
         self._now = now_utc
         self._session: AlignmentSession | None = None
@@ -52,6 +54,30 @@ class AlignmentServiceImpl:
     def invalidate(self) -> None:
         """Perte du modèle natif (reconnexion monture / redémarrage driver)."""
         self._is_aligned = False
+
+    async def rehydrate(self) -> bool:
+        """Restaure ``is_aligned`` depuis le modèle SQLite persisté s'il est
+        encore valide.
+
+        Source de vérité = ``alignment_repo.load`` avec ses garde-fous de
+        fraîcheur (Δt > 12 h / déplacement GPS > 20 m). Best-effort et
+        idempotent : ne met ``is_aligned`` qu'à ``True``. L'invalidation reste
+        le rôle de :class:`AlignmentInvalidator`. Sans fix GPS courant,
+        ``load()`` renvoie ``None`` → pas de restauration. Ne touche jamais une
+        session wizard en cours.
+
+        Renvoie ``True`` si un modèle valide a été restauré.
+        """
+        if self._session is not None:
+            return False
+        current_gps = self._sensors.gps_fix() if self._sensors else None
+        model = await self._repo_load(
+            self._db, now_utc=self._now(), current_gps=current_gps
+        )
+        if model is None:
+            return False
+        self._is_aligned = True
+        return True
 
     async def start(self) -> AlignmentSession:
         candidates = self._select()

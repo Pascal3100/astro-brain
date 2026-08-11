@@ -26,9 +26,9 @@ import aiosqlite
 from fastapi import FastAPI
 
 from astro_brain.alignment_invalidator import AlignmentInvalidator
-from astro_brain.bus import StateBus
+from astro_brain.bus import StateBus, iter_state_snapshots
 from astro_brain.mount_connection_supervisor import MountConnectionSupervisor
-from astro_brain.orchestrator import Orchestrator
+from astro_brain.orchestrator import GPS_FIX_STATES, Orchestrator
 from astro_brain.repository import alignment_repo
 from astro_brain.repository.reference_db import (
     ReferenceDb,
@@ -118,6 +118,32 @@ class _AlignmentSensorsBridge:
         return sky_az_alt_from_ra_dec(
             star.ra_deg, star.dec_deg, obs, datetime.now(UTC)
         )
+
+
+async def _rehydrate_alignment_once(
+    bus: StateBus, alignment: AlignmentServiceImpl
+) -> None:
+    """Re-sème ``is_aligned`` depuis le modèle persisté au 1er fix GPS (one-shot).
+
+    ``alignment_repo.load`` (via ``alignment.rehydrate``) exige un fix GPS
+    courant pour sa garde ΔGPS ; on attend donc le premier fix sur le bus avant
+    de tenter une réhydratation unique. Si un modèle valide est restauré, on
+    republie le sous-système ``alignment`` pour que les clients SSE voient
+    ``is_aligned=True``. La coroutine se termine d'elle-même après le 1er fix.
+    """
+    async for subsystems in iter_state_snapshots(bus):
+        gps = subsystems.get("gps")
+        if gps is not None and gps.state in GPS_FIX_STATES:
+            if await alignment.rehydrate():
+                bus.publish(
+                    "alignment",
+                    SubsystemState(
+                        state="idle",
+                        details={"is_aligned": True},
+                        since=datetime.now(UTC),
+                    ),
+                )
+            return
 
 
 def _select_services(bus: StateBus, *, use_hardware: bool) -> dict[str, Any]:
@@ -250,6 +276,7 @@ def build_app(
             mount=services["mount"],
             sensors=sensors_bridge,
             repo_save=alignment_repo.save,
+            repo_load=alignment_repo.load,
             db=db_conn,
             now_utc=lambda: datetime.now(UTC),
         )
@@ -263,6 +290,12 @@ def build_app(
         )
         background_tasks.append(
             asyncio.create_task(invalidator.run(), name="alignment-invalidator")
+        )
+        background_tasks.append(
+            asyncio.create_task(
+                _rehydrate_alignment_once(bus, _app.state.alignment),
+                name="alignment-rehydrate",
+            )
         )
 
         await services["mount"].start()

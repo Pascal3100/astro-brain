@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -19,7 +20,10 @@ def _stub_candidates() -> list[Star]:
     ]
 
 
-def _build_service(candidates: list[Star] | None = None) -> AlignmentServiceImpl:
+def _build_service(
+    candidates: list[Star] | None = None,
+    repo_load: Any = None,
+) -> AlignmentServiceImpl:
     """Service avec mocks pour repo, mount, sensors et catalog."""
     selector = MagicMock(return_value=candidates or _stub_candidates())
     mount = MagicMock()
@@ -34,6 +38,7 @@ def _build_service(candidates: list[Star] | None = None) -> AlignmentServiceImpl
         mount=mount,
         sensors=sensors,
         repo_save=repo_save,
+        repo_load=repo_load or AsyncMock(return_value=None),
         db=MagicMock(),
         now_utc=lambda: datetime(2026, 5, 9, 22, 0, tzinfo=UTC),
     )
@@ -164,3 +169,33 @@ async def test_is_aligned_lifecycle() -> None:
 
     svc.invalidate()
     assert svc.is_aligned is False
+
+
+async def test_rehydrate_restores_is_aligned_when_model_fresh() -> None:
+    model = MagicMock()  # sentinel non-None : rehydrate ne teste que `is not None`
+    repo_load = AsyncMock(return_value=model)
+    svc = _build_service(repo_load=repo_load)
+    assert svc.is_aligned is False
+    restored = await svc.rehydrate()
+    assert restored is True
+    assert svc.is_aligned is True
+    # load() consulté avec le fix GPS courant des sensors (48.8, 2.3)
+    repo_load.assert_awaited_once()
+    assert repo_load.await_args.kwargs["current_gps"] == (48.8, 2.3)
+
+
+async def test_rehydrate_noop_when_no_valid_model() -> None:
+    repo_load = AsyncMock(return_value=None)  # stale / hors zone / pas de fix
+    svc = _build_service(repo_load=repo_load)
+    restored = await svc.rehydrate()
+    assert restored is False
+    assert svc.is_aligned is False
+
+
+async def test_rehydrate_skips_when_session_active() -> None:
+    repo_load = AsyncMock(return_value=MagicMock())
+    svc = _build_service(repo_load=repo_load)
+    await svc.start()  # wizard en cours
+    restored = await svc.rehydrate()
+    assert restored is False
+    repo_load.assert_not_awaited()  # ne consulte pas le disque, ne clobber pas la session
