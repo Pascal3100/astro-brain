@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from astro_brain.bus import Event, StateBus
+from astro_brain.bus import Event, StateBus, iter_state_snapshots
 from astro_brain.subsystems import SubsystemState
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def test_fresh_bus_has_empty_subsystems_green_and_seq_zero() -> None:
@@ -87,6 +87,35 @@ async def test_unsubscribe_is_clean() -> None:
     # publishing after unsubscribe must not raise
     bus.publish("mount", SubsystemState(state="ready", since=_now()))
     assert bus.get_full_state().seq == 1
+
+
+async def test_iter_state_snapshots_yields_initial_then_one_per_publish() -> None:
+    bus = StateBus()
+    bus.publish("mount", SubsystemState(state="connecting", since=_now()))
+
+    snapshots: list[dict[str, SubsystemState]] = []
+
+    async def _collect() -> None:
+        async for subsystems in iter_state_snapshots(bus):
+            snapshots.append(subsystems)
+            if len(snapshots) == 3:
+                return
+
+    task = asyncio.create_task(_collect())
+
+    await asyncio.sleep(0)  # let the task subscribe and receive the initial snapshot
+    bus.publish("mount", SubsystemState(state="ready", since=_now()))
+    bus.publish("gps", SubsystemState(state="fix_3d", since=_now()))
+
+    await asyncio.wait_for(task, timeout=1.0)
+
+    assert len(snapshots) == 3
+    assert snapshots[0]["mount"].state == "connecting"
+    assert snapshots[1]["mount"].state == "ready"
+    assert snapshots[2]["mount"].state == "ready"
+    assert snapshots[2]["gps"].state == "fix_3d"
+    assert all(isinstance(s, dict) for s in snapshots)
+    assert all(isinstance(v, SubsystemState) for v in snapshots[2].values())
 
 
 def test_event_dataclass_has_type_and_payload() -> None:

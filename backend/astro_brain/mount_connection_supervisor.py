@@ -19,7 +19,7 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Sequence
 
-from astro_brain.bus import StateBus
+from astro_brain.bus import StateBus, iter_state_snapshots
 from astro_brain.services.interfaces import MountService
 from astro_brain.subsystems import MountState
 
@@ -46,8 +46,8 @@ class MountConnectionSupervisor:
 
     async def run(self) -> None:
         """Consume bus events and recover the mount until cancelled."""
-        async for _event in self._bus.subscribe():
-            mount = self._bus.get_full_state().subsystems.get("mount")
+        async for subsystems in iter_state_snapshots(self._bus):
+            mount = subsystems.get("mount")
             if mount is not None and mount.state == MountState.DISCONNECTED.value:
                 await self._recover()
 

@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 
-from astro_brain.bus import StateBus
+from astro_brain.bus import StateBus, iter_state_snapshots
 from astro_brain.services.interfaces import GpsSource, MountService
 from astro_brain.subsystems import GpsState, MountState, SubsystemState
 
@@ -38,9 +38,8 @@ class Orchestrator:
 
     async def run(self) -> None:
         """Subscribe to the bus and react to every state change until cancelled."""
-        async for _event in self._bus.subscribe():
-            full = self._bus.get_full_state()
-            await self._maybe_sync(full.subsystems)
+        async for subsystems in iter_state_snapshots(self._bus):
+            await self._maybe_sync(subsystems)
 
     async def _maybe_sync(self, subsystems: dict[str, SubsystemState]) -> None:
         mount_s = subsystems.get("mount")

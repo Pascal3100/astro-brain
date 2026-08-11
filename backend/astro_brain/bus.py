@@ -23,9 +23,10 @@ Threading invariant:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from astro_brain.aggregator import compute_overall
@@ -80,7 +81,7 @@ class StateBus:
             overall=compute_overall(self._subsystems),
             subsystems=dict(self._subsystems),
             seq=self._seq,
-            ts=datetime.now(timezone.utc),
+            ts=datetime.now(UTC),
         )
 
     # --- async subscription ----------------------------------------------------
@@ -104,8 +105,20 @@ class StateBus:
     def _broadcast(self, event: Event) -> None:
         for q in self._subscribers:
             if q.full():
-                try:
+                with contextlib.suppress(asyncio.QueueEmpty):
                     q.get_nowait()
-                except asyncio.QueueEmpty:
-                    pass
             q.put_nowait(event)
+
+
+async def iter_state_snapshots(
+    bus: StateBus,
+) -> AsyncIterator[dict[str, SubsystemState]]:
+    """Yield the full subsystems mapping on every bus event.
+
+    Shared prologue for the bus reactors (Orchestrator,
+    MountConnectionSupervisor, AlignmentInvalidator): each subscribes and,
+    on every event, reads the current full state's ``subsystems``. This
+    factors out that boilerplate; each reactor keeps its own reaction logic.
+    """
+    async for _event in bus.subscribe():
+        yield bus.get_full_state().subsystems

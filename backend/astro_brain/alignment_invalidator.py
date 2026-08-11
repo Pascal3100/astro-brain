@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from astro_brain.bus import StateBus
+from astro_brain.bus import StateBus, iter_state_snapshots
 from astro_brain.subsystems import MountState, SubsystemState
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ class AlignmentInvalidator:
         """Consume bus events and react to mount state changes until cancelled."""
         if self._bus is None:
             return
-        async for _event in self._bus.subscribe():
-            mount = self._bus.get_full_state().subsystems.get("mount")
+        async for subsystems in iter_state_snapshots(self._bus):
+            mount = subsystems.get("mount")
             if mount is not None:
                 self.on_mount_state(mount.state)
