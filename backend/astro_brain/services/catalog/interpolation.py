@@ -2,8 +2,9 @@
 
 Aucune I/O. Les échantillons sont journaliers ; on interpole linéairement
 entre les deux qui encadrent l'instant, en prenant le plus court arc pour le
-RA (gère 359°→1° sans téléporter). Partagé par le provider éphémère et le
-resolver GoTo.
+RA (gère 359°→1° sans téléporter). Utilisé par le provider éphémère
+(`providers.py`) — `resolver.py` ne dépend pas de ce module, il interroge
+directement `ReferenceCatalog`.
 """
 from __future__ import annotations
 

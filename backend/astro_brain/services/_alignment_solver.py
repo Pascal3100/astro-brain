@@ -22,14 +22,6 @@ def _az_alt_to_unit_vec(az_deg: float, alt_deg: float) -> np.ndarray:
     )
 
 
-def _unit_vec_to_az_alt(v: np.ndarray) -> tuple[float, float]:
-    norm = float(np.linalg.norm(v))
-    x, y, z = v / norm
-    alt = math.degrees(math.asin(max(-1.0, min(1.0, z))))
-    az = math.degrees(math.atan2(y, x)) % 360.0
-    return az, alt
-
-
 def compute_alignment(
     records: list[StarRecord],
     *,

@@ -2,7 +2,7 @@
 
 import pytest
 
-from astro_brain.services._tilt_compensated_heading import naive_heading
+from astro_brain.services._heading import naive_heading
 
 # ---------------------------------------------------------------------------
 # naive_heading

@@ -99,6 +99,8 @@ GET  /reference/status     # { ready, schema_version?, generated_at?, window_sta
 POST /reference/sync       # { status, schema_version? } — refresh online-first non bloquant
 ```
 
+> **Endpoints ops/diagnostic.** `GET /reference/status` et `POST /reference/sync` n'ont aucun consommateur app (l'app lit sa copie locale, cf. contrat ci-dessous) ; ils servent au re-sync manuel et au health probe du Pi (debug, scripts d'exploitation).
+
 > **Contrat courant (Oracle SP2/SP3).** **GoTo passe par `id`** (le Pi résout contre sa copie de `reference.sqlite`), plus de RA/Dec brut côté route. **Depuis SP3-B, l'app ne consomme plus le catalogue via REST** — elle lit sa copie locale et calcule la visibilité côté téléphone ; seul GoTo reste un appel en ligne. **SP3-B bis (2026-08-11) : l'endpoint `GET /catalog/objects` a été retiré** (plus aucun consommateur) avec toute la couche liste/visibilité côté Pi (`VisibilityEnricher`, `ReferenceCatalog.list_all`, `list_objects`, `CatalogFilter`) ; le Pi ne garde que le chemin GoTo (`get_by_qualified_id` → `get_object`). Les endpoints hérités du plan initial (`/catalog/messier|planets|bright-stars|object/{id}/altaz`) n'ont jamais été implémentés sous ce contrat.
 
 ## Format SSE

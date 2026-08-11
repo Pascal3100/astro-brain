@@ -1,12 +1,12 @@
-"""Naive magnetic heading helper (LIS3MDL).
+"""Raw magnetic heading (LIS3MDL) — no tilt compensation.
 
 Pure functions, zero I/O, zero state.
 
 Sensor frame: +x forward, +y right, +z down. Convention: +x = magnetic
-north → 0°, +y = east → 90°. No tilt compensation is applied — the
-accelerometer that used to provide pitch/roll for tilt compensation has
-been removed; heading is derived directly from the (corrected) magnetometer
-vector projected onto the sensor's horizontal plane.
+north → 0°, +y = east → 90°. Heading is derived directly from the
+(corrected) magnetometer vector projected onto the sensor's horizontal
+plane — the accelerometer that used to provide pitch/roll for tilt
+compensation has been removed (see ADR 2026-07-17).
 """
 
 import math

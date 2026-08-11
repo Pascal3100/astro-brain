@@ -17,7 +17,7 @@ from sse_starlette.sse import EventSourceResponse
 from astro_brain import deps
 from astro_brain.models.calibration import Lis3mdlOffsets
 from astro_brain.repository import calibration_repo
-from astro_brain.services._tilt_compensated_heading import naive_heading
+from astro_brain.services._heading import naive_heading
 
 router = APIRouter(tags=["sensors"])
 

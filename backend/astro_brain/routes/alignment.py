@@ -219,7 +219,10 @@ async def get_visible_stars(
     obs = position.observer()
     if obs is None:
         raise HTTPException(status_code=409, detail="position requise")
-    # Bornes pleine-voûte (mêmes valeurs que select_candidates) ; le Setup tube affinera plus tard.
+    # Bornes pleine-voûte (mêmes valeurs que select_candidates) ; le Setup tube
+    # affinera plus tard. alt_min=10.0 ici est nominal : le plancher
+    # effectivement appliqué est 20° (défaut `min_alt` de `visible_stars`,
+    # qui prime sur `limits.alt_min` dans le filtre).
     limits = MountLimits(alt_min=10.0, alt_max=85.0, az_min=0.0, az_max=360.0)
     groups = visible_stars(obs, datetime.now(UTC), limits)
     return {
