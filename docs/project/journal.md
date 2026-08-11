@@ -39,6 +39,14 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 - **Backlog ruff** vidé (0 violation) dont conversion 5 enums → `StrEnum` behavior-preserving (T10-B).
 - Suites vertes : **backend 307**, **app 262** + `flutter analyze` clean. Revue globale opus : **APPROVED**, zéro Critical/Important. ADRs 2026-08-11 (GpsFix typé + is_aligned SQLite).
 
+**Session 49 — Debug UX app + refonte filtres Catalogue (branche `refacto/splash-offline-nominal`, mergée `main`)** : détour hors fil Oracle pour fiabiliser l'app côté offline/catalogue. Livré (3 commits, fast-forward sur `main` + push origin) :
+- **Splash** : suppression de la page-barrage « astrobrain injoignable » — Pi injoignable = boot **nominal** (Oracle hors ligne), on entre en offline silencieusement ; machinerie d'échec morte retirée (state/screen/cubit).
+- **Almanach** : la synchro ne partait pas au lancement — cause racine **environnementale** (repo GitHub privé → assets de la release `almanac-latest` en 404 pour un client anonyme), résolue en passant le repo **public** (scan sécurité préalable : aucun secret tracké, `secrets.h` bien gitignoré). Zéro changement code.
+- **Catalogue** : retrait du pré-filtre Messier (chip + chaîne event/bloc/state/repo/provider) ; le champ **donnée** `messier` conservé (badge + recherche texte).
+- **Catalogue** : chips `MAG ≤ 3/2` → **RangeSlider** magnitude (bornes −5→+12, pas de 1, requête au relâchement). **Option B** : les DSO sans magnitude cataloguée restent toujours visibles ; seuls les objets notés sont bornés à [min, max] (fixed + ephemeris providers).
+- Validé sur device (Moto g54, APK release, Pi éteint). Suites : **app 261** + `flutter analyze` clean.
+- Reste : observabilité de `almanacSync.sync()` (résultat encore silencieusement ignoré) → backlog.
+
 _Prochaine session : **SP3-C, night planner offline** (fil Oracle)._
 
 ## Archives
