@@ -7,6 +7,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from astro_brain.bus import StateBus
 from astro_brain.models.alignment import (
     AlignmentModel,
     AlignmentSession,
@@ -32,9 +33,7 @@ def _stub_session() -> AlignmentSession:
 
 def _client_with_service(
     service, position_provider=None
-) -> tuple[TestClient, "StateBus"]:
-    from astro_brain.bus import StateBus
-
+) -> tuple[TestClient, StateBus]:
     app = FastAPI()
     app.include_router(router)
     app.state.alignment = service

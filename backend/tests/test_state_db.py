@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import AsyncIterator
 
 import aiosqlite
@@ -181,7 +182,7 @@ async def test_alignment_model_only_one_row_allowed(tmp_path) -> None:
             "VALUES (1, '[]', '[]', 0.0, '{}', '2026-01-01T00:00:00Z', 0.0, 0.0, 'good')"
         )
         await db.commit()
-        with pytest.raises(Exception):
+        with pytest.raises(sqlite3.IntegrityError):
             await db.execute(
                 "INSERT INTO alignment_model (id, recorded_stars, svd_matrix, "
                 "rms_arcmin, residuals, validated_at, gps_lat, gps_lon, quality) "

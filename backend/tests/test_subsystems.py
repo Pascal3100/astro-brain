@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from astro_brain.subsystems import (
     GpsState,
@@ -46,7 +46,7 @@ def test_system_info_states_exist() -> None:
 
 
 def test_subsystem_state_roundtrip() -> None:
-    now = datetime(2026, 4, 17, 20, 30, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 4, 17, 20, 30, 0, tzinfo=UTC)
     s = SubsystemState(
         state="ready",
         details={"firmware_version": "11.01"},
@@ -60,7 +60,7 @@ def test_subsystem_state_roundtrip() -> None:
 
 
 def test_subsystem_state_serializable_to_dict() -> None:
-    now = datetime(2026, 4, 17, 20, 30, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 4, 17, 20, 30, 0, tzinfo=UTC)
     s = SubsystemState(state="fix_3d", details={"satellites": 8}, since=now)
     d = s.to_dict()
     assert d["state"] == "fix_3d"
@@ -70,7 +70,7 @@ def test_subsystem_state_serializable_to_dict() -> None:
 
 
 def test_system_state_holds_five_subsystems_and_overall() -> None:
-    now = datetime(2026, 4, 17, 20, 30, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 4, 17, 20, 30, 0, tzinfo=UTC)
     state = SystemState(
         overall="green",
         subsystems={
@@ -88,7 +88,7 @@ def test_system_state_holds_five_subsystems_and_overall() -> None:
 
 
 def test_system_state_to_dict_includes_all_fields() -> None:
-    now = datetime(2026, 4, 17, 20, 30, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 4, 17, 20, 30, 0, tzinfo=UTC)
     state = SystemState(
         overall="green",
         subsystems={"mount": SubsystemState(state="ready", since=now)},

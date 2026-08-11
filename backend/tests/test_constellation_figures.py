@@ -2,7 +2,9 @@ from datetime import UTC, datetime
 
 from astro_brain.services._ephemeris import Observer
 from astro_brain.services.constellation_figures import (
-    figure_for, load_figures, render_figure,
+    figure_for,
+    load_figures,
+    render_figure,
 )
 
 

@@ -1,8 +1,6 @@
 """Tests pour le solver SVD."""
 from __future__ import annotations
 
-import math
-
 import pytest
 
 from astro_brain.models.alignment import StarRecord

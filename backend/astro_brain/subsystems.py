@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class MountState(str, Enum):
+class MountState(StrEnum):
     """Telescope mount lifecycle state."""
 
     DISCONNECTED = "disconnected"
@@ -18,7 +18,7 @@ class MountState(str, Enum):
     ERROR = "error"
 
 
-class GpsState(str, Enum):
+class GpsState(StrEnum):
     """GPS receiver state."""
 
     OFF = "off"
@@ -28,14 +28,14 @@ class GpsState(str, Enum):
     FIX_3D = "fix_3d"
 
 
-class TrackingState(str, Enum):
+class TrackingState(StrEnum):
     """Sidereal tracking state."""
 
     OFF = "off"
     SIDEREAL = "sidereal"
 
 
-class NetworkState(str, Enum):
+class NetworkState(StrEnum):
     """Network mode of the Pi."""
 
     OFFLINE = "offline"
@@ -43,7 +43,7 @@ class NetworkState(str, Enum):
     HOTSPOT = "hotspot"
 
 
-class SystemInfoState(str, Enum):
+class SystemInfoState(StrEnum):
     """Host health roll-up (CPU temp, load, etc.)."""
 
     OK = "ok"

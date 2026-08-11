@@ -16,9 +16,10 @@ Publishing is throttled: the adapter only emits when
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -98,10 +99,8 @@ class NetworkInfoAdapter:
         if self._task is None:
             return
         self._task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await self._task
-        except asyncio.CancelledError:
-            pass
         self._task = None
 
     async def _publish_current(self) -> None:
@@ -118,7 +117,7 @@ class NetworkInfoAdapter:
             SubsystemState(
                 state=state,
                 details=dict(details),
-                since=datetime.now(timezone.utc),
+                since=datetime.now(UTC),
             ),
         )
 

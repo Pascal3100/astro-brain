@@ -15,7 +15,8 @@ thresholds defined below (``ok`` → ``warning`` → ``critical``).
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+import contextlib
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -69,10 +70,8 @@ class SystemInfoAdapter:
         if self._task is None:
             return
         self._task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await self._task
-        except asyncio.CancelledError:
-            pass
         self._task = None
 
     def current_snapshot(self) -> dict[str, int | None]:
@@ -100,7 +99,7 @@ class SystemInfoAdapter:
             SubsystemState(
                 state=compute_state(temp, load),
                 details=details,
-                since=datetime.now(timezone.utc),
+                since=datetime.now(UTC),
             ),
         )
 
