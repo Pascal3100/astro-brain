@@ -18,7 +18,7 @@ class CatalogueRepository {
   final LocalCatalogue _catalogue;
   final Visibility _visibility;
 
-  /// Lecture locale : filtre SQL (kind/mag/messier/search) puis enrichissement
+  /// Lecture locale : filtre SQL (kind/mag/search) puis enrichissement
   /// alt/az + filtre « visible maintenant » (GPS téléphone). `limit: 500` comme
   /// le comportement online précédent (pagination différée Macro 4).
   Future<List<CatalogObjectDto>> listObjects({
@@ -26,13 +26,11 @@ class CatalogueRepository {
     double? maxMag,
     bool visibleNow = false,
     String? kind,
-    bool messier = false,
   }) async {
     final filter = LocalCatalogFilter(
       kind: kind,
       search: search ?? '',
       maxMag: maxMag,
-      messierOnly: messier,
       limit: 500,
     );
     final objects = _catalogue.listAll(filter);

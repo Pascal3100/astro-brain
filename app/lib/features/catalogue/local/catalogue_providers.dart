@@ -14,19 +14,17 @@ class LocalCatalogFilter {
     this.kind,
     this.search = '',
     this.maxMag,
-    this.messierOnly = false,
     this.limit = 500,
     this.offset = 0,
   });
   final String? kind;
   final String search;
   final double? maxMag;
-  final bool messierOnly;
   final int limit;
   final int offset;
 
   LocalCatalogFilter copyWith({int? limit, int? offset}) => LocalCatalogFilter(
-        kind: kind, search: search, maxMag: maxMag, messierOnly: messierOnly,
+        kind: kind, search: search, maxMag: maxMag,
         limit: limit ?? this.limit, offset: offset ?? this.offset);
 }
 
@@ -72,7 +70,6 @@ class FixedObjectProvider {
       sql += ' AND f.apparent_mag IS NOT NULL AND f.apparent_mag <= ?';
       params.add(f.maxMag);
     }
-    if (f.messierOnly) sql += ' AND f.messier IS NOT NULL';
     if (f.search.isNotEmpty) {
       final like = '%${f.search}%';
       sql += ' AND (o.name LIKE ? OR o.designation LIKE ?'

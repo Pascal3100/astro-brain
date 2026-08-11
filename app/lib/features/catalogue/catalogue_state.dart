@@ -36,7 +36,6 @@ class CatalogueFilters extends Equatable {
     this.visibleNow = true,
     this.constellation,
     this.kind,
-    this.messierOnly = false,
   });
 
   final String search;
@@ -44,7 +43,6 @@ class CatalogueFilters extends Equatable {
   final bool visibleNow;
   final String? constellation;
   final String? kind;
-  final bool messierOnly;
 
   CatalogueFilters copyWith({
     String? search,
@@ -52,7 +50,6 @@ class CatalogueFilters extends Equatable {
     bool? visibleNow,
     String? constellation,
     String? kind,
-    bool? messierOnly,
     bool clearMaxMag = false,
     bool clearConstellation = false,
     bool clearKind = false,
@@ -64,12 +61,11 @@ class CatalogueFilters extends Equatable {
         constellation:
             clearConstellation ? null : (constellation ?? this.constellation),
         kind: clearKind ? null : (kind ?? this.kind),
-        messierOnly: messierOnly ?? this.messierOnly,
       );
 
   @override
   List<Object?> get props =>
-      [search, maxMag, visibleNow, constellation, kind, messierOnly];
+      [search, maxMag, visibleNow, constellation, kind];
 }
 
 /// États de la page Catalogue.

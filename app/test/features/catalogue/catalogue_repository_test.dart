@@ -33,7 +33,7 @@ void main() {
     when(() => visibility.enrich(any(), visibleNow: any(named: 'visibleNow')))
         .thenAnswer((_) async => [vega.copyWith(altitudeDeg: 18.0)]);
     final out = await repo().listObjects(
-        search: 'veg', maxMag: 3.0, visibleNow: true, kind: 'star', messier: false);
+        search: 'veg', maxMag: 3.0, visibleNow: true, kind: 'star');
     expect(out.single.altitudeDeg, 18.0);
     // aucun appel réseau catalogue
     verifyNever(() => api.getJson(any(), query: any(named: 'query')));

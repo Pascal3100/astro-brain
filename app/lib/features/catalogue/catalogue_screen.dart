@@ -216,13 +216,6 @@ class _FiltersState extends State<_Filters> {
                             .read<CatalogueBloc>()
                             .add(MagFilterChanged(v ? 2.0 : null)),
                       ),
-                      FilterChip(
-                        label: const Text('MESSIER'),
-                        selected: filters.messierOnly,
-                        onSelected: (v) => ctx
-                            .read<CatalogueBloc>()
-                            .add(MessierToggled(v)),
-                      ),
                     ],
                   ),
                   if (available.isNotEmpty) ...[

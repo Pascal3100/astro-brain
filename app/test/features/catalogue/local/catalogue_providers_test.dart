@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '_fixtures.dart';
 
 void main() {
-  test('FixedObjectProvider : filtres kind/max_mag/messier/search + tri', () {
+  test('FixedObjectProvider : filtres kind/max_mag/search + tri', () {
     final db = newReferenceDb();
     insertFixed(db, id: 'NGC1976', kind: 'dso', name: 'Orion Nebula',
         ra: 83.8, dec: -5.4, mag: 4.0, messier: 'M42', ngcIc: 'NGC1976');
@@ -18,9 +18,6 @@ void main() {
     final all = p.listObjects(const LocalCatalogFilter());
     expect(all.map((o) => o.name),
         ['Sirius', 'Orion Nebula', 'North America']); // mag asc, null en dernier
-
-    final messier = p.listObjects(const LocalCatalogFilter(messierOnly: true));
-    expect(messier.map((o) => o.qualifiedId), ['NGC1976']);
 
     final dso = p.listObjects(const LocalCatalogFilter(kind: 'dso', maxMag: 5));
     expect(dso.map((o) => o.name), ['Orion Nebula']);

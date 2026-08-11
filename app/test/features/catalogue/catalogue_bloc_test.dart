@@ -31,8 +31,7 @@ void main() {
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
               visibleNow: any(named: 'visibleNow'),
-              kind: any(named: 'kind'),
-              messier: any(named: 'messier')))
+              kind: any(named: 'kind')))
           .thenAnswer((_) async => [_vega()]);
       return CatalogueBloc(repo: repo);
     },
@@ -50,8 +49,7 @@ void main() {
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
               visibleNow: any(named: 'visibleNow'),
-              kind: any(named: 'kind'),
-              messier: any(named: 'messier')))
+              kind: any(named: 'kind')))
           .thenAnswer((_) async => [_vega()]);
       return CatalogueBloc(repo: repo);
     },
@@ -66,8 +64,7 @@ void main() {
           search: any(named: 'search'),
           maxMag: any(named: 'maxMag'),
           visibleNow: false,
-          kind: any(named: 'kind'),
-          messier: any(named: 'messier'))).called(1);
+          kind: any(named: 'kind'))).called(1);
     },
   );
 
@@ -78,8 +75,7 @@ void main() {
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
               visibleNow: any(named: 'visibleNow'),
-              kind: any(named: 'kind'),
-              messier: any(named: 'messier')))
+              kind: any(named: 'kind')))
           .thenThrow(Exception('boom'));
       return CatalogueBloc(repo: repo);
     },
@@ -94,8 +90,7 @@ void main() {
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
               visibleNow: any(named: 'visibleNow'),
-              kind: any(named: 'kind'),
-              messier: any(named: 'messier')))
+              kind: any(named: 'kind')))
           .thenAnswer((_) async => [_vega()]);
       when(() => repo.goto(any(), confirmSolar: any(named: 'confirmSolar')))
           .thenAnswer((_) async {});
@@ -121,8 +116,7 @@ void main() {
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
               visibleNow: any(named: 'visibleNow'),
-              kind: any(named: 'kind'),
-              messier: any(named: 'messier')))
+              kind: any(named: 'kind')))
           .thenAnswer((_) async => [_vega()]);
       when(() => repo.goto(any(), confirmSolar: any(named: 'confirmSolar')))
           .thenThrow(ApiException('POST /goto failed',
@@ -152,8 +146,7 @@ void main() {
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
               visibleNow: any(named: 'visibleNow'),
-              kind: any(named: 'kind'),
-              messier: any(named: 'messier')))
+              kind: any(named: 'kind')))
           .thenAnswer((_) async => [_vega()]);
       when(() => repo.goto(any(), confirmSolar: any(named: 'confirmSolar')))
           .thenThrow(ApiException('POST /goto failed',
@@ -201,8 +194,7 @@ void main() {
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
               visibleNow: any(named: 'visibleNow'),
-              kind: any(named: 'kind'),
-              messier: any(named: 'messier')))
+              kind: any(named: 'kind')))
           .thenAnswer((_) async => [sirius(), vegaLyr()]);
       return CatalogueBloc(repo: repo);
     },
@@ -224,8 +216,7 @@ void main() {
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
               visibleNow: any(named: 'visibleNow'),
-              kind: any(named: 'kind'),
-              messier: any(named: 'messier')))
+              kind: any(named: 'kind')))
           .thenAnswer((_) async => [sirius(), vegaLyr()]);
       return CatalogueBloc(repo: repo);
     },
@@ -248,8 +239,7 @@ void main() {
           search: any(named: 'search'),
           maxMag: any(named: 'maxMag'),
           visibleNow: any(named: 'visibleNow'),
-          kind: any(named: 'kind'),
-          messier: any(named: 'messier'))).called(1);
+          kind: any(named: 'kind'))).called(1);
     },
   );
 
@@ -260,8 +250,7 @@ void main() {
               search: any(named: 'search'),
               maxMag: any(named: 'maxMag'),
               visibleNow: any(named: 'visibleNow'),
-              kind: any(named: 'kind'),
-              messier: any(named: 'messier')))
+              kind: any(named: 'kind')))
           .thenAnswer((_) async => [_vega()]);
       return CatalogueBloc(repo: repo);
     },
@@ -271,7 +260,6 @@ void main() {
         search: any(named: 'search'),
         maxMag: any(named: 'maxMag'),
         visibleNow: any(named: 'visibleNow'),
-        kind: 'planet',
-        messier: any(named: 'messier'))).called(1),
+        kind: 'planet')).called(1),
   );
 }

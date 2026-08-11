@@ -48,13 +48,6 @@ class KindFilterChanged extends CatalogueEvent {
   List<Object?> get props => [kind];
 }
 
-class MessierToggled extends CatalogueEvent {
-  const MessierToggled(this.enabled);
-  final bool enabled;
-  @override
-  List<Object?> get props => [enabled];
-}
-
 class GoToRequested extends CatalogueEvent {
   const GoToRequested(this.id, {this.confirmSolar = false});
   final String id;
