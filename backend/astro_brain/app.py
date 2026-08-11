@@ -28,7 +28,7 @@ from fastapi import FastAPI
 from astro_brain.alignment_invalidator import AlignmentInvalidator
 from astro_brain.bus import StateBus, iter_state_snapshots
 from astro_brain.mount_connection_supervisor import MountConnectionSupervisor
-from astro_brain.orchestrator import GPS_FIX_STATES, Orchestrator
+from astro_brain.orchestrator import Orchestrator
 from astro_brain.repository import alignment_repo
 from astro_brain.repository.reference_db import (
     ReferenceDb,
@@ -71,7 +71,7 @@ from astro_brain.services.fakes import (
 )
 from astro_brain.services.interfaces import GpsSource
 from astro_brain.services.reference.sync import ReferenceSync
-from astro_brain.subsystems import SubsystemState
+from astro_brain.subsystems import GpsState, SubsystemState
 
 
 class _AlignmentSensorsBridge:
@@ -133,7 +133,7 @@ async def _rehydrate_alignment_once(
     """
     async for subsystems in iter_state_snapshots(bus):
         gps = subsystems.get("gps")
-        if gps is not None and gps.state in GPS_FIX_STATES:
+        if gps is not None and gps.state == GpsState.FIX_3D.value:
             if await alignment.rehydrate():
                 bus.publish(
                     "alignment",

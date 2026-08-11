@@ -28,6 +28,19 @@ async def test_trigger_rehydrates_and_publishes_on_first_gps_fix() -> None:
     assert aligned.details["is_aligned"] is True
 
 
+async def test_trigger_ignores_2d_fix_and_waits_for_3d() -> None:
+    bus = StateBus()
+    alignment = MagicMock()
+    alignment.rehydrate = AsyncMock(return_value=True)
+    task = asyncio.create_task(_rehydrate_alignment_once(bus, alignment))
+    bus.publish("gps", SubsystemState(state=GpsState.FIX_2D.value, since=datetime.now(UTC)))
+    await asyncio.sleep(0)
+    alignment.rehydrate.assert_not_awaited()  # 2D must not fire the one-shot
+    bus.publish("gps", SubsystemState(state=GpsState.FIX_3D.value, since=datetime.now(UTC)))
+    await asyncio.wait_for(task, timeout=1.0)
+    alignment.rehydrate.assert_awaited_once()
+
+
 async def test_trigger_does_not_publish_when_nothing_to_restore() -> None:
     bus = StateBus()
     alignment = MagicMock()
