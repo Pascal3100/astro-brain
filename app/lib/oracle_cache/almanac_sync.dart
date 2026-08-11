@@ -1,6 +1,6 @@
 /// Sync de reference.sqlite : fetch conditionnel (sha256), verify, swap
 /// atomique. Miroir de `backend/astro_brain/services/reference/sync.py`.
-/// Non bloquant : toute erreur réseau garde le cache courant (offline).
+/// Non bloquant : toute erreur (réseau ou FS) garde le cache courant (offline).
 library;
 
 import 'dart:convert';
@@ -70,17 +70,22 @@ class AlmanacSync {
     }
 
     final tmp = await _store.tmpFile();
-    tmp.writeAsBytesSync(data);
-    final tmpSv = _schemaVersionOf(tmp.path);
-    if (tmpSv == null || tmpSv > kSupportedSchemaVersion) {
+    try {
+      tmp.writeAsBytesSync(data);
+      final tmpSv = _schemaVersionOf(tmp.path);
+      if (tmpSv == null || tmpSv > kSupportedSchemaVersion) {
+        if (tmp.existsSync()) tmp.deleteSync();
+        return AlmanacSyncResult(AlmanacSyncStatus.rejectedSchema, schemaVersion: tmpSv);
+      }
+      final dest = await _store.file();
+      tmp.renameSync(dest.path); // swap atomique (même FS)
+      _reference.reopen();
+      return AlmanacSyncResult(AlmanacSyncStatus.updated,
+          schemaVersion: manifest.schemaVersion);
+    } catch (_) {
       if (tmp.existsSync()) tmp.deleteSync();
-      return AlmanacSyncResult(AlmanacSyncStatus.rejectedSchema, schemaVersion: tmpSv);
+      return const AlmanacSyncResult(AlmanacSyncStatus.offline);
     }
-    final dest = await _store.file();
-    tmp.renameSync(dest.path); // swap atomique (même FS)
-    _reference.reopen();
-    return AlmanacSyncResult(AlmanacSyncStatus.updated,
-        schemaVersion: manifest.schemaVersion);
   }
 
   int? _schemaVersionOf(String path) {

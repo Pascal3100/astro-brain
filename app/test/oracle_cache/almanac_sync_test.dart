@@ -7,8 +7,11 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:sqlite3/sqlite3.dart';
 import '../features/catalogue/local/_fixtures.dart';
+
+class _MockStore extends Mock implements AlmanacStore {}
 
 /// Construit un reference.sqlite valide (schema_version donné) et renvoie ses bytes.
 List<int> buildSqliteBytes(Directory tmp, {int schemaVersion = 2}) {
@@ -113,6 +116,25 @@ void main() {
     final client =
         MockClient((req) async => http.Response(jsonEncode([1, 2, 3]), 200));
     final r = await sync(client).sync();
+    expect(r.status, AlmanacSyncStatus.offline);
+  });
+
+  test('écriture tmp impossible (FS) → offline, ne throw pas', () async {
+    final bytes = buildSqliteBytes(tmp);
+    final sha = sha256.convert(bytes).toString();
+    final mockStore = _MockStore();
+    when(() => mockStore.localSha256()).thenAnswer((_) async => 'autre-sha');
+    when(() => mockStore.tmpFile()).thenAnswer((_) async =>
+        File('/nonexistent-astro-brain-xyz/reference.sqlite.tmp'));
+    final client = MockClient((req) async {
+      if (req.url.toString() == kManifestUrl) {
+        return http.Response(manifestJson('https://x/db', sha), 200);
+      }
+      return http.Response.bytes(bytes, 200);
+    });
+    final r = await AlmanacSync(
+            store: mockStore, reference: ref, clientFactory: () => client)
+        .sync();
     expect(r.status, AlmanacSyncStatus.offline);
   });
 }

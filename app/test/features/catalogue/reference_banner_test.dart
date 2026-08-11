@@ -65,6 +65,6 @@ void main() {
   testWidgets('backend injoignable → pas de faux bandeau', (tester) async {
     await tester.pumpWidget(_wrap(_FakeRepo(null)));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Almanach indisponible'), findsNothing);
+    expect(find.textContaining('Almanach'), findsNothing);
   });
 }
