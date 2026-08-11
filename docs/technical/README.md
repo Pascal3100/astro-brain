@@ -23,5 +23,6 @@ Pages autonomes (SVG inline, thème sombre) décrivant le **câblage fonctionnel
 - [cablage-pont-esp32.html](cablage-pont-esp32.html) — pont ESP32 STA WiFi / TCP:2000, `Serial2` GPIO16/17 + GPIO32 (/OE), rôles firmware (relais, écho, turnaround). ✓ pont · 🔬 OE.
 - [cablage-interface-aux.html](cablage-interface-aux.html) — interface single-wire : RX comparateur LM2902 (✓ prouvé S33) + TX buffer tri-state 74AHCT125 (✓ validé S36, round-trip 30/30), brochage RJ-12. **Référence de câblage du bus AUX.**
 - [cablage-carte-aux-pcb.html](cablage-carte-aux-pcb.html) — consolidation **PCB** de l'interface AUX (netlist + brochages en vue carte). Voir aussi `hardware/aux-bridge/` (spec + BOM).
+- [cablage-carte-aux-perfboard.html](cablage-carte-aux-perfboard.html) — variante **perfboard** de l'interface AUX (plaque ROTH 16×64, implantation ESP32 + composants), générée par `gen_perfboard.py`. Voir aussi `hardware/aux-bridge/`.
 
 Voir aussi : [project/decisions.md](../project/decisions.md) pour le rationale derrière les choix techniques importants.

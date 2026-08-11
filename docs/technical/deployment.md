@@ -80,7 +80,7 @@ ssh pascal3100@astro-brain
 
 Aujourd'hui : édition workstation → commit/push → SSH Pi → `git pull && systemctl restart`.
 
-À automatiser post-Macro 2 (cf. backlog) : script `deploy.sh` ou cible Make.
+Le déploiement reste **manuel** à ce jour (Macros 0→3 livrées). L'automatisation (script `deploy.sh` ou cible Make) demeure un fil transverse ops non priorisé — cf. [backlog](../project/backlog.md).
 
 ## Driver INDI patché (backlash mount-axis)
 

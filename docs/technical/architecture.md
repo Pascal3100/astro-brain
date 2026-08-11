@@ -58,7 +58,7 @@ Le service FastAPI déclare `Requires=indiserver.service` pour garantir que le b
 - Géré par `astro-brain.service` via `StateDirectory=astro-brain` (création + permissions automatiques).
 - Schéma initial : 3 tables (`schema_version`, `calibration_sensor`, `mount_limits`) — voir migration `_001_initial.py`. La table `mount_limits` est **inutilisée depuis le retrait de la feature Courses ALT** (2026-07-17, voir [ADR](../project/decisions.md)) ; conservée telle quelle (pas de migration de suppression).
 - La connexion vit sur `app.state.db`, ouverte au startup du lifespan FastAPI (migrations appliquées avant le démarrage des services), fermée au shutdown.
-- **Calibration hors bus santé.** Lecture à la demande via REST (`GET /calibration/status`).
+- **Calibration hors bus santé.** Lecture à la demande via REST (`GET /calibration/{sensor_id}`).
 
 ## Workflow de dev
 

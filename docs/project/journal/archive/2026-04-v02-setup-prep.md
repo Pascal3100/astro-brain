@@ -125,7 +125,7 @@ Commit `ae2b74f`. Push : 5 commits sur `origin/main` (`d4e93a8..ae2b74f`).
 
 ## 2026-05-03 - Session 14 : scaffold v0.2 Setup + #8 Réseau
 
-Travail Flutter en parallèle pendant que la stack INDI compile sur le Pi. Branche dédiée `feat/v02-setup-scaffold`. Plan focalisé : [`docs/superpowers/plans/2026-05-03-v02-setup-scaffold-network.md`](../../superpowers/plans/2026-05-03-v02-setup-scaffold-network.md). Backend pas touché.
+Travail Flutter en parallèle pendant que la stack INDI compile sur le Pi. Branche dédiée `feat/v02-setup-scaffold`. Plan focalisé : [`docs/superpowers/plans/2026-05-03-v02-setup-scaffold-network.md`](../../../superpowers/plans/2026-05-03-v02-setup-scaffold-network.md). Backend pas touché.
 
 **Task 1 — PiHost runtime** (commit `dd0e828`)
 

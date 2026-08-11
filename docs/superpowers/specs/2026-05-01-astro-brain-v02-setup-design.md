@@ -2,7 +2,7 @@
 
 > Date : 2026-05-01
 > Statut : design validé, prêt pour writing-plans
-> Précédente : [v0.1 design](2026-04-16-astro-brain-v01-design.md) (manuel + tracking)
+> Précédente : [v0.1 design](archive/2026-04-16-astro-brain-v01-design.md) (manuel + tracking)
 > ADR pivot scope : [decisions.md — Setup devient v0.2](../../project/decisions.md)
 
 ## Contexte

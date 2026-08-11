@@ -36,7 +36,7 @@ Vue détaillée des sous-systèmes :
 
 ## Liens
 
-- Spec design : [`docs/superpowers/specs/2026-04-16-astro-brain-v01-design.md`](../../superpowers/specs/2026-04-16-astro-brain-v01-design.md)
-- Plan d'implémentation : [`docs/superpowers/plans/2026-04-24-astro-brain-v01-app.md`](../../superpowers/plans/2026-04-24-astro-brain-v01-app.md)
+- Spec design : [`docs/superpowers/specs/archive/2026-04-16-astro-brain-v01-design.md`](../../superpowers/specs/archive/2026-04-16-astro-brain-v01-design.md)
+- Plan d'implémentation : [`docs/superpowers/plans/archive/2026-04-24-astro-brain-v01-app.md`](../../superpowers/plans/archive/2026-04-24-astro-brain-v01-app.md)
 - Modèle d'état : [`docs/technical/state-model.md`](../../technical/state-model.md)
 - API utilisée : [`docs/technical/api.md`](../../technical/api.md) — section Macro 0 Socle

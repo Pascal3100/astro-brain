@@ -1085,7 +1085,7 @@ Routing root : `app/lib/app.dart::_RootRouter` retourne `HubScreen`.
 
 - Spec : [`docs/superpowers/specs/2026-05-08-hub-central-design.md`](../../superpowers/specs/2026-05-08-hub-central-design.md)
 - Plan : [`docs/superpowers/plans/2026-05-08-hub-central-implementation.md`](../../superpowers/plans/2026-05-08-hub-central-implementation.md)
-- Design system (icônes) : [`design-system.md`](../design-system.md)
+- Design system (icônes) : [`design-system.md`](../../product/design-system.md)
 ```
 
 - [ ] **Step 2: Mettre à jour la roadmap**

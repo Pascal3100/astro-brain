@@ -76,7 +76,7 @@ Ordre de boot : `gpsd` indépendant ; `indiserver` `Wants=astro-brain.service` ;
 1. `connectServer()` vers `127.0.0.1:7624`.
 2. `watchDevice("Celestron AUX")` ou nom équivalent (à confirmer en runtime via le label du driver).
 3. À l'arrivée du device, set `CONNECTION.CONNECT=ON`, attend `CONNECTION` en `IPS_OK`, alors publie `mount=ready` sur le bus.
-4. Set `DEVICE_PORT.PORT = /dev/ttyUSB0` et `BAUD_RATE = 9600` (HC pass-through ; câblage CP2102 dans [`hardware.md`](../../technical/hardware.md#monture--usb-série-via-dongle-cp2102-port-hc)).
+4. Set `DEVICE_PORT.PORT = /dev/ttyUSB0` et `BAUD_RATE = 9600` (HC pass-through ; câblage CP2102 dans [`hardware.md`](../../technical/hardware.md#monture--bus-aux-via-pont-esp32-port-hand-control-de-la-base-slt) — le câblage a depuis pivoté vers le pont ESP32, cf. [ADR 2026-07-05](../../project/decisions.md)).
 5. Capture les `updateProperty()` callbacks pour propager :
    - `EQUATORIAL_EOD_COORD` → coords mount.
    - `TELESCOPE_TRACK_STATE` → bus `tracking`.
@@ -173,7 +173,7 @@ Pas de tests INDI dans le repo principal (le driver est externe, c'est upstream 
 | PR backlash refusée ou stagnante upstream | Moyenne | Fork local maintenable indéfiniment ; le patch est petit (~70 lignes), faible probabilité de conflit avec mainline. |
 | `pyindi-client` cassé par update Python ou libindi | Basse | Pinned dans `pyproject.toml` + extra `hardware`. Alternative connue : `MMTObservatory/pyINDI` (asyncio pur, sans SWIG) — plan B documenté. |
 | Charge mémoire `indiserver` + driver sur Pi 3 B+ (1 GB RAM) | Basse | ~30–80 MB RSS au repos selon mesures upstream. À mesurer en `INTEGRATION_CHECKLIST.md`. Largement dans les marges (Pi 3 B+ tourne déjà à <300 MB total avec backend Python actuel). |
-| Conflit UART HC ↔ UART GPS | Résolu | HC accédé via dongle USB-TTL CP2102 (5V) sur `/dev/ttyUSB0`, UART matériel laissé au GPS. Câblage : [`hardware.md` § Monture](../../technical/hardware.md#monture--usb-série-via-dongle-cp2102-port-hc). |
+| Conflit UART HC ↔ UART GPS | Résolu | HC accédé via dongle USB-TTL CP2102 (5V) sur `/dev/ttyUSB0`, UART matériel laissé au GPS. Câblage : [`hardware.md` § Monture](../../technical/hardware.md#monture--bus-aux-via-pont-esp32-port-hand-control-de-la-base-slt) (câblage pivoté vers pont ESP32, cf. [ADR 2026-07-05](../../project/decisions.md)). |
 
 ## Impact sur la spec v0.2 Setup
 

@@ -26,11 +26,13 @@ Document vivant. Liste les sous-systèmes, leurs états, et les règles d'agrég
 
 > **Calibration hors bus.** Les payloads de calibration capteurs (`calibration_sensor`) **ne sont pas publiés sur le bus santé** en Macro 2. Ils sont persistés dans `state.db` (aiosqlite) et lus à la demande via REST. Le bus santé reste donc sur ses 5 sous-systèmes initiaux (`mount`, `gps`, `tracking`, `network`, `system`), plus `compass` quand le service sera livré. (Les courses ALT — sous-système `mount_limits` — ont été retirées le 2026-07-17 avec la feature Courses ALT, voir [ADR](../project/decisions.md).) Voir [architecture.md](architecture.md#état-persistant--statedb).
 
-## Sous-systèmes prévus Macro 3 — Mise en station + GoTo basique
+## Sous-systèmes Macro 3 — Mise en station + GoTo (software livré)
 
 | Kind | Service | États | Détails clés |
 |---|---|---|---|
-| `alignment` | `AlignmentService` | `not_aligned / wizard_in_progress / aligned / error` | `step (1..6), residual_deg, stars_synced (0..3)` |
+| `alignment` | `AlignmentService` | `idle / active` | `is_aligned, session_id, current_idx, recorded_count, candidate_ids` |
+
+> **Contrat de bus courant.** Le wizard ne publie que deux états — `idle` (aucune session) et `active` (session en cours) — via `_publish_session` (routes/alignment.py), avec `is_aligned` toujours présent. La taxonomie fine envisagée initialement (`not_aligned / aligned / error` + `residual_deg`, `stars_synced`) n'est **pas** portée sur le bus : l'issue du solver revient dans la réponse REST `finalize` (`AlignmentModel`), pas dans le flux santé.
 
 ## Règles d'agrégation `overall`
 
@@ -50,11 +52,10 @@ L'agrégateur **dérive ses règles des enums** (FATAL / TRANSIENT / DEGRADED) �
 - `compass=needs_calibration` → `orange` (degraded — utilisable mais le wizard refuse de continuer)
 - `compass=error` → `orange` (capteur capricieux, app reste utilisable)
 
-### Extensions Macro 3 — Mise en station + GoTo basique
+### Extensions Macro 3 — Mise en station + GoTo
 
-- `alignment=error` → `blue` (correctable user, pas une panne hardware)
-- `alignment=not_aligned` → neutre
-- `alignment=wizard_in_progress` → `blue` (en cours)
+- `alignment=active` → `blue` (wizard en cours, transitionnel)
+- `alignment=idle` → neutre
 
 ## Format SSE
 

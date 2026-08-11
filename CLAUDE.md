@@ -48,6 +48,10 @@ Monorepo à `/home/pascal-lopez/PLOPEZ/PERSO/ASTRO-BRAIN/` :
 
 - `backend/` — package Python FastAPI (pyproject.toml + uv.lock à ce niveau)
 - `app/` — app Flutter (`flutter_bloc`, design system dans `lib/theme/`)
+- `oracle/` — producteur du plan de données de référence Oracle (`reference.sqlite` schéma v2, CI hebdo `almanac-latest`) ; projet Python **indépendant**, zéro dépendance vers `backend/`/`app/`
+- `firmware/` — firmware ESP32 du pont AUX (`esp32-aux-bridge/`)
+- `hardware/` — sources de la carte d'interface AUX (`aux-bridge/` : netlist + générateurs perfboard/layout)
+- `openspec/` — config outillage spec-driven (openspec)
 - `docs/` — `INDEX.md` + 3 vues (`technical/`, `project/`, `product/`) + `superpowers/{specs,plans}/`
 - `CLAUDE.md`, `README.md` — racine
 
@@ -74,7 +78,7 @@ Pas de versions numérotées. **Train d'étapes atomiques regroupées en macro-�
 - **Macro 6 — Focus + MES complète** : focus live HFR/FWHM, wizard MES end-to-end, alignement par plate solve, assistant alignement optique
 - **Macro 7 — Astrophoto** : PHD2 guidage, séquenceur, dithering, autofocus
 
-Fils transverses (en continu, pas dans le train) : safety (urgence + logs), mode nuit, indicateur global, ops (deploy, build APK), night planner offline.
+Fils transverses (en continu, pas dans le train) : **Oracle / plan de données de référence** (`reference.sqlite` autonome du Pi, généré en CI, consommé backend + app en cache local hors ligne — SP1→SP3-B livrés ; genèse [`docs/project/oracle-genese.md`](docs/project/oracle-genese.md)), safety (urgence + logs), mode nuit, indicateur global, ops (deploy, build APK), night planner offline.
 
 Roadmap détaillée et statut par étape : [`docs/project/roadmap.md`](docs/project/roadmap.md). ADRs : [`docs/project/decisions.md`](docs/project/decisions.md).
 

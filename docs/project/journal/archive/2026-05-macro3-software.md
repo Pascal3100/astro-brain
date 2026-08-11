@@ -24,7 +24,7 @@ Plan `docs/superpowers/plans/2026-05-31-catalogue-goto.md` (19 tasks) exécuté 
 
 **Tests** : backend 300 → 322 verts ; app 182 → 196 verts ; `ruff`/`flutter analyze` clean. Validation matérielle (slew réel sur monture) et validation visuelle Android reportées dongle CP2102 (Macro 1).
 
-**Raffinements différés** consignés dans [`../backlog.md`](../backlog.md) (feedback d'échec GoTo en SnackBar, `buildWhen` slew bar, seuil de visibilité par obstruction).
+**Raffinements différés** consignés dans [`backlog.md`](../../backlog.md) (feedback d'échec GoTo en SnackBar, `buildWhen` slew bar, seuil de visibilité par obstruction).
 
 **Validation sur device (Moto g54, Pi déployé à jour, sans dongle)** : le smoke téléphone a remonté plusieurs points, corrigés dans la foulée. (1) **Bug 404 catalogue** : `CatalogueRepository` collait la query dans le path (`/catalog/objects?…`) passé à `getJson` → `PiHost.restUri` faisait `Uri.http(authority, path)` qui encode le `?` en `%3F` → `/catalog/objects%3F…` → 404. Premier endpoint à utiliser une query string ; le test du repo mockait `getJson` sans exercer `restUri`. Fix : query passée via `Uri.http(queryParameters)` + tests de régression `restUri`. (2) **UX cartes** : passage à la version aérée (design B), nom de constellation en toutes lettres (table abréviation IAU → français), bouton POINTER du bottom sheet rendu visible via `SafeArea`. (3) **Filtre par constellation** (menu déroulant client-side, ne liste que les constellations présentes). Aussi : mDNS `astro-brain.local` non résolu par Android → host renseigné en IP dans Setup → Réseau. Tests app 198 → 204. Commits `f179db4`, `b53bde9`, `d51d123`.
 

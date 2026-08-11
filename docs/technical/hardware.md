@@ -14,6 +14,8 @@ Référence pratique pour le matériel et les branchements physiques.
 
 La monture passe désormais par le **WiFi** (pont ESP32 sur le bus AUX), plus par l'USB → les ports USB du Pi sont réservés aux **caméras** (Macro 5+). **Tous les capteurs passent par les GPIO** ; leur **VCC vient du rail 5 V externe** (12 V → 5 V), pas des broches 5 V du Pi — seul le 3,3 V vient du Pi.
 
+![Raspberry Pi 3 B+ — vue d'ensemble](../introduction-to-raspberry-pi-3-b-plus-2.png)
+
 ## Bus I2C1
 
 | Device | Adresse | Usage |
@@ -21,6 +23,12 @@ La monture passe désormais par le **WiFi** (pont ESP32 sur le bus AUX), plus pa
 | LIS3MDL (compass) | `0x1E` | Cap magnétique, alignement assisté (Macro 3+) |
 
 ## Plan du header GPIO (Pi 3 B+, vue du dessus)
+
+Brochage complet du header 40 broches (référence) :
+
+![Brochage GPIO du Raspberry Pi 3 B+](../R-Pi-3-B-Pinout.webp)
+
+Extrait des broches du haut du header (celles qu'on utilise) :
 
 ```
          3V3  (1) (2)  5V
