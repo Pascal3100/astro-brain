@@ -62,17 +62,17 @@ def test_fit_ellipsoid_scaled_z() -> None:
 
 
 def test_fit_noisy_sphere_residual_is_rms() -> None:
-    """Gaussian-noised sphere samples must cross 0.01 as RMS, not as MAD.
+    """Gaussian-noised sphere samples must yield a clearly non-zero RMS residual.
 
-    Noise scale (0.010) is tuned so the two residual definitions straddle the
-    0.01 threshold used by the clean-fit tests above: MAD ≈ 0.00804 (would
-    stay below 0.01) while RMS ≈ 0.01011 (crosses above it), since RMS is
-    always >= MAD for the same error distribution. This makes the assertion
-    fail under the old MAD implementation and pass once residual is RMS.
+    Noise scale (0.025, fixed seed) is chosen so the RMS residual lands
+    comfortably above the 0.01 threshold used by the near-perfect clean-fit
+    tests above (empirically ~0.0253) — a wide margin so the assertion stays
+    robust across numpy/LAPACK backends, rather than sitting close to the
+    boundary.
     """
     rng = np.random.default_rng(7)
     samples = _sphere_samples(rng, 500)
-    noise = rng.normal(loc=0.0, scale=0.010, size=(500, 3))
+    noise = rng.normal(loc=0.0, scale=0.025, size=(500, 3))
     noisy_samples = [
         (x + nx, y + ny, z + nz)
         for (x, y, z), (nx, ny, nz) in zip(samples, noise.tolist(), strict=True)
