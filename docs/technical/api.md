@@ -77,6 +77,8 @@ GET  /catalog/bright-stars
 GET  /catalog/object/{id}/altaz
 ```
 
+> **Contrat courant (Oracle SP2/SP3).** Le catalogue est unifié dans `reference.sqlite` : le backend expose `GET /catalog/objects` + `GET /reference/status` + `POST /reference/sync`, et **GoTo est passé par `id`** (`POST /goto { id, confirm_solar? }`, plus RA/Dec brut). **Depuis SP3-B, l'app ne consomme plus le catalogue via REST** — elle lit sa copie locale de `reference.sqlite` et calcule la visibilité côté téléphone ; seul GoTo reste un appel en ligne. L'endpoint `/catalog/objects` subsiste côté Pi (plus servi à l'app → nettoyage différé, tranche B↔C). Les endpoints `/catalog/messier|planets|bright-stars` ci-dessus sont hérités et non implémentés sous ce contrat.
+
 ## Format SSE
 
 ```
