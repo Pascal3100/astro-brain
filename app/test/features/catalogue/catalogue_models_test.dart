@@ -67,4 +67,15 @@ void main() {
     expect(o.ephemerisStale, isFalse);
     expect(o.illumination, 0.42);
   });
+
+  test('copyWith met à jour alt/az sans toucher au reste', () {
+    const o = CatalogObjectDto(
+        qualifiedId: 'star:vega', kind: 'star', name: 'Vega',
+        raDeg: 279.23, decDeg: 38.78, mag: 0.0);
+    final c = o.copyWith(altitudeDeg: 18.0, azimuthDeg: 51.0);
+    expect(c.altitudeDeg, 18.0);
+    expect(c.azimuthDeg, 51.0);
+    expect(c.qualifiedId, 'star:vega');
+    expect(c.mag, 0.0);
+  });
 }

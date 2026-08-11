@@ -181,6 +181,16 @@ Minors + findings latents relevés aux task-reviews et à la revue finale Opus d
 - **Champs DTO catalogue v2 non affichés.** `angularSizeArcmin`/`messier`/`ngcIc`/`illumination`/`ephemerisStale` sont parsés (T2) mais pas encore surfacés dans l'UI ; l'affichage relève d'une tranche ultérieure (catalogue intelligent, Macro 4).
 - **Statut référence : passer du polling REST au SSE.** `ReferenceBanner`/`AlmanacScreen` interrogent `GET /reference/status` à la demande. Quand le flux SSE d'état s'étoffera, replier le statut de référence dedans (cohérent avec « REST commandes / SSE état »).
 
+## Oracle — dette technique app (post-SP3-B, cache local hors ligne)
+
+Minors différés à la revue finale Opus du plan SP3-B (l'app lit `reference.sqlite` localement + calcule alt/az côté téléphone). Aucun bloquant (0 Critical/Important ; l'unique finding Important — queue FS de `sync()` hors garde non-throwing — a été corrigé avant merge). À arbitrer si le volume de l'almanach grossit ou lors d'un durcissement du chemin de sync.
+
+- **Moteur + sync sur un isolate dédié (si le volume l'exige).** Le décodage `reference.sqlite`, `sha256.convert(data)` et `writeAsBytesSync` de la sync tournent sur le **main isolate** → jank UI bref le temps d'un swap d'almanach multi-Mo, et le merge/tri/pagination du catalogue local grossit avec le nombre d'objets. Piste : déporter le moteur de lecture et/ou la vérif+écriture de sync sur un `Isolate` (ou `compute`) quand la taille réelle de l'almanach le justifie. **Non requis** aux volumes actuels.
+- **`AlmanacSync.reopen()` dans le `try` de swap (cosmétique).** Si `reopen()` levait *après* un `renameSync` réussi, `sync()` renvoie `offline` alors que le fichier a bien été swappé sur disque. Auto-réparant (`reopen`/`open`/`_adopt` avalent déjà `SqliteException` ; la sync suivante voit `localSha256` == manifest → `upToDate`) → pas un bug actif, cohérence de statut seulement.
+- **Mocks hub non stubbés (piège latent de test).** `hub_screen_test.dart` construit un `CatalogueRepository` avec `_MockCatalogue`/`_MockVisibility` non stubbés — sûr aujourd'hui car aucun test hub ne pilote le `CatalogueBloc` (lazy). Le premier test hub qui navigue vers l'écran catalogue heurtera des appels mocktail non stubbés → prévoir `when(() => catalogue.listAll(any())).thenReturn([])` + `registerFallbackValue`.
+- **Couverture à élargir (non-correctness).** Tests non ajoutés, logique jugée fidèle au portage backend : merge avec `offset>0` et tie-break magnitude égale (name asc) ; frontière `alt==0.0` ; `messierOnly`/branches search-null au niveau repository. `parseUtc` ne gère pas l'offset ISO court `+hh` (hors données Oracle, toujours offset complet/`Z`).
+- **Fold état référence dans le SSE** — déjà tracké dans « dette app (post-SP3-A) » ci-dessus (`ReferenceBanner`/`AlmanacScreen` interrogent `GET /reference/status` à la demande) ; reste valable en local-first (le statut vient désormais de `meta()` local, mais le principe « état via un flux » tient).
+
 ## Ops & déploiement (à automatiser post-Macro 0)
 
 - **Service systemd** pour le backend — livré (`astro-brain.service`).

@@ -1,14 +1,26 @@
 import '../../services/api_service.dart';
 import 'catalogue_models.dart';
+import 'local/catalogue_providers.dart';
+import 'local/local_catalogue.dart';
+import 'local/visibility.dart';
 
-/// Façade REST sur `/catalog/objects` + `/goto` (+ `/stop` pour l'abort).
+/// Catalogue lu LOCALEMENT (reference.sqlite en cache) ; GoTo reste online
+/// (l'id part au Pi, qui résout contre sa propre copie).
 class CatalogueRepository {
-  CatalogueRepository({required this.api});
+  CatalogueRepository({
+    required this.api,
+    required LocalCatalogue catalogue,
+    required Visibility visibility,
+  })  : _catalogue = catalogue,
+        _visibility = visibility;
 
   final ApiService api;
+  final LocalCatalogue _catalogue;
+  final Visibility _visibility;
 
-  /// GET /catalog/objects avec filtres optionnels. On charge large (limit 500)
-  /// — le catalogue actuel est petit, pagination différée (Macro 4).
+  /// Lecture locale : filtre SQL (kind/mag/messier/search) puis enrichissement
+  /// alt/az + filtre « visible maintenant » (GPS téléphone). `limit: 500` comme
+  /// le comportement online précédent (pagination différée Macro 4).
   Future<List<CatalogObjectDto>> listObjects({
     String? search,
     double? maxMag,
@@ -16,25 +28,22 @@ class CatalogueRepository {
     String? kind,
     bool messier = false,
   }) async {
-    final params = <String, String>{'limit': '500'};
-    if (search != null && search.isNotEmpty) params['search'] = search;
-    if (maxMag != null) params['max_mag'] = maxMag.toString();
-    if (visibleNow) params['visible_now'] = 'true';
-    if (kind != null) params['kind'] = kind;
-    if (messier) params['messier'] = 'true';
-    final j = await api.getJson('/catalog/objects', query: params);
-    return (j['objects'] as List)
-        .map((e) => CatalogObjectDto.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final filter = LocalCatalogFilter(
+      kind: kind,
+      search: search ?? '',
+      maxMag: maxMag,
+      messierOnly: messier,
+      limit: 500,
+    );
+    final objects = _catalogue.listAll(filter);
+    return _visibility.enrich(objects, visibleNow: visibleNow);
   }
 
-  /// POST /goto — pointe la monture sur l'objet identifié par [id].
-  /// [confirmSolar] à `true` acquitte l'avertissement solaire (cf. flux
-  /// server-driven : n'est envoyé qu'après un 409 `solar_ack_required`).
+  /// POST /goto — pointe la monture sur l'objet identifié par [id] (Pi).
   Future<void> goto(String id, {bool confirmSolar = false}) async {
     await api.postJson('/goto', {'id': id, 'confirm_solar': confirmSolar});
   }
 
-  /// Abort : réutilise le POST /stop existant (TELESCOPE_ABORT_MOTION).
+  /// Abort : POST /stop.
   Future<void> abort() => api.stop();
 }

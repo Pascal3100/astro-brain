@@ -44,6 +44,17 @@ class CatalogObjectDto extends Equatable {
   /// `true` si l'altitude courante est connue et au-dessus de l'horizon.
   bool get isVisible => altitudeDeg != null && altitudeDeg! > 0.0;
 
+  CatalogObjectDto copyWith({double? altitudeDeg, double? azimuthDeg}) =>
+      CatalogObjectDto(
+        qualifiedId: qualifiedId, kind: kind, name: name, raDeg: raDeg,
+        decDeg: decDeg, designation: designation, mag: mag,
+        constellation: constellation, objectType: objectType,
+        angularSizeArcmin: angularSizeArcmin, messier: messier, ngcIc: ngcIc,
+        illumination: illumination, ephemerisStale: ephemerisStale,
+        altitudeDeg: altitudeDeg ?? this.altitudeDeg,
+        azimuthDeg: azimuthDeg ?? this.azimuthDeg,
+      );
+
   factory CatalogObjectDto.fromJson(Map<String, dynamic> j) => CatalogObjectDto(
         qualifiedId: j['qualified_id'] as String,
         kind: j['kind'] as String,

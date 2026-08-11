@@ -7,10 +7,10 @@ import '../../../theme/design_tokens.dart';
 import '../../setup/reference/reference_models.dart';
 import '../../setup/reference/reference_repository.dart';
 
-/// Bandeau affiché quand l'almanach de référence n'est pas prêt côté backend
-/// (`ready == false`) : dans ce cas GoTo et catalogue sont hors service.
-/// Masqué si l'almanach est prêt, ou si le Pi est injoignable (l'offline est
-/// géré par l'indicateur global — on n'affiche pas de faux « indisponible »).
+/// Bandeau affiché quand l'almanach de référence LOCAL est absent
+/// (`ready == false`) : premier lancement, ou offline sans cache. Invite à
+/// synchroniser dans Réglages → Almanach. Masqué tant que le futur de statut
+/// n'a pas de donnée, ou si l'almanach local est prêt (`ready == true`).
 class ReferenceBanner extends StatelessWidget {
   const ReferenceBanner({super.key});
 
@@ -32,8 +32,7 @@ class ReferenceBanner extends StatelessWidget {
             borderRadius: BorderRadius.circular(DesignTokens.radiusMD),
           ),
           child: Text(
-            'Almanach indisponible — pointage et catalogue hors service. '
-            'Resynchronise dans Réglages → Almanach.',
+            'Almanach absent — synchronise dans Réglages.',
             style: text.hudCaption.copyWith(color: colors.dotWarn),
           ),
         );

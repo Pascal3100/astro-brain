@@ -26,8 +26,8 @@ App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[pyin
 
 - **REST + SSE, pas de WebSocket** — REST pour les commandes (`/slew`, `/stop`, `/tracking`, `/goto`), SSE pour le flux d'état (`/events`).
 - **Source de vérité côté Pi** — GPS, heure, capteurs, état monture, calculs astro (skyfield/astropy). L'app est un client de présentation.
-- **Catalogue côté backend** (à partir de Macro 3) — endpoints REST exposent Messier, planètes, étoiles brillantes. Calculs Alt/Az faits en Python.
-- **App offline-friendly seulement quand sans Pi pas de sens** — le night planner (post-Macro 3) utilisera un pattern snapshot/cache, mais le contrôle direct exige le Pi allumé.
+- **Catalogue : source unique `reference.sqlite` (almanach Oracle), lue des deux côtés** — le Pi en tient sa copie (SP2) pour résoudre les GoTo par `id` ; **depuis Oracle SP3-B, l'app lit le catalogue et calcule la visibilité (alt/az) localement** depuis son propre cache `reference.sqlite` (téléchargé de la release GitHub `almanac-latest`), donc **catalogue navigable Pi éteint**. Le Pi ne sert plus le catalogue à l'app (l'endpoint REST `/catalog/objects` subsiste, nettoyage différé). **GoTo reste en ligne** : l'app envoie `{id, confirm_solar}`, le Pi pointe.
+- **App offline-first pour le catalogue Oracle** — navigation + visibilité fonctionnent Pi éteint (cache local `reference.sqlite`, sync online-first non bloquante au boot). Le **contrôle direct** (slew/goto/tracking) et l'état live exigent toujours le Pi allumé.
 
 ## Stack technique
 
