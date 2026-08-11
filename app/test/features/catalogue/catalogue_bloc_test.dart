@@ -262,4 +262,47 @@ void main() {
         visibleNow: any(named: 'visibleNow'),
         kind: 'planet')).called(1),
   );
+
+  blocTest<CatalogueBloc, CatalogueState>(
+    'MagRangeChanged re-query avec la plage [min, max]',
+    build: () {
+      when(() => repo.listObjects(
+              search: any(named: 'search'),
+              minMag: any(named: 'minMag'),
+              maxMag: any(named: 'maxMag'),
+              visibleNow: any(named: 'visibleNow'),
+              kind: any(named: 'kind')))
+          .thenAnswer((_) async => [_vega()]);
+      return CatalogueBloc(repo: repo);
+    },
+    act: (b) => b.add(const MagRangeChanged(1.0, 5.0)),
+    expect: () => [isA<CatalogueLoading>(), isA<CatalogueLoaded>()],
+    verify: (_) => verify(() => repo.listObjects(
+        search: any(named: 'search'),
+        minMag: 1.0,
+        maxMag: 5.0,
+        visibleNow: any(named: 'visibleNow'),
+        kind: any(named: 'kind'))).called(1),
+  );
+
+  blocTest<CatalogueBloc, CatalogueState>(
+    'MagRangeChanged(null, null) lève la plage (min/max à null)',
+    build: () {
+      when(() => repo.listObjects(
+              search: any(named: 'search'),
+              minMag: any(named: 'minMag'),
+              maxMag: any(named: 'maxMag'),
+              visibleNow: any(named: 'visibleNow'),
+              kind: any(named: 'kind')))
+          .thenAnswer((_) async => [_vega()]);
+      return CatalogueBloc(repo: repo);
+    },
+    act: (b) => b.add(const MagRangeChanged(null, null)),
+    expect: () => [
+      isA<CatalogueLoading>(),
+      isA<CatalogueLoaded>()
+          .having((s) => s.filters.minMag, 'minMag', isNull)
+          .having((s) => s.filters.maxMag, 'maxMag', isNull),
+    ],
+  );
 }

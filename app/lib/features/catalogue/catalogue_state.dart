@@ -32,6 +32,7 @@ class GotoSolarAck extends GotoOutcome {
 class CatalogueFilters extends Equatable {
   const CatalogueFilters({
     this.search = '',
+    this.minMag,
     this.maxMag,
     this.visibleNow = true,
     this.constellation,
@@ -39,6 +40,10 @@ class CatalogueFilters extends Equatable {
   });
 
   final String search;
+
+  /// Plage de magnitude active (`null` = borne ouverte). `minMag`/`maxMag` sont
+  /// posés/levés ensemble par le RangeSlider ; les deux `null` = pas de filtre.
+  final double? minMag;
   final double? maxMag;
   final bool visibleNow;
   final String? constellation;
@@ -46,17 +51,19 @@ class CatalogueFilters extends Equatable {
 
   CatalogueFilters copyWith({
     String? search,
+    double? minMag,
     double? maxMag,
     bool? visibleNow,
     String? constellation,
     String? kind,
-    bool clearMaxMag = false,
+    bool clearMagRange = false,
     bool clearConstellation = false,
     bool clearKind = false,
   }) =>
       CatalogueFilters(
         search: search ?? this.search,
-        maxMag: clearMaxMag ? null : (maxMag ?? this.maxMag),
+        minMag: clearMagRange ? null : (minMag ?? this.minMag),
+        maxMag: clearMagRange ? null : (maxMag ?? this.maxMag),
         visibleNow: visibleNow ?? this.visibleNow,
         constellation:
             clearConstellation ? null : (constellation ?? this.constellation),
@@ -65,7 +72,7 @@ class CatalogueFilters extends Equatable {
 
   @override
   List<Object?> get props =>
-      [search, maxMag, visibleNow, constellation, kind];
+      [search, minMag, maxMag, visibleNow, constellation, kind];
 }
 
 /// États de la page Catalogue.

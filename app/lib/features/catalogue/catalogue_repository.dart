@@ -23,6 +23,7 @@ class CatalogueRepository {
   /// le comportement online précédent (pagination différée Macro 4).
   Future<List<CatalogObjectDto>> listObjects({
     String? search,
+    double? minMag,
     double? maxMag,
     bool visibleNow = false,
     String? kind,
@@ -30,6 +31,7 @@ class CatalogueRepository {
     final filter = LocalCatalogFilter(
       kind: kind,
       search: search ?? '',
+      minMag: minMag,
       maxMag: maxMag,
       limit: 500,
     );

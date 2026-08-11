@@ -13,18 +13,20 @@ class LocalCatalogFilter {
   const LocalCatalogFilter({
     this.kind,
     this.search = '',
+    this.minMag,
     this.maxMag,
     this.limit = 500,
     this.offset = 0,
   });
   final String? kind;
   final String search;
+  final double? minMag;
   final double? maxMag;
   final int limit;
   final int offset;
 
   LocalCatalogFilter copyWith({int? limit, int? offset}) => LocalCatalogFilter(
-        kind: kind, search: search, maxMag: maxMag,
+        kind: kind, search: search, minMag: minMag, maxMag: maxMag,
         limit: limit ?? this.limit, offset: offset ?? this.offset);
 }
 
@@ -66,9 +68,14 @@ class FixedObjectProvider {
     } else {
       sql += "o.kind IN ('dso', 'star')";
     }
-    if (f.maxMag != null) {
-      sql += ' AND f.apparent_mag IS NOT NULL AND f.apparent_mag <= ?';
-      params.add(f.maxMag);
+    // Filtre par plage de magnitude (option B) : les objets SANS magnitude
+    // cataloguée (NULL — beaucoup de DSO) restent toujours visibles ; seuls les
+    // objets notés sont bornés à [minMag, maxMag].
+    if (f.minMag != null || f.maxMag != null) {
+      sql += ' AND (f.apparent_mag IS NULL'
+          ' OR (f.apparent_mag >= ? AND f.apparent_mag <= ?))';
+      params.add(f.minMag ?? -99.0);
+      params.add(f.maxMag ?? 99.0);
     }
     if (f.search.isNotEmpty) {
       final like = '%${f.search}%';
@@ -113,7 +120,12 @@ class EphemerisProvider {
     for (final samples in grouped.values) {
       final obj = _build(samples, now);
       if (obj == null || obj.ephemerisStale) continue;
-      if (f.maxMag != null && (obj.mag == null || obj.mag! > f.maxMag!)) continue;
+      // Option B : un objet sans magnitude passe toujours ; sinon il doit être
+      // dans la plage [minMag, maxMag].
+      if (obj.mag != null) {
+        if (f.minMag != null && obj.mag! < f.minMag!) continue;
+        if (f.maxMag != null && obj.mag! > f.maxMag!) continue;
+      }
       if (f.search.isNotEmpty) {
         final hay = '${obj.name} ${obj.designation ?? ''}'.toLowerCase();
         if (!hay.contains(f.search.toLowerCase())) continue;

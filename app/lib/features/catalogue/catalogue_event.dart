@@ -18,11 +18,14 @@ class SearchChanged extends CatalogueEvent {
   List<Object?> get props => [text];
 }
 
-class MagFilterChanged extends CatalogueEvent {
-  const MagFilterChanged(this.maxMag);
+/// Plage de magnitude sélectionnée au RangeSlider. `null, null` = bornes
+/// pleines = pas de filtre (on lève la plage).
+class MagRangeChanged extends CatalogueEvent {
+  const MagRangeChanged(this.minMag, this.maxMag);
+  final double? minMag;
   final double? maxMag;
   @override
-  List<Object?> get props => [maxMag];
+  List<Object?> get props => [minMag, maxMag];
 }
 
 class VisibleNowToggled extends CatalogueEvent {

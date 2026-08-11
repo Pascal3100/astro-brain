@@ -34,7 +34,7 @@ class CatalogueBloc extends Bloc<CatalogueEvent, CatalogueState> {
       : super(const CatalogueLoading(CatalogueFilters())) {
     on<CatalogueOpened>(_onReload);
     on<SearchChanged>(_onSearch, transformer: _debounced());
-    on<MagFilterChanged>(_onMag);
+    on<MagRangeChanged>(_onMagRange);
     on<VisibleNowToggled>(_onVisible);
     on<ConstellationChanged>(_onConstellation);
     on<KindFilterChanged>(_onKind);
@@ -90,6 +90,7 @@ class CatalogueBloc extends Bloc<CatalogueEvent, CatalogueState> {
     try {
       _fetched = await repo.listObjects(
         search: filters.search,
+        minMag: filters.minMag,
         maxMag: filters.maxMag,
         visibleNow: filters.visibleNow,
         kind: filters.kind,
@@ -116,12 +117,12 @@ class CatalogueBloc extends Bloc<CatalogueEvent, CatalogueState> {
   Future<void> _onSearch(SearchChanged e, Emitter<CatalogueState> emit) =>
       _query(emit, _filters.copyWith(search: e.text));
 
-  Future<void> _onMag(MagFilterChanged e, Emitter<CatalogueState> emit) =>
+  Future<void> _onMagRange(MagRangeChanged e, Emitter<CatalogueState> emit) =>
       _query(
           emit,
-          e.maxMag == null
-              ? _filters.copyWith(clearMaxMag: true)
-              : _filters.copyWith(maxMag: e.maxMag));
+          e.minMag == null && e.maxMag == null
+              ? _filters.copyWith(clearMagRange: true)
+              : _filters.copyWith(minMag: e.minMag, maxMag: e.maxMag));
 
   Future<void> _onVisible(VisibleNowToggled e, Emitter<CatalogueState> emit) =>
       _query(emit, _filters.copyWith(visibleNow: e.enabled));

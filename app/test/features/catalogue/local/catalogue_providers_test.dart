@@ -19,8 +19,14 @@ void main() {
     expect(all.map((o) => o.name),
         ['Sirius', 'Orion Nebula', 'North America']); // mag asc, null en dernier
 
+    // Plage de magnitude (option B) : Sirius (−1,46) sort de [0, 5] ; Orion
+    // (4,0) y reste ; North America (mag NULL) reste TOUJOURS visible.
+    final ranged =
+        p.listObjects(const LocalCatalogFilter(minMag: 0, maxMag: 5));
+    expect(ranged.map((o) => o.name), ['Orion Nebula', 'North America']);
+
     final dso = p.listObjects(const LocalCatalogFilter(kind: 'dso', maxMag: 5));
-    expect(dso.map((o) => o.name), ['Orion Nebula']);
+    expect(dso.map((o) => o.name), ['Orion Nebula', 'North America']);
 
     final search = p.listObjects(const LocalCatalogFilter(search: 'siri'));
     expect(search.single.name, 'Sirius');

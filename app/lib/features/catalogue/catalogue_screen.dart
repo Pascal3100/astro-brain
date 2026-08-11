@@ -202,21 +202,12 @@ class _FiltersState extends State<_Filters> {
                                 .add(VisibleNowToggled(v))
                             : null,
                       ),
-                      FilterChip(
-                        label: const Text('MAG ≤ 3'),
-                        selected: filters.maxMag == 3.0,
-                        onSelected: (v) => ctx
-                            .read<CatalogueBloc>()
-                            .add(MagFilterChanged(v ? 3.0 : null)),
-                      ),
-                      FilterChip(
-                        label: const Text('MAG ≤ 2'),
-                        selected: filters.maxMag == 2.0,
-                        onSelected: (v) => ctx
-                            .read<CatalogueBloc>()
-                            .add(MagFilterChanged(v ? 2.0 : null)),
-                      ),
                     ],
+                  ),
+                  const SizedBox(height: DesignTokens.spaceSM),
+                  _MagRangeSlider(
+                    minMag: filters.minMag,
+                    maxMag: filters.maxMag,
                   ),
                   if (available.isNotEmpty) ...[
                     const SizedBox(height: DesignTokens.spaceSM),
@@ -396,6 +387,75 @@ class _KindDropdown extends StatelessWidget {
               context.read<CatalogueBloc>().add(KindFilterChanged(v)),
         ),
       ),
+    );
+  }
+}
+
+/// Bornes du RangeSlider de magnitude : couvre les planètes brillantes
+/// (Vénus ≈ −4,6) jusqu'aux Messier faibles (≈ 11). Pas de 1 → 17 crans.
+const double _kMagMin = -5;
+const double _kMagMax = 12;
+
+/// Filtre de magnitude à double poignée. À bornes pleines = pas de filtre :
+/// on émet alors `MagRangeChanged(null, null)` pour lever la plage. Les objets
+/// sans magnitude cataloguée restent visibles quoi qu'il arrive (option B,
+/// côté providers). Le drag est local ; on ne requête qu'au relâchement.
+class _MagRangeSlider extends StatefulWidget {
+  const _MagRangeSlider({required this.minMag, required this.maxMag});
+  final double? minMag;
+  final double? maxMag;
+
+  @override
+  State<_MagRangeSlider> createState() => _MagRangeSliderState();
+}
+
+class _MagRangeSliderState extends State<_MagRangeSlider> {
+  RangeValues? _dragging;
+
+  RangeValues get _values =>
+      _dragging ??
+      RangeValues(widget.minMag ?? _kMagMin, widget.maxMag ?? _kMagMax);
+
+  bool _isFull(RangeValues v) => v.start <= _kMagMin && v.end >= _kMagMax;
+
+  void _onEnd(RangeValues v) {
+    setState(() => _dragging = null);
+    context.read<CatalogueBloc>().add(_isFull(v)
+        ? const MagRangeChanged(null, null)
+        : MagRangeChanged(v.start, v.end));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = context.textStyles;
+    final v = _values;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('MAGNITUDE',
+                style: text.hudLabel.copyWith(color: colors.textMuted)),
+            Text(
+              _isFull(v) ? 'toutes' : '${v.start.toInt()} – ${v.end.toInt()}',
+              style: text.hudValue.copyWith(color: colors.textPrimary),
+            ),
+          ],
+        ),
+        RangeSlider(
+          values: v,
+          min: _kMagMin,
+          max: _kMagMax,
+          divisions: (_kMagMax - _kMagMin).toInt(),
+          activeColor: colors.accent,
+          inactiveColor: colors.accent.withValues(alpha: 0.22),
+          labels: RangeLabels('${v.start.toInt()}', '${v.end.toInt()}'),
+          onChanged: (nv) => setState(() => _dragging = nv),
+          onChangeEnd: _onEnd,
+        ),
+      ],
     );
   }
 }

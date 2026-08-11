@@ -101,6 +101,7 @@ void main() {
     when(
       () => mockRepo.listObjects(
         search: any(named: 'search'),
+        minMag: any(named: 'minMag'),
         maxMag: any(named: 'maxMag'),
         visibleNow: any(named: 'visibleNow'),
         kind: any(named: 'kind'),
