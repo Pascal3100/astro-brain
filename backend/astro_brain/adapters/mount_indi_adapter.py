@@ -75,6 +75,24 @@ class MountIndiAdapter:
         self._reconnect_lock = asyncio.Lock()
         self._pending_reconnects: set[asyncio.Task[None]] = set()
 
+    def _publish_error(
+        self, exc: Exception, *, context: str, state: str = "error"
+    ) -> None:
+        """Log ``exc`` and publish it as a ``mount`` state.
+
+        Shared by every INDI call site that fails with an exception: logs
+        with ``logger.exception`` (full traceback) using the exact message
+        each site used before extraction (``"indi: {context} failed"``),
+        then publishes ``state`` (``"error"`` for command failures,
+        ``"disconnected"`` for :meth:`reconnect`, which must leave the
+        supervisor free to keep retrying rather than surface an error).
+        """
+        logger.exception("indi: %s failed", context)
+        self._bus.publish(
+            "mount",
+            SubsystemState(state=state, message=str(exc), since=_now()),
+        )
+
     @property
     def _device(self) -> Any | None:
         """Live device handle — re-fetched on every access, never cached.
@@ -132,11 +150,7 @@ class MountIndiAdapter:
                 ),
             )
         except Exception as exc:
-            logger.exception("indi: start failed")
-            self._bus.publish(
-                "mount",
-                SubsystemState(state="error", message=str(exc), since=_now()),
-            )
+            self._publish_error(exc, context="start")
 
     async def stop(self) -> None:
         """Disconnect from indiserver and publish ``disconnected``."""
@@ -209,12 +223,8 @@ class MountIndiAdapter:
                 )
             except Exception as exc:
                 self._connected = False
-                logger.exception("indi: reconnect failed")
-                self._bus.publish(
-                    "mount",
-                    SubsystemState(
-                        state="disconnected", message=str(exc), since=_now()
-                    ),
+                self._publish_error(
+                    exc, context="reconnect", state="disconnected"
                 )
 
     def request_reconnect(self) -> None:
@@ -358,11 +368,7 @@ class MountIndiAdapter:
             find_widget(motion_vec, off_elem).setState(SWITCH_OFF)
             await asyncio.to_thread(self._client.sendNewProperty, motion_vec)
         except Exception as exc:
-            logger.exception("indi: slew failed")
-            self._bus.publish(
-                "mount",
-                SubsystemState(state="error", message=str(exc), since=_now()),
-            )
+            self._publish_error(exc, context="slew")
             return
 
         self._bus.publish(
@@ -409,11 +415,7 @@ class MountIndiAdapter:
                     s for s in self._active_slews if s["axis"] != axis
                 ]
         except Exception as exc:
-            logger.exception("indi: stop_slew failed")
-            self._bus.publish(
-                "mount",
-                SubsystemState(state="error", message=str(exc), since=_now()),
-            )
+            self._publish_error(exc, context="stop_slew")
             return
 
         if self._active_slews:
@@ -454,11 +456,7 @@ class MountIndiAdapter:
             find_widget(time_vec, "OFFSET").setText("0")
             await asyncio.to_thread(self._client.sendNewProperty, time_vec)
         except Exception as exc:
-            logger.exception("indi: set_time failed")
-            self._bus.publish(
-                "mount",
-                SubsystemState(state="error", message=str(exc), since=_now()),
-            )
+            self._publish_error(exc, context="set_time")
 
     async def set_location(self, lat: float, lon: float) -> None:
         if self._device is None:
@@ -472,11 +470,7 @@ class MountIndiAdapter:
             # ELEV left at its current value (set by user/setup later).
             await asyncio.to_thread(self._client.sendNewProperty, geo)
         except Exception as exc:
-            logger.exception("indi: set_location failed")
-            self._bus.publish(
-                "mount",
-                SubsystemState(state="error", message=str(exc), since=_now()),
-            )
+            self._publish_error(exc, context="set_location")
 
     # --- alignment sync (native Celestron model via INDI) ----------------
 
@@ -503,11 +497,7 @@ class MountIndiAdapter:
             find_widget(coord, "DEC").setValue(float(dec_deg))
             await asyncio.to_thread(self._client.sendNewProperty, coord)
         except Exception as exc:
-            logger.exception("indi: sync_radec failed")
-            self._bus.publish(
-                "mount",
-                SubsystemState(state="error", message=str(exc), since=_now()),
-            )
+            self._publish_error(exc, context="sync_radec")
 
     # --- goto (slew vers coordonnées + tracking sidéral natif) ------------
 
@@ -530,11 +520,7 @@ class MountIndiAdapter:
             find_widget(coord, "DEC").setValue(float(dec_deg))
             await asyncio.to_thread(self._client.sendNewProperty, coord)
         except Exception as exc:
-            logger.exception("indi: goto_radec failed")
-            self._bus.publish(
-                "mount",
-                SubsystemState(state="error", message=str(exc), since=_now()),
-            )
+            self._publish_error(exc, context="goto_radec")
             return
 
         self._goto_in_progress = True
@@ -611,11 +597,7 @@ class MountIndiAdapter:
                 ),
             )
         except Exception as exc:
-            logger.exception("indi: set_tracking failed")
-            self._bus.publish(
-                "mount",
-                SubsystemState(state="error", message=str(exc), since=_now()),
-            )
+            self._publish_error(exc, context="set_tracking")
 
     # --- cordwrap (AUX driver native) ------------------------------------
 
@@ -646,11 +628,7 @@ class MountIndiAdapter:
             )
             await asyncio.to_thread(self._client.sendNewProperty, cw)
         except Exception as exc:
-            logger.exception("indi: cordwrap_set_enabled failed")
-            self._bus.publish(
-                "mount",
-                SubsystemState(state="error", message=str(exc), since=_now()),
-            )
+            self._publish_error(exc, context="cordwrap_set_enabled")
 
     async def cordwrap_get_position(self) -> str:
         if self._device is None:
@@ -677,11 +655,7 @@ class MountIndiAdapter:
             )
             await asyncio.to_thread(self._client.sendNewProperty, cw_pos)
         except Exception as exc:
-            logger.exception("indi: cordwrap_set_position failed")
-            self._bus.publish(
-                "mount",
-                SubsystemState(state="error", message=str(exc), since=_now()),
-            )
+            self._publish_error(exc, context="cordwrap_set_position")
 
     # --- backlash (driver patch required upstream) ----------------------
 
@@ -721,8 +695,4 @@ class MountIndiAdapter:
             find_widget(bl, elem_name).setValue(float(int(value)))
             await asyncio.to_thread(self._client.sendNewProperty, bl)
         except Exception as exc:
-            logger.exception("indi: set_backlash failed")
-            self._bus.publish(
-                "mount",
-                SubsystemState(state="error", message=str(exc), since=_now()),
-            )
+            self._publish_error(exc, context="set_backlash")
