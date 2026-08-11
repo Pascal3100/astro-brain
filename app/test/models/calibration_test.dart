@@ -23,41 +23,6 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // Adxl345Offsets
-  // -------------------------------------------------------------------------
-
-  group('Adxl345Offsets.fromJson', () {
-    const adxlJson = <String, dynamic>{
-      'bias': [0.01, -0.02, 0.99],
-      'sigma': 0.003,
-      'zero_alt_deg': 2.5,
-    };
-
-    test('parse tous les champs', () {
-      final offsets = Adxl345Offsets.fromJson(adxlJson);
-      expect(offsets.bias, (0.01, -0.02, 0.99));
-      expect(offsets.sigma, 0.003);
-      expect(offsets.zeroAltDeg, 2.5);
-    });
-
-    test('zero_alt_deg null accepté', () {
-      final json = <String, dynamic>{
-        'bias': [0.0, 0.0, 1.0],
-        'sigma': 0.001,
-        'zero_alt_deg': null,
-      };
-      final offsets = Adxl345Offsets.fromJson(json);
-      expect(offsets.zeroAltDeg, isNull);
-    });
-
-    test('égalité Equatable', () {
-      final a = Adxl345Offsets.fromJson(adxlJson);
-      final b = Adxl345Offsets.fromJson(adxlJson);
-      expect(a, equals(b));
-    });
-  });
-
-  // -------------------------------------------------------------------------
   // Lis3mdlOffsets
   // -------------------------------------------------------------------------
 
@@ -175,25 +140,6 @@ void main() {
       expect(status.payload, isNull);
     });
 
-    test('sensor_id adxl345_mount → payload est Adxl345Offsets', () {
-      final json = <String, dynamic>{
-        'sensor_id': 'adxl345_mount',
-        'calibrated_at': '2026-05-05T22:00:00+00:00',
-        'payload': {
-          'bias': [0.01, -0.02, 0.99],
-          'sigma': 0.003,
-          'zero_alt_deg': 0.0,
-        },
-      };
-      final status = CalibrationStatus.fromJson(json);
-      expect(status.payload, isA<Adxl345Offsets>());
-      expect(status.calibratedAt, isNotNull);
-      expect(
-        status.calibratedAt,
-        DateTime.parse('2026-05-05T22:00:00+00:00'),
-      );
-    });
-
     test('sensor_id lis3mdl → payload est Lis3mdlOffsets', () {
       final json = <String, dynamic>{
         'sensor_id': 'lis3mdl',
@@ -213,20 +159,11 @@ void main() {
       expect(status.payload, isA<Lis3mdlOffsets>());
       final lis = status.payload as Lis3mdlOffsets;
       expect(lis.coveragePct, 87.5);
-    });
-
-    test('sensor_id adxl345_tube → payload est Adxl345Offsets (fallback)', () {
-      final json = <String, dynamic>{
-        'sensor_id': 'adxl345_tube',
-        'calibrated_at': '2026-05-05T12:00:00Z',
-        'payload': {
-          'bias': [0.0, 0.0, 1.0],
-          'sigma': 0.001,
-          'zero_alt_deg': null,
-        },
-      };
-      final status = CalibrationStatus.fromJson(json);
-      expect(status.payload, isA<Adxl345Offsets>());
+      expect(status.calibratedAt, isNotNull);
+      expect(
+        status.calibratedAt,
+        DateTime.parse('2026-05-05T22:00:00+00:00'),
+      );
     });
 
     test('égalité Equatable', () {

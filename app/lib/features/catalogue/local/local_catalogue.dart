@@ -1,5 +1,7 @@
-/// Façade catalogue local — port de
-/// `backend/astro_brain/services/catalog/reference_catalog.py`.
+/// Façade catalogue local — logique app-authored (listing, recherche,
+/// filtrage) au-dessus de `reference.sqlite` en cache. Le backend ne résout
+/// le catalogue que par id (`ReferenceCatalog.get_by_qualified_id`, pour le
+/// GoTo) ; il n'a pas d'équivalent listing/recherche/filtrage.
 library;
 
 import '../catalogue_models.dart';

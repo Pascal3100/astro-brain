@@ -362,7 +362,8 @@ class _ConstellationDropdown extends StatelessWidget {
 }
 
 /// Menu déroulant de filtre par famille (`kind`) : `null` = toutes les
-/// familles. Le filtrage est fait côté backend via la query `kind`.
+/// familles. Le filtrage est fait LOCALEMENT (requête SQL sur
+/// `reference.sqlite` en cache), pas côté backend.
 class _KindDropdown extends StatelessWidget {
   const _KindDropdown({required this.value});
   final String? value;

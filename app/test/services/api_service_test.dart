@@ -90,14 +90,14 @@ void main() {
     test('GET /calibration/:id retourne un CalibrationStatus parsé', () async {
       final client = MockClient((req) async {
         expect(req.method, 'GET');
-        expect(req.url.path, '/calibration/adxl345_mount');
-        return http.Response(_calibrationStatusAdxlJson, 200,
+        expect(req.url.path, '/calibration/lis3mdl');
+        return http.Response(_calibrationStatusLisJson, 200,
             headers: {'content-type': 'application/json'});
       });
       final api = ApiService(host: host, client: client);
-      final status = await api.getCalibrationStatus('adxl345_mount');
-      expect(status.sensorId, 'adxl345_mount');
-      expect(status.payload, isA<Adxl345Offsets>());
+      final status = await api.getCalibrationStatus('lis3mdl');
+      expect(status.sensorId, 'lis3mdl');
+      expect(status.payload, isA<Lis3mdlOffsets>());
     });
 
     test('jette ApiException sur status != 200', () async {
@@ -209,18 +209,6 @@ void main() {
     });
   });
 }
-
-const _calibrationStatusAdxlJson = '''
-{
-  "sensor_id": "adxl345_mount",
-  "calibrated_at": "2026-05-05T22:00:00+00:00",
-  "payload": {
-    "bias": [0.01, -0.02, 0.99],
-    "sigma": 0.003,
-    "zero_alt_deg": 0.0
-  }
-}
-''';
 
 const _calibrationStatusLisJson = '''
 {

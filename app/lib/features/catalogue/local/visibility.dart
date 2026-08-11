@@ -1,5 +1,7 @@
-/// Enrichissement de visibilité local — port de
-/// `backend/astro_brain/services/catalog/visibility.py`. GPS via PhoneLocation.
+/// Enrichissement de visibilité — logique app-authored, calculée localement
+/// (éphémérides + trigonométrie sphérique) à partir des données de
+/// `reference.sqlite` en cache et de la position GPS du téléphone
+/// (PhoneLocation). Aucun équivalent côté backend.
 library;
 
 import '../../alignment/phone_location.dart';

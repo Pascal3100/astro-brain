@@ -44,17 +44,5 @@ void main() {
       expect(cubit.state, AstroThemeMode.day);
       cubit.close();
     });
-
-    test('setNight / setDay sont idempotents', () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final cubit = ThemeCubit(prefs: prefs);
-      cubit.setNight();
-      cubit.setNight();
-      expect(cubit.state, AstroThemeMode.night);
-      cubit.setDay();
-      expect(cubit.state, AstroThemeMode.day);
-      cubit.close();
-    });
   });
 }

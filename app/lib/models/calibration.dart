@@ -4,8 +4,7 @@
 ///   `bias`, `offsets` → record `(double, double, double)` (Dart 3 records)
 ///   `scale_matrix`    → `List<List<double>>` 3×3
 ///   `calibrated_at`   → `DateTime?` via `DateTime.parse`
-///   `payload`         → `Object?` (Adxl345Offsets | Lis3mdlOffsets | null)
-///     les appelants discriminent via `is Adxl345Offsets` / `is Lis3mdlOffsets`.
+///   `payload`         → `Object?` (Lis3mdlOffsets | null)
 library;
 
 import 'package:equatable/equatable.dart';
@@ -31,45 +30,6 @@ enum CalibrationState {
         (e) => e.name == s,
         orElse: () => CalibrationState.idle,
       );
-}
-
-// ---------------------------------------------------------------------------
-// Adxl345Offsets
-// ---------------------------------------------------------------------------
-
-/// Offsets de calibration pour un capteur ADXL345.
-///
-/// Champs :
-/// - [bias] : triplet d'offset (x, y, z) en g.
-/// - [sigma] : écart-type résiduel après calibration.
-/// - [zeroAltDeg] : angle d'altitude à zéro en degrés (optionnel).
-class Adxl345Offsets extends Equatable {
-  const Adxl345Offsets({
-    required this.bias,
-    required this.sigma,
-    this.zeroAltDeg,
-  });
-
-  /// Offset (x, y, z) en g.
-  final (double, double, double) bias;
-
-  /// Écart-type résiduel.
-  final double sigma;
-
-  /// Altitude correspondant au zéro capteur, en degrés.
-  final double? zeroAltDeg;
-
-  factory Adxl345Offsets.fromJson(Map<String, dynamic> json) {
-    final list = (json['bias'] as List).cast<num>();
-    return Adxl345Offsets(
-      bias: (list[0].toDouble(), list[1].toDouble(), list[2].toDouble()),
-      sigma: (json['sigma'] as num).toDouble(),
-      zeroAltDeg: (json['zero_alt_deg'] as num?)?.toDouble(),
-    );
-  }
-
-  @override
-  List<Object?> get props => [bias, sigma, zeroAltDeg];
 }
 
 // ---------------------------------------------------------------------------
@@ -182,13 +142,8 @@ class CalibrationProgress extends Equatable {
 /// Statut persisté d'un capteur calibré.
 ///
 /// [payload] est typé `Object?` pour représenter l'union
-/// `Adxl345Offsets | Lis3mdlOffsets | null`.
-/// Les appelants doivent discriminer via `is Adxl345Offsets` ou
-/// `is Lis3mdlOffsets`.
-///
-/// La désérialisation du payload est guidée par [sensorId] :
-///   - `'lis3mdl'` → [Lis3mdlOffsets.fromJson]
-///   - tout autre → [Adxl345Offsets.fromJson]
+/// `Lis3mdlOffsets | null` (seul le capteur `'lis3mdl'` reste calibrable
+/// côté app — la calibration ADXL345 a été retirée, cf. ADR 2026-07-17).
 class CalibrationStatus extends Equatable {
   const CalibrationStatus({
     required this.sensorId,
@@ -196,7 +151,7 @@ class CalibrationStatus extends Equatable {
     required this.payload,
   });
 
-  /// Identifiant du capteur (ex. `'adxl345_mount'`, `'lis3mdl'`).
+  /// Identifiant du capteur (ex. `'lis3mdl'`).
   final String sensorId;
 
   /// Date/heure de la dernière calibration (null si jamais calibré).
@@ -204,7 +159,7 @@ class CalibrationStatus extends Equatable {
 
   /// Offsets de calibration (null si jamais calibré).
   ///
-  /// Type runtime : [Adxl345Offsets], [Lis3mdlOffsets] ou `null`.
+  /// Type runtime : [Lis3mdlOffsets] ou `null`.
   final Object? payload;
 
   factory CalibrationStatus.fromJson(Map<String, dynamic> json) {
@@ -212,14 +167,9 @@ class CalibrationStatus extends Equatable {
     final rawTs = json['calibrated_at'] as String?;
     final rawPayload = json['payload'] as Map<String, dynamic>?;
 
-    final Object? payload;
-    if (rawPayload == null) {
-      payload = null;
-    } else if (sensorId == 'lis3mdl') {
-      payload = Lis3mdlOffsets.fromJson(rawPayload);
-    } else {
-      payload = Adxl345Offsets.fromJson(rawPayload);
-    }
+    final Object? payload = rawPayload == null
+        ? null
+        : Lis3mdlOffsets.fromJson(rawPayload);
 
     return CalibrationStatus(
       sensorId: sensorId,

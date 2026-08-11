@@ -1,5 +1,6 @@
-/// Providers catalogue lus dans reference.sqlite local — port de
-/// `backend/astro_brain/services/catalog/providers.py`.
+/// Providers catalogue lus dans reference.sqlite local — logique app-authored
+/// (le backend ne résout le catalogue que par id, pour le GoTo ; il n'a pas
+/// de providers de listing/recherche équivalents).
 library;
 
 import 'package:sqlite3/sqlite3.dart';

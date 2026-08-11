@@ -1,5 +1,7 @@
-/// DTOs miroir des routes `/reference/*` du backend
-/// (`backend/astro_brain/routes/reference.py`).
+/// DTOs décrivant la copie LOCALE de l'almanach (`reference.sqlite` en cache
+/// sur le téléphone), construits par `ReferenceRepository` à partir des
+/// métadonnées du fichier local et du résultat de sync GitHub — pas un miroir
+/// d'une réponse HTTP du backend.
 library;
 
 import 'package:equatable/equatable.dart';
@@ -19,15 +21,6 @@ class ReferenceStatusDto extends Equatable {
   final String? windowStart;
   final String? windowEnd;
 
-  factory ReferenceStatusDto.fromJson(Map<String, dynamic> j) =>
-      ReferenceStatusDto(
-        ready: j['ready'] as bool? ?? false,
-        schemaVersion: j['schema_version'] as int?,
-        generatedAt: j['generated_at'] as String?,
-        windowStart: j['window_start'] as String?,
-        windowEnd: j['window_end'] as String?,
-      );
-
   @override
   List<Object?> get props =>
       [ready, schemaVersion, generatedAt, windowStart, windowEnd];
@@ -38,12 +31,6 @@ class ReferenceSyncResultDto extends Equatable {
 
   final String status;
   final int? schemaVersion;
-
-  factory ReferenceSyncResultDto.fromJson(Map<String, dynamic> j) =>
-      ReferenceSyncResultDto(
-        status: j['status'] as String? ?? 'unknown',
-        schemaVersion: j['schema_version'] as int?,
-      );
 
   @override
   List<Object?> get props => [status, schemaVersion];

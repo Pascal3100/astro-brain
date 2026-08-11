@@ -36,14 +36,4 @@ class ThemeCubit extends Cubit<AstroThemeMode> {
     _prefs.setString(_key, next.name);
     emit(next);
   }
-
-  void setDay() {
-    _prefs.setString(_key, 'day');
-    emit(AstroThemeMode.day);
-  }
-
-  void setNight() {
-    _prefs.setString(_key, 'night');
-    emit(AstroThemeMode.night);
-  }
 }

@@ -40,7 +40,6 @@ void main() {
         expect(bloc.state.info!.ssid, 'fake-wifi');
         expect(bloc.state.info!.uptimeS, 12345);
         expect(bloc.state.info!.mountFirmware, isNull);
-        expect(bloc.state.info!.appVersionSeen, isNull);
       },
     );
 
