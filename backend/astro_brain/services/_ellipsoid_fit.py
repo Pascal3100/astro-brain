@@ -29,7 +29,8 @@ def compute_ellipsoid_offsets(
         offsets: Hard-iron bias vector (b_x, b_y, b_z).
         scale:   3×3 soft-iron correction matrix A as a tuple-of-tuples.
                  Apply as ``A @ (sample - offsets)`` to map onto the unit sphere.
-        residual: Mean absolute deviation from the unit sphere after correction.
+        residual: Root-mean-square deviation (RMS) from the unit sphere after
+                  correction.
 
     Raises:
         ValueError: If *samples* is empty or the fit is degenerate.
@@ -99,7 +100,7 @@ def compute_ellipsoid_offsets(
     # --- 6. Residual on corrected samples ---
     corrected = (A @ (arr - b_offset).T).T  # shape (N, 3)
     norms = np.linalg.norm(corrected, axis=1)
-    residual = float(np.mean(np.abs(norms - 1.0)))
+    residual = float(np.sqrt(np.mean((norms - 1.0) ** 2)))
 
     offsets = (float(b_offset[0]), float(b_offset[1]), float(b_offset[2]))
     scale = tuple(tuple(float(v) for v in row) for row in A.tolist())

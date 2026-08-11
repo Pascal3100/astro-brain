@@ -247,6 +247,10 @@ class CalibrationServiceImpl:
             # tickrate 25 garde ça tolérable (≤ ~20 ms à 500 samples).
             if n % 25 == 0 and n > 0:
                 self._coverage = coverage_pct(self._samples)
+                try:
+                    _, _, self._sigma = compute_ellipsoid_offsets(self._samples)
+                except ValueError:
+                    pass  # fit dégénéré tôt (peu de couverture) : on garde la dernière valeur
             self._update_lis3mdl_hint()
 
             await asyncio.sleep(self._sample_period_s)

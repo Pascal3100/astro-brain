@@ -185,6 +185,27 @@ async def test_finalize_before_threshold_raises(db: aiosqlite.Connection) -> Non
     assert await svc.current_session() is None
 
 
+async def test_live_sigma_updates_during_sampling(db: aiosqlite.Connection) -> None:
+    """SIGMA must reflect a live fit while sampling, not stay frozen at 0.0.
+
+    ``sigma == 0.0`` is tolerated early (before the first successful in-loop
+    fit at n=25, or while coverage is too low for the fit to succeed) — we
+    only assert once enough well-distributed samples have accumulated.
+    """
+    svc = _make_service(db, lis_samples=_full_sphere_samples(1_000))
+    sid = await svc.start("lis3mdl")
+
+    sigma_seen = 0.0
+    async for p in svc.progress(sid):
+        sigma_seen = p.sigma
+        if p.samples_n >= 150:
+            break
+
+    assert sigma_seen > 0.0
+
+    await svc.abort(sid)
+
+
 async def test_lis3mdl_coverage_threshold(db: aiosqlite.Connection) -> None:
     """500 hemisphere-only samples (z>0) → coverage too low → finalize raises."""
     hemi_samples = _hemisphere_samples(600)
