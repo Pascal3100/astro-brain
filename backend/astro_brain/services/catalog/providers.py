@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 import aiosqlite
 
 from astro_brain.repository.reference_db import ReferenceDb
 from astro_brain.services.catalog.interpolation import interpolate_radec, parse_utc
-from astro_brain.services.catalog.models import CatalogFilter, CatalogObject
+from astro_brain.services.catalog.models import CatalogObject
 
 _FIXED_COLUMNS = (
     "o.id, o.kind, o.name, o.designation, f.ra_deg, f.dec_deg, f.apparent_mag,"
@@ -45,37 +45,6 @@ class FixedObjectProvider:
         """Store the `ReferenceDb` handle to query against."""
         self._reference = reference
 
-    async def list_objects(self, filter: CatalogFilter) -> list[CatalogObject]:
-        """Return fixed objects (dso/star) matching `filter`."""
-        conn = self._reference.current()
-        if conn is None:
-            return []
-        sql = f"SELECT {_FIXED_COLUMNS} FROM fixed_object f" \
-              " JOIN objects o ON o.id = f.object_id WHERE "
-        params: list[Any] = []
-        if filter.kind in self.KINDS:
-            sql += "o.kind = ?"
-            params.append(filter.kind)
-        else:
-            sql += "o.kind IN ('dso', 'star')"
-        if filter.max_mag is not None:
-            sql += " AND f.apparent_mag IS NOT NULL AND f.apparent_mag <= ?"
-            params.append(filter.max_mag)
-        if filter.messier_only:
-            sql += " AND f.messier IS NOT NULL"
-        if filter.search:
-            like = f"%{filter.search}%"
-            sql += (" AND (o.name LIKE ? OR o.designation LIKE ?"
-                    " OR f.messier LIKE ? OR f.ngc_ic LIKE ?)")
-            params.extend([like, like, like, like])
-        sql += (" ORDER BY CASE WHEN f.apparent_mag IS NULL THEN 1 ELSE 0 END,"
-                " f.apparent_mag, o.name LIMIT ? OFFSET ?")
-        params.extend([filter.limit, filter.offset])
-        cursor = await conn.execute(sql, tuple(params))
-        rows = await cursor.fetchall()
-        await cursor.close()
-        return [_fixed_row_to_object(r) for r in rows]
-
     async def get_object(self, obj_id: str) -> CatalogObject | None:
         """Return the fixed object with id `obj_id`, or `None` if absent."""
         conn = self._reference.current()
@@ -102,13 +71,6 @@ class EphemerisProvider:
         """Store the `ReferenceDb` handle and the injected "now" clock."""
         self._reference = reference
         self._now_utc = now_utc
-
-    def _kinds_clause(self, filter: CatalogFilter) -> tuple[str, list[Any]]:
-        """Return a `(sql_fragment, params)` pair restricting `o.kind`."""
-        if filter.kind in self.KINDS:
-            return "o.kind = ?", [filter.kind]
-        placeholders = ", ".join("?" for _ in self.KINDS)
-        return f"o.kind IN ({placeholders})", list(self.KINDS)
 
     async def _rows_for(
         self, conn: aiosqlite.Connection, where: str, params: list[Any]
@@ -161,40 +123,6 @@ class EphemerisProvider:
             constellation=src[9],
             ephemeris_stale=stale,
         )
-
-    async def list_objects(self, filter: CatalogFilter) -> list[CatalogObject]:
-        """Return interpolated ephemeris objects matching `filter`.
-
-        Only objects with a sample before *and* after `now` (within the
-        query window) are returned; out-of-window objects are omitted.
-        """
-        conn = self._reference.current()
-        if conn is None:
-            return []
-        now = self._now_utc()
-        clause, params = self._kinds_clause(filter)
-        lo = (now - timedelta(days=1, hours=12)).isoformat()
-        hi = (now + timedelta(days=1, hours=12)).isoformat()
-        where = f"{clause} AND e.sample_utc BETWEEN ? AND ?"
-        grouped = await self._rows_for(conn, where, params + [lo, hi])
-        objs: list[CatalogObject] = []
-        for samples in grouped.values():
-            obj = self._build(samples, now)
-            if obj is None or obj.ephemeris_stale:
-                continue  # list n'affiche que du plaçable
-            if filter.max_mag is not None and (
-                obj.mag is None or obj.mag > filter.max_mag
-            ):
-                continue
-            if filter.search:
-                needle = filter.search.lower()
-                hay = f"{obj.name} {obj.designation or ''}".lower()
-                if needle not in hay:
-                    continue
-            objs.append(obj)
-        objs.sort(key=lambda o: (o.mag if o.mag is not None else float("inf"),
-                                 o.name))
-        return objs[filter.offset : filter.offset + filter.limit]
 
     async def get_object(self, obj_id: str) -> CatalogObject | None:
         """Return the ephemeris object `obj_id`, interpolated or stale.

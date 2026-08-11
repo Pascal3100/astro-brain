@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from astro_brain.repository.reference_db import ReferenceDb
-from astro_brain.services.catalog.models import CatalogFilter
 from astro_brain.services.catalog.providers import (
     EphemerisProvider,
     FixedObjectProvider,
@@ -24,20 +23,6 @@ async def _catalog(tmp_path: Path) -> ReferenceCatalog:
     )
 
 
-async def test_list_all_merges_all_families(tmp_path: Path) -> None:
-    cat = await _catalog(tmp_path)
-    objs = await cat.list_all(CatalogFilter(limit=100))
-    assert {o.kind for o in objs} == {"comet", "planet", "moon", "sun", "dso",
-                                      "star"}
-
-
-async def test_list_all_sorted_by_mag(tmp_path: Path) -> None:
-    cat = await _catalog(tmp_path)
-    mags = [o.mag for o in await cat.list_all(CatalogFilter(limit=100))
-            if o.mag is not None]
-    assert mags == sorted(mags)
-
-
 async def test_get_by_id_routes_fixed_and_ephemeris(tmp_path: Path) -> None:
     cat = await _catalog(tmp_path)
     assert (await cat.get_by_qualified_id("NGC1976")).kind == "dso"
@@ -53,5 +38,4 @@ async def test_not_ready_yields_empty(tmp_path: Path) -> None:
         ephemeris=EphemerisProvider(ref, now_utc=lambda: FIX_NOW),
         reference=ref,
     )
-    assert await cat.list_all(CatalogFilter()) == []
     assert await cat.get_by_qualified_id("NGC1976") is None

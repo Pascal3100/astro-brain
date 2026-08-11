@@ -25,17 +25,4 @@ class CatalogObject(BaseModel):
     ngc_ic: str | None = None
     illumination: float | None = None
     ephemeris_stale: bool = False
-    altitude_deg: float | None = None
-    azimuth_deg: float | None = None
     extras: dict[str, Any] = Field(default_factory=dict)
-
-
-class CatalogFilter(BaseModel):
-    """Server-side filters for `GET /catalog/objects`."""
-
-    kind: str | None = None
-    search: str | None = None
-    max_mag: float | None = None
-    messier_only: bool = False
-    limit: int = Field(default=100, ge=1, le=500)
-    offset: int = Field(default=0, ge=0)

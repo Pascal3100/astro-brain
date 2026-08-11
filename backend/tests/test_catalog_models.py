@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from astro_brain.services.catalog.models import CatalogFilter, CatalogObject
+from astro_brain.services.catalog.models import CatalogObject
 
 
 def test_catalog_object_minimal_fields() -> None:
@@ -53,50 +53,6 @@ def test_catalog_object_rejects_unknown_kind() -> None:
         )
 
 
-def test_catalog_filter_defaults() -> None:
-    f = CatalogFilter()
-    assert f.kind is None
-    assert f.search is None
-    assert f.max_mag is None
-    assert f.limit == 100
-    assert f.offset == 0
-
-
-def test_catalog_filter_limit_max_500() -> None:
-    f = CatalogFilter(limit=500)
-    assert f.limit == 500
-    with pytest.raises(ValidationError):
-        CatalogFilter(limit=501)
-
-
-def test_catalog_filter_limit_must_be_positive() -> None:
-    with pytest.raises(ValidationError):
-        CatalogFilter(limit=0)
-
-
-def test_catalog_filter_offset_must_be_non_negative() -> None:
-    with pytest.raises(ValidationError):
-        CatalogFilter(offset=-1)
-
-
-def test_catalog_object_altitude_azimuth_default_none():
-    from astro_brain.services.catalog.models import CatalogObject
-
-    obj = CatalogObject(
-        qualified_id="star:sirius",
-        kind="star",
-        name="Sirius",
-        ra_deg=101.287,
-        dec_deg=-16.716,
-    )
-    assert obj.altitude_deg is None
-    assert obj.azimuth_deg is None
-
-    enriched = obj.model_copy(update={"altitude_deg": 34.0, "azimuth_deg": 168.0})
-    assert enriched.altitude_deg == 34.0
-    assert enriched.azimuth_deg == 168.0
-
-
 def test_catalog_object_accepts_v2_kinds_and_dso_extras() -> None:
     obj = CatalogObject(
         qualified_id="NGC1976",
@@ -111,7 +67,3 @@ def test_catalog_object_accepts_v2_kinds_and_dso_extras() -> None:
     assert obj.messier == "M42"
     assert obj.illumination is None
     assert obj.ephemeris_stale is False
-
-
-def test_catalog_filter_has_messier_only_default_false() -> None:
-    assert CatalogFilter().messier_only is False
