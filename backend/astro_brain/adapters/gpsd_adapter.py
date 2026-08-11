@@ -26,10 +26,11 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from astro_brain.bus import StateBus
+from astro_brain.services.interfaces import GpsFix
 from astro_brain.subsystems import SubsystemState
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,7 @@ class GpsdAdapter:
         # sats_valid=0); only SKY packets carry the real count. Keep the last
         # non-zero value sticky so ``details.satellites`` doesn't flap to 0.
         self._last_sats: int = 0
+        self._last_fix: GpsFix | None = None
 
     async def start(self) -> None:
         import gpsd  # type: ignore[import-not-found]
@@ -68,22 +70,25 @@ class GpsdAdapter:
         await asyncio.to_thread(gpsd.connect)
         self._bus.publish(
             "gps",
-            SubsystemState(state="no_fix", since=datetime.now(timezone.utc)),
+            SubsystemState(state="no_fix", since=datetime.now(UTC)),
         )
         self._task = asyncio.create_task(self._loop(), name="gpsd-loop")
 
     async def stop(self) -> None:
         if self._task is not None:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
             self._task = None
+        self._last_fix = None
         self._bus.publish(
             "gps",
-            SubsystemState(state="off", since=datetime.now(timezone.utc)),
+            SubsystemState(state="off", since=datetime.now(UTC)),
         )
+
+    def latest_fix(self) -> GpsFix | None:
+        """Return the last live position, or ``None`` when there is no fix."""
+        return self._last_fix
 
     async def _loop(self) -> None:
         import gpsd  # type: ignore[import-not-found]
@@ -112,7 +117,22 @@ class GpsdAdapter:
                 if hdop is not None:
                     details["hdop"] = float(hdop)
 
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
+
+                # Typed live position, refreshed every poll (0.5 s)
+                # regardless of the bus-publish throttle below — the two
+                # functional consumers (orchestrator, alignment bridge)
+                # read this instead of the bus ``details``.
+                if mode >= 2 and "lat" in details and "lon" in details:
+                    self._last_fix = GpsFix(
+                        lat=details["lat"],
+                        lon=details["lon"],
+                        timestamp=now,
+                        is_3d=(mode == 3),
+                    )
+                else:
+                    self._last_fix = None
+
                 state_changed = state != self._last_state
                 detail_ready = (
                     self._last_detail_publish is None

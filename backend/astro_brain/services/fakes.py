@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from astro_brain.bus import StateBus
-from astro_brain.services.interfaces import Axis, Direction
+from astro_brain.services.interfaces import Axis, Direction, GpsFix
 from astro_brain.subsystems import SubsystemState
 
 
@@ -226,6 +226,17 @@ class FakeGps:
 
     async def stop(self) -> None:
         self._bus.publish("gps", SubsystemState(state="off", since=_now()))
+
+    def latest_fix(self) -> GpsFix | None:
+        """Return the constructor-injected fix, honoring ``initial_state``."""
+        if self._initial_state not in ("fix_2d", "fix_3d"):
+            return None
+        return GpsFix(
+            lat=self._details["lat"],
+            lon=self._details["lon"],
+            timestamp=_now(),
+            is_3d=self._initial_state == "fix_3d",
+        )
 
 
 class FakeNetwork:

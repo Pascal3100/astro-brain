@@ -6,15 +6,20 @@ the GPS reports a fix (``fix_2d`` or ``fix_3d``), calls
 once. If either dependency transitions away from the ready state, the
 orchestrator rearms so the next co-occurrence triggers a fresh sync
 (edge-triggered, not level-triggered).
+
+The sync *trigger* still watches the bus's ``gps`` health state (a
+legitimate health event), but the lat/lon it applies come from the typed
+:class:`~astro_brain.services.interfaces.GpsSource` rather than the bus
+``details`` dict — the bus stays dedicated to health/display.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from astro_brain.bus import StateBus
-from astro_brain.services.interfaces import MountService
+from astro_brain.services.interfaces import GpsSource, MountService
 from astro_brain.subsystems import GpsState, MountState, SubsystemState
 
 logger = logging.getLogger(__name__)
@@ -25,9 +30,10 @@ GPS_FIX_STATES = frozenset({GpsState.FIX_2D.value, GpsState.FIX_3D.value})
 class Orchestrator:
     """Watches the bus and syncs the mount on the first mount+gps co-occurrence."""
 
-    def __init__(self, *, bus: StateBus, mount: MountService) -> None:
+    def __init__(self, *, bus: StateBus, mount: MountService, gps: GpsSource) -> None:
         self._bus = bus
         self._mount = mount
+        self._gps = gps
         self._synced = False
 
     async def run(self) -> None:
@@ -54,12 +60,12 @@ class Orchestrator:
         if self._synced:
             return
 
-        lat = gps_s.details.get("lat")
-        lon = gps_s.details.get("lon")
-        if lat is None or lon is None:
+        fix = self._gps.latest_fix()
+        if fix is None:
             return
+        lat, lon = fix.lat, fix.lon
 
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
         logger.info(
             "orchestrator: syncing mount (time=%s, lat=%s, lon=%s)",
             now_iso,

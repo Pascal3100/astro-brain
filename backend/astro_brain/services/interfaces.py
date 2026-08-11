@@ -13,6 +13,8 @@ without inheriting from it.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal, Protocol
 
 from astro_brain.models.alignment import AlignmentModel, AlignmentSession, Star
@@ -20,6 +22,30 @@ from astro_brain.models.calibration import CalibrationProgress, CalibrationStatu
 
 Axis = Literal["alt", "az"]
 Direction = Literal["+", "-"]
+
+
+@dataclass(frozen=True)
+class GpsFix:
+    """A single live GPS position, decoupled from the health-bus pill.
+
+    ``is_3d`` mirrors gpsd's mode 3 (altitude available); a 2D fix
+    (mode 2) has ``is_3d=False``.
+    """
+
+    lat: float
+    lon: float
+    timestamp: datetime
+    is_3d: bool
+
+
+class GpsSource(Protocol):
+    """Typed live-position source, independent of the health :class:`StateBus`.
+
+    ``latest_fix()`` returns the last known position, or ``None`` when
+    there is no fix (gpsd mode < 2).
+    """
+
+    def latest_fix(self) -> GpsFix | None: ...
 
 
 class MountService(Protocol):

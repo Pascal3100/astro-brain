@@ -69,20 +69,22 @@ from astro_brain.services.fakes import (
     FakeTracking,
     make_fake_calibration_adapters,
 )
+from astro_brain.services.interfaces import GpsSource
 from astro_brain.services.reference.sync import ReferenceSync
 from astro_brain.subsystems import SubsystemState
 
 
 class _AlignmentSensorsBridge:
-    """Adapts the StateBus + observer position to the duck-typed `sensors`
-    interface AlignmentServiceImpl expects (`gps_fix`, `sky_az_alt_for`).
+    """Adapts the typed GPS source + observer position to the duck-typed
+    `sensors` interface AlignmentServiceImpl expects (`gps_fix`,
+    `sky_az_alt_for`).
 
     Chaîne de position : fix GPS Pi → position client (téléphone) → None.
     Plus de fallback codé en dur.
     """
 
-    def __init__(self, bus: StateBus) -> None:
-        self._bus = bus
+    def __init__(self, gps: GpsSource) -> None:
+        self._gps = gps
         self._client: tuple[float, float] | None = None
 
     def set_client_location(self, lat: float, lon: float) -> None:
@@ -94,15 +96,10 @@ class _AlignmentSensorsBridge:
         self._client = None
 
     def gps_fix(self) -> tuple[float, float] | None:
-        gps = self._bus.get_full_state().subsystems.get("gps")
-        if gps is None or gps.state != "fix_3d":
+        fix = self._gps.latest_fix()
+        if fix is None or not fix.is_3d:
             return None
-        details = gps.details or {}
-        lat = details.get("lat")
-        lon = details.get("lon")
-        if lat is None or lon is None:
-            return None
-        return (float(lat), float(lon))
+        return (fix.lat, fix.lon)
 
     def position(self) -> tuple[float, float] | None:
         """Return the best available position: Pi GPS fix, then client, then None."""
@@ -182,7 +179,7 @@ def build_app(
 
     bus = StateBus()
     services = _select_services(bus, use_hardware=use_hardware)
-    orchestrator = Orchestrator(bus=bus, mount=services["mount"])
+    orchestrator = Orchestrator(bus=bus, mount=services["mount"], gps=services["gps"])
     reconnect_supervisor = MountConnectionSupervisor(
         bus=bus, mount=services["mount"]
     )
@@ -238,7 +235,7 @@ def build_app(
 
         _app.state.lazy_lis3mdl = _LazySensor(services["lis3mdl"])
 
-        sensors_bridge = _AlignmentSensorsBridge(bus)
+        sensors_bridge = _AlignmentSensorsBridge(services["gps"])
         _app.state.position_provider = sensors_bridge
 
         def _candidates_provider() -> list[Any]:

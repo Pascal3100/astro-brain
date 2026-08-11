@@ -270,3 +270,22 @@ Cette approche entre en contradiction directe avec le rationale de la migration 
 - Roadmap : item backlash retiré de Macro 2, ajouté à Macro 5 (« Backlash mount-side ALT/AZ — fork driver `MC_*_BACKLASH` + REST + UI »). Macro 2 marquée done.
 - Setup : cartes 5/6 « Reporté — Macro 5 » ; carte 7 (cordwrap) reste « À implémenter » (indépendante, le driver la gère).
 - Le fork driver reste noté comme prérequis dans Macro 5.
+
+---
+
+## 2026-08-11 — Position GPS live via source typée, hors bus santé
+
+**Contexte** : le bus santé (`StateBus`, subsystem `gps`) conflatait deux natures de données sous un seul état publié : la **pastille de santé** (état `off`/`no_fix`/`searching`/`fix_2d`/`fix_3d`, affichée par l'app) et la **donnée fonctionnelle** lat/lon consommée par deux clients internes — l'orchestrator de boot (`Orchestrator._maybe_sync`, sync mount une fois GPS+monture prêts) et le pont capteurs d'alignement (`_AlignmentSensorsBridge.gps_fix`, position de l'observateur pour le wizard 3 étoiles). Ces deux consommateurs lisaient la position en pêchant `subsystems["gps"].details["lat"/"lon"]`, un dict `Any`-typé pensé pour l'affichage, pas pour un contrat de donnée fonctionnelle — perte de type-safety et couplage d'un besoin métier à un mécanisme de santé/SSE.
+
+**Décision** : introduire un type `GpsFix` (dataclass frozen : `lat`, `lon`, `timestamp`, `is_3d`) et un `Protocol` `GpsSource` (`latest_fix() -> GpsFix | None`) dans `services/interfaces.py`. La couche GPS (`GpsdAdapter` réel, `FakeGps`) implémente `latest_fix()` et maintient l'état en interne, indépendamment du throttle de publication bus. `Orchestrator` et `_AlignmentSensorsBridge` sont recâblés pour lire `latest_fix()` au lieu de `gps_s.details` / `bus.get_full_state()`. Le bus santé continue de publier l'état **et** les mêmes `details` (lat/lon inclus) — l'app (pastille, écran GPS) n'est pas touchée.
+
+**Rationale** :
+1. **Fin de la conflation bus santé / donnée live** : le bus reste dédié à la santé et à l'affichage (pastille, SSE) ; la position fonctionnelle a sa propre source typée, structurée pour son usage (sync monture, observateur d'alignement).
+2. **Type-safety** : `GpsFix` remplace des lectures `dict.get("lat")` non typées par un dataclass explicite, `is_3d` porte le gating métier au lieu d'une comparaison de chaîne d'état bus.
+3. **Relocalisation du chemin de donnée, pas un changement de comportement** : chaque consommateur garde exactement son gating actuel — l'orchestrator déclenche toujours sur l'état bus `fix_2d`/`fix_3d` (c'est un événement de santé légitime) mais lit désormais lat/lon depuis `latest_fix()` ; le bridge d'alignement garde sa règle « fix 3D uniquement » via `fix.is_3d`.
+
+**Conséquences** :
+- `Orchestrator.__init__` prend un paramètre `gps: GpsSource` supplémentaire ; `_AlignmentSensorsBridge.__init__` prend `gps: GpsSource` à la place de `bus: StateBus` (le bridge ne dépend plus du bus).
+- Wiring dans `app.py` (`build_app`) : `services["gps"]` (le même GPS déjà injecté ailleurs) est passé aux deux constructeurs.
+- Tests `test_orchestrator.py` / `test_alignment_sensors_bridge.py` réécrits avec un stub `GpsSource` minimal ; le test orchestrator prouve la provenance typée en donnant au stub des lat/lon différentes de celles publiées dans les `details` du bus.
+- Aucune migration DB, aucun changement Flutter/pydantic ; le bus continue de publier exactement ce qu'il publiait avant.
