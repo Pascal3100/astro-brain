@@ -66,26 +66,11 @@ async def test_app_wires_alignment_service() -> None:
         assert app.state.alignment.session() is None
 
 
-def test_build_app_exposes_catalog_and_reference(tmp_path) -> None:
+def test_build_app_exposes_reference_and_resolver(tmp_path) -> None:
     from astro_brain.app import build_app
-    from astro_brain.services.catalog.reference_catalog import ReferenceCatalog
 
     app = build_app(use_hardware=False, sync_on_boot=False,
                      db_path_override=tmp_path / "state.db")
     with TestClient(app):
-        assert isinstance(app.state.catalog_registry, ReferenceCatalog)
         assert app.state.reference_db is not None
         assert app.state.resolver is not None
-
-
-def test_catalog_objects_route_is_registered(tmp_path) -> None:
-    from astro_brain.app import build_app
-
-    app = build_app(use_hardware=False, sync_on_boot=False,
-                     db_path_override=tmp_path / "state.db")
-    with TestClient(app) as client:
-        r = client.get("/catalog/objects")
-        assert r.status_code == 200
-        body = r.json()
-        assert "objects" in body
-        assert "count" in body

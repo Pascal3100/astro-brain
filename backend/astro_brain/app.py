@@ -40,7 +40,6 @@ from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.about import router as about_router
 from astro_brain.routes.alignment import router as alignment_router
 from astro_brain.routes.calibration import router as calibration_router
-from astro_brain.routes.catalog import router as catalog_router
 from astro_brain.routes.commands import router as commands_router
 from astro_brain.routes.events import router as events_router
 from astro_brain.routes.goto import router as goto_router
@@ -62,7 +61,6 @@ from astro_brain.services.catalog.providers import (
 )
 from astro_brain.services.catalog.reference_catalog import ReferenceCatalog
 from astro_brain.services.catalog.resolver import TargetResolver
-from astro_brain.services.catalog.visibility import VisibilityEnricher
 from astro_brain.services.fakes import (
     FakeGps,
     FakeMount,
@@ -215,7 +213,6 @@ def build_app(
         ephemeris = EphemerisProvider(reference_db, now_utc=lambda: datetime.now(UTC))
         catalog = ReferenceCatalog(fixed=fixed, ephemeris=ephemeris,
                                     reference=reference_db)
-        _app.state.catalog_registry = catalog
         _app.state.resolver = TargetResolver(catalog)
 
         reference_sync = ReferenceSync(reference=reference_db,
@@ -243,11 +240,6 @@ def build_app(
 
         sensors_bridge = _AlignmentSensorsBridge(bus)
         _app.state.position_provider = sensors_bridge
-
-        _app.state.visibility_enricher = VisibilityEnricher(
-            gps_fix=sensors_bridge.gps_fix,
-            now_utc=lambda: datetime.now(UTC),
-        )
 
         def _candidates_provider() -> list[Any]:
             obs = sensors_bridge.observer()
@@ -317,7 +309,6 @@ def build_app(
     app.include_router(calibration_router)
     app.include_router(sensors_router)
     app.include_router(alignment_router)
-    app.include_router(catalog_router)
     app.include_router(goto_router)
     app.include_router(reference_router)
     return app
