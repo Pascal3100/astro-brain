@@ -7,6 +7,12 @@ from collections.abc import AsyncIterator
 import aiosqlite
 import pytest
 
+from astro_brain.repository.migrations import (
+    _001_initial,
+    _002_alignment_model,
+    _003_catalog_objects,
+    _004_drop_catalog_objects,
+)
 from astro_brain.repository.state_db import DB_FILENAME, db_path, get_db, run_migrations
 
 
@@ -29,40 +35,40 @@ async def _table_names(db: aiosqlite.Connection) -> set[str]:
 
 async def test_run_migrations_creates_schema(db: aiosqlite.Connection) -> None:
     version = await run_migrations(db)
-    assert version == 4
+    assert version == 5
 
     tables = await _table_names(db)
     assert {
         "schema_version",
         "calibration_sensor",
-        "mount_limits",
         "alignment_model",
     }.issubset(tables)
     assert "catalog_objects" not in tables
+    assert "mount_limits" not in tables
 
     cursor = await db.execute("SELECT MAX(version) FROM schema_version")
     row = await cursor.fetchone()
     await cursor.close()
     assert row is not None
-    assert row[0] == 4
+    assert row[0] == 5
 
 
 async def test_run_migrations_is_idempotent(db: aiosqlite.Connection) -> None:
     first = await run_migrations(db)
     second = await run_migrations(db)
-    assert first == 4
-    assert second == 4
+    assert first == 5
+    assert second == 5
 
     tables = await _table_names(db)
     assert {
         "schema_version",
         "calibration_sensor",
-        "mount_limits",
         "alignment_model",
     }.issubset(tables)
     assert "catalog_objects" not in tables
+    assert "mount_limits" not in tables
 
-    cursor = await db.execute("SELECT COUNT(*) FROM schema_version WHERE version = 4")
+    cursor = await db.execute("SELECT COUNT(*) FROM schema_version WHERE version = 5")
     row = await cursor.fetchone()
     await cursor.close()
     assert row is not None
@@ -82,6 +88,69 @@ async def test_migration_004_drops_catalog_objects(tmp_path) -> None:
     assert (await cur.fetchone())[0] >= 4
     await cur.close()
     await conn.close()
+
+
+async def test_migration_005_drops_mount_limits(tmp_path) -> None:
+    conn = await aiosqlite.connect(":memory:")
+    await run_migrations(conn)
+    cur = await conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+        " AND name='mount_limits'"
+    )
+    assert await cur.fetchone() is None
+    await cur.close()
+    cur = await conn.execute("SELECT MAX(version) FROM schema_version")
+    assert (await cur.fetchone())[0] >= 5
+    await cur.close()
+    await conn.close()
+
+
+async def _seed_schema_at_version_4(db: aiosqlite.Connection) -> None:
+    """Apply migrations _001..._004 directly, bypassing the runner.
+
+    Used to reproduce a database that pre-dates migration _005, so the
+    forward-only upgrade path can be exercised from a real VERSION 4 state.
+    """
+    await db.execute(
+        "CREATE TABLE IF NOT EXISTS schema_version ("
+        "version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
+    )
+    for module in (
+        _001_initial,
+        _002_alignment_model,
+        _003_catalog_objects,
+        _004_drop_catalog_objects,
+    ):
+        await db.executescript(module.SQL)
+        await db.execute(
+            "INSERT OR IGNORE INTO schema_version (version, applied_at) "
+            "VALUES (?, '2026-01-01T00:00:00Z')",
+            (module.VERSION,),
+        )
+    await db.commit()
+
+
+async def test_migration_005_is_forward_only_from_version_4(
+    db: aiosqlite.Connection,
+) -> None:
+    """A DB already at VERSION 4 (with `mount_limits` present) upgrades to 5."""
+    await _seed_schema_at_version_4(db)
+
+    tables_before = await _table_names(db)
+    assert "mount_limits" in tables_before
+    assert "catalog_objects" not in tables_before
+
+    version = await run_migrations(db)
+    assert version == 5
+
+    cursor = await db.execute("SELECT MAX(version) FROM schema_version")
+    row = await cursor.fetchone()
+    await cursor.close()
+    assert row is not None
+    assert row[0] == 5
+
+    tables_after = await _table_names(db)
+    assert "mount_limits" not in tables_after
 
 
 def test_db_path_honors_env(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
