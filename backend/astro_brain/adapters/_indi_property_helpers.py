@@ -14,7 +14,6 @@ with a faithful fake — no ``libindi`` dependency on the workstation.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import Any
 
 # ISState enum values (PyIndi.ISS_ON / ISS_OFF). Hard-coded so this module
@@ -40,16 +39,6 @@ def find_widget(vector: Any, name: str) -> Any:
     return widget
 
 
-def set_number_values(vector: Any, values: Mapping[str, float]) -> None:
-    """Write each ``name -> value`` pair onto the vector's elements.
-
-    Raises:
-        KeyError: if any name is absent from the vector.
-    """
-    for name, value in values.items():
-        find_widget(vector, name).setValue(float(value))
-
-
 def set_switch_one_of_many(vector: Any, on_name: str) -> None:
     """Set ``on_name`` to ON, every other element to OFF (1-of-many rule).
 
@@ -65,8 +54,3 @@ def set_switch_one_of_many(vector: Any, on_name: str) -> None:
             element.setState(SWITCH_OFF)
     if not found:
         raise KeyError(on_name)
-
-
-def indi_state_string(vector: Any) -> str:
-    """Return ``"OK" | "BUSY" | "IDLE" | "ALERT"`` for the vector."""
-    return vector.getStateAsString()
