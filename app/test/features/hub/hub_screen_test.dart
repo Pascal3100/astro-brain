@@ -7,6 +7,9 @@ import 'package:astro_brain/features/alignment/alignment_repository.dart';
 import 'package:astro_brain/features/catalogue/catalogue_bloc.dart';
 import 'package:astro_brain/features/catalogue/catalogue_repository.dart';
 import 'package:astro_brain/features/catalogue/catalogue_screen.dart';
+import 'package:astro_brain/features/catalogue/local/local_catalogue.dart';
+import 'package:astro_brain/features/catalogue/local/visibility.dart'
+    as local_vis;
 import 'package:astro_brain/features/hub/hub_screen.dart';
 import 'package:astro_brain/features/hub/widgets/hub_card.dart';
 import 'package:astro_brain/features/manual/manual_bloc.dart';
@@ -55,6 +58,10 @@ class _MockApi extends Mock implements ApiService {}
 
 class _MockRefRepo extends Mock implements ReferenceRepository {}
 
+class _MockCatalogue extends Mock implements LocalCatalogue {}
+
+class _MockVisibility extends Mock implements local_vis.Visibility {}
+
 ReferenceRepository _defaultRefRepo() {
   final repo = _MockRefRepo();
   when(() => repo.getStatus())
@@ -95,8 +102,13 @@ Widget _wrap(Widget child, AppBloc bloc, ThemeCubit theme, PiHost host,
               AlignmentBloc(repo: AlignmentRepository(api: apiService)),
         ),
         BlocProvider<CatalogueBloc>(
-          create: (_) =>
-              CatalogueBloc(repo: CatalogueRepository(api: apiService)),
+          create: (_) => CatalogueBloc(
+            repo: CatalogueRepository(
+              api: apiService,
+              catalogue: _MockCatalogue(),
+              visibility: _MockVisibility(),
+            ),
+          ),
         ),
       ],
       child: MaterialApp(

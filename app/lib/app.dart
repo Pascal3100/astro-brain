@@ -11,6 +11,7 @@ import 'features/manual/manual_bloc.dart';
 import 'features/setup/reference/reference_repository.dart';
 import 'features/splash/splash_cubit.dart';
 import 'features/splash/splash_screen.dart';
+import 'oracle_cache/wiring.dart';
 import 'services/api_service.dart';
 import 'services/event_stream_service.dart';
 import 'services/pi_host.dart';
@@ -19,10 +20,16 @@ import 'theme/astro_theme.dart';
 import 'theme/theme_cubit.dart';
 
 class AstroBrainApp extends StatelessWidget {
-  const AstroBrainApp({super.key, required this.prefs, required this.host});
+  const AstroBrainApp({
+    super.key,
+    required this.prefs,
+    required this.host,
+    required this.oracle,
+  });
 
   final SharedPreferences prefs;
   final PiHost host;
+  final OracleWiring oracle;
 
   @override
   Widget build(BuildContext context) {
@@ -36,8 +43,10 @@ class AstroBrainApp extends StatelessWidget {
           dispose: (s) => s.dispose(),
         ),
         RepositoryProvider<ReferenceRepository>(
-          create: (ctx) =>
-              ReferenceRepository(api: ctx.read<ApiService>()),
+          create: (ctx) => ReferenceRepository(
+            reference: oracle.referenceDb,
+            almanacSync: oracle.almanacSync,
+          ),
         ),
         RepositoryProvider<EventStreamService>(
           create: (_) => EventStreamService(host: host),
@@ -62,7 +71,11 @@ class AstroBrainApp extends StatelessWidget {
           ),
           BlocProvider<CatalogueBloc>(
             create: (ctx) => CatalogueBloc(
-              repo: CatalogueRepository(api: ctx.read<ApiService>()),
+              repo: CatalogueRepository(
+                api: ctx.read<ApiService>(),
+                catalogue: oracle.catalogue,
+                visibility: oracle.visibility,
+              ),
             ),
           ),
         ],
