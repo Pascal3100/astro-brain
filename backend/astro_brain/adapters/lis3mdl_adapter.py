@@ -3,6 +3,7 @@
 TODO confirmer la séquence init (CTRL_REG1..4 + auto-increment OUT_X_L) avant smoke test capteur #2.
 """
 
+import asyncio
 import struct
 from typing import Any
 
@@ -35,19 +36,21 @@ class Lis3mdlAdapter:
 
     async def start(self) -> None:
         self._bus = self._fake if self._fake is not None else open_bus(self._bus_number)
-        write_byte(self._bus, self._addr, _CTRL_REG1, 0x70)
-        write_byte(self._bus, self._addr, _CTRL_REG2, 0x00)
-        write_byte(self._bus, self._addr, _CTRL_REG3, 0x00)
-        write_byte(self._bus, self._addr, _CTRL_REG4, 0x0C)
+        await asyncio.to_thread(write_byte, self._bus, self._addr, _CTRL_REG1, 0x70)
+        await asyncio.to_thread(write_byte, self._bus, self._addr, _CTRL_REG2, 0x00)
+        await asyncio.to_thread(write_byte, self._bus, self._addr, _CTRL_REG3, 0x00)
+        await asyncio.to_thread(write_byte, self._bus, self._addr, _CTRL_REG4, 0x0C)
 
     async def stop(self) -> None:
         if self._bus is not None:
-            write_byte(self._bus, self._addr, _CTRL_REG3, 0x03)
+            await asyncio.to_thread(write_byte, self._bus, self._addr, _CTRL_REG3, 0x03)
 
     async def read_raw(self) -> tuple[float, float, float]:
         if self._bus is None:
             raise RuntimeError("start() must be called before read_raw()")
-        raw = read_bytes(self._bus, self._addr, _OUT_X_L | _AUTO_INC, 6)
+        raw = await asyncio.to_thread(
+            read_bytes, self._bus, self._addr, _OUT_X_L | _AUTO_INC, 6
+        )
         x, y, z = struct.unpack("<hhh", raw)
         scale = _GAUSS_TO_UT / _LSB_PER_GAUSS
         return (x * scale, y * scale, z * scale)
