@@ -32,7 +32,14 @@ Fil rouge du projet. **Plafond : 5-6 sessions max ici** ; au-delà, on archive p
 
 ## Session en cours
 
-_Toutes les sessions livrées sont archivées (voir plus bas). La prochaine session — **SP3-C, night planner offline** — s'ouvre ici._
+**Session 48 — Revue d'architecture backend + refacto (branche `refacto/archi-review`)** : revue solution-architect du backend Pi (+ nettoyage app) figée en plan, exécutée en subagent-driven-development (9 tâches du plan + 2 hors-plan autorisées). Livré (13 commits, +718/−481, 53 fichiers) :
+- **Code mort supprimé** : helper heading + module renommé (T1), table `mount_limits` via migration forward `_005` (T2), modèles/méthodes app Flutter morts (T3), 2 helpers INDI `set_number_values`/`indi_state_string` (T10-A).
+- **Correctness / archi** : lecture I2C LIS3MDL hors event-loop (`asyncio.to_thread`, T4), helper `_publish_error` factorisé sur ~12 sites (T5), résidu de calibration **sigma live** + bascule sémantique « RÉSIDU » MAD→RMS (T6, **changement visible UI**), itérateur bus partagé `iter_state_snapshots` consommé par les 3 réacteurs gardés séparés (T7), fix GPS exposé via source typée `GpsSource.latest_fix()` hors bus santé (T8).
+- **Alignement persistant (A1)** : `is_aligned` réhydraté au boot depuis le modèle SQLite (`alignment_repo.load`, garde-fous 12 h/20 m enfin câblés), déclencheur one-shot gaté sur fix **3D**, `AlignmentInvalidator` conservé pour la perte driver (T9). **Limitation acceptée** (ADR 2026-08-11) : monture power-cyclée backend éteint → faux positif « aligné » possible, non détectable sans introspection driver.
+- **Backlog ruff** vidé (0 violation) dont conversion 5 enums → `StrEnum` behavior-preserving (T10-B).
+- Suites vertes : **backend 307**, **app 262** + `flutter analyze` clean. Revue globale opus : **APPROVED**, zéro Critical/Important. ADRs 2026-08-11 (GpsFix typé + is_aligned SQLite).
+
+_Prochaine session : **SP3-C, night planner offline** (fil Oracle)._
 
 ## Archives
 
