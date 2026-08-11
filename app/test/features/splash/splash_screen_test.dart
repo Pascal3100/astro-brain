@@ -46,72 +46,27 @@ void main() {
       expect(stepStatusFor(s, SplashPhase.loading), SplashStepState.done);
       expect(stepStatusFor(s, SplashPhase.openingStream), SplashStepState.done);
     });
-
-    test(
-        'échec en contacting : aucune étape « faite », contacting en erreur '
-        '(régression du bug d\'affichage tout-vert)', () {
-      const s = SplashState(
-        phase: SplashPhase.failure,
-        failedPhase: SplashPhase.contacting,
-      );
-      expect(stepStatusFor(s, SplashPhase.contacting), SplashStepState.error);
-      expect(stepStatusFor(s, SplashPhase.loading), SplashStepState.pending);
-      expect(stepStatusFor(s, SplashPhase.openingStream), SplashStepState.pending);
-    });
-
-    test('échec tardif : étapes franchies faites, celle en échec en erreur', () {
-      const s = SplashState(
-        phase: SplashPhase.failure,
-        failedPhase: SplashPhase.openingStream,
-      );
-      expect(stepStatusFor(s, SplashPhase.contacting), SplashStepState.done);
-      expect(stepStatusFor(s, SplashPhase.loading), SplashStepState.done);
-      expect(stepStatusFor(s, SplashPhase.openingStream), SplashStepState.error);
-    });
   });
 
-  group('SplashScreen — écran d\'échec', () {
-    testWidgets('affiche RETRY, CONFIGURER LE RÉSEAU et le message d\'erreur',
+  group('SplashScreen — boot', () {
+    testWidgets('affiche les étapes de boot, sans page-barrage d\'erreur',
         (tester) async {
       final cubit = _MockSplashCubit();
       when(() => cubit.start()).thenAnswer((_) async {});
       whenListen(
         cubit,
         const Stream<SplashState>.empty(),
-        initialState: const SplashState(
-          phase: SplashPhase.failure,
-          errorMessage: 'boom',
-          failedPhase: SplashPhase.contacting,
-        ),
+        initialState: const SplashState(phase: SplashPhase.contacting),
       );
 
       await tester.pumpWidget(_host(cubit));
       await tester.pump();
 
-      expect(find.text('ASTRO-BRAIN NOT REACHABLE'), findsOneWidget);
-      expect(find.byKey(const Key('splash-retry')), findsOneWidget);
-      expect(find.byKey(const Key('splash-configure-network')), findsOneWidget);
-    });
-
-    testWidgets('RETRY relance le cubit', (tester) async {
-      final cubit = _MockSplashCubit();
-      when(() => cubit.start()).thenAnswer((_) async {});
-      whenListen(
-        cubit,
-        const Stream<SplashState>.empty(),
-        initialState: const SplashState(
-          phase: SplashPhase.failure,
-          errorMessage: 'boom',
-          failedPhase: SplashPhase.contacting,
-        ),
-      );
-
-      await tester.pumpWidget(_host(cubit));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('splash-retry')));
-
-      // start() est appelé une fois au montage (postFrame) + une fois au tap.
-      verify(() => cubit.start()).called(greaterThanOrEqualTo(1));
+      expect(find.text('CONTACTING ASTRO-BRAIN.LOCAL'), findsOneWidget);
+      // Plus de page d'erreur ni d'affordances dupliquées avec l'AppBar du Hub.
+      expect(find.text('ASTRO-BRAIN NOT REACHABLE'), findsNothing);
+      expect(find.byKey(const Key('splash-retry')), findsNothing);
+      expect(find.byKey(const Key('splash-configure-network')), findsNothing);
     });
   });
 }

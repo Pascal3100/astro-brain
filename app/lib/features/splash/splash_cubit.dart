@@ -39,17 +39,13 @@ class SplashCubit extends Cubit<SplashState> {
       await Future<void>.delayed(minPhaseDuration);
       await Future<void>.delayed(successHoldDuration);
       emit(state.copyWith(phase: SplashPhase.success));
-    } on Exception catch (e) {
-      emit(state.copyWith(
-        phase: SplashPhase.failure,
-        errorMessage: e.toString(),
-        failedPhase: state.phase,
-      ));
+    } on Exception {
+      // Pi injoignable = mode nominal depuis Oracle : on entre en offline
+      // silencieusement plutôt que d'afficher une page-barrage d'erreur.
+      // L'état « offline » (pastille + reconnect + Réseau) est porté par
+      // l'AppBar du Hub, pas par le splash.
+      appBloc.add(const AppStarted());
+      emit(state.copyWith(phase: SplashPhase.success));
     }
-  }
-
-  void continueOffline() {
-    appBloc.add(const AppStarted());
-    emit(state.copyWith(phase: SplashPhase.success));
   }
 }

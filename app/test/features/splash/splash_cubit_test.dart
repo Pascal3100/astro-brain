@@ -57,7 +57,7 @@ void main() {
   );
 
   blocTest<SplashCubit, SplashState>(
-    'échec du fetch → phase failure avec message',
+    'Pi injoignable → entrée offline silencieuse (success, pas de page erreur)',
     build: () {
       when(() => api.fetchState())
           .thenThrow(ApiException('boom', statusCode: 500));
@@ -69,12 +69,12 @@ void main() {
       );
     },
     act: (c) => c.start(),
-    expect: () => [
-      const SplashState(phase: SplashPhase.contacting),
-      isA<SplashState>()
-          .having((s) => s.phase, 'phase', SplashPhase.failure)
-          .having((s) => s.errorMessage, 'errorMessage', contains('boom'))
-          .having((s) => s.failedPhase, 'failedPhase', SplashPhase.contacting),
+    expect: () => const [
+      SplashState(phase: SplashPhase.contacting),
+      SplashState(phase: SplashPhase.success),
     ],
+    // Le mode offline démarre quand même le flux d'événements (AppStarted),
+    // ce qui rend la reconnexion possible depuis le Hub.
+    verify: (_) => verify(() => svc.start()).called(1),
   );
 }
