@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -72,6 +73,22 @@ from astro_brain.services.fakes import (
 from astro_brain.services.interfaces import GpsSource
 from astro_brain.services.reference.sync import ReferenceSync
 from astro_brain.subsystems import GpsState, SubsystemState
+
+logger = logging.getLogger(__name__)
+
+
+async def _boot_reference_sync(reference_sync: ReferenceSync) -> None:
+    """Run the boot `reference.sqlite` sync, surfacing unexpected failures.
+
+    :meth:`ReferenceSync.sync` already handles and logs its expected
+    outcomes. This wrapper exists so anything it does *not* expect (full
+    disk, unreadable cache) reaches journald instead of dying silently as a
+    never-retrieved task exception.
+    """
+    try:
+        await reference_sync.sync()
+    except Exception:
+        logger.exception("reference: sync au boot échouée")
 
 
 class _AlignmentSensorsBridge:
@@ -246,7 +263,10 @@ def build_app(
                    else os.environ.get("ASTRO_BRAIN_REFERENCE_SYNC_ON_BOOT", "1") != "0")
         if do_sync:
             background_tasks.append(
-                asyncio.create_task(reference_sync.sync(), name="reference-boot-sync")
+                asyncio.create_task(
+                    _boot_reference_sync(reference_sync),
+                    name="reference-boot-sync",
+                )
             )
 
         _app.state.started_at = datetime.now(UTC)

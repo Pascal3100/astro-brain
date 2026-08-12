@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import sqlite3
 from pathlib import Path
 
 import httpx
 
+from astro_brain.app import _boot_reference_sync
 from astro_brain.repository.reference_db import ReferenceDb, local_sha256
 from astro_brain.services.reference.sync import ReferenceSync
 from tests.reference_fixtures import build_reference_v2
@@ -126,3 +128,41 @@ async def test_rejects_hash_mismatch(tmp_path: Path) -> None:
                          client_factory=_client_factory(manifest, data))
     assert (await sync.sync()).status == "rejected_hash"
     assert local_sha256(ref.path) is None
+
+
+async def test_updated_is_logged(tmp_path: Path, caplog) -> None:
+    """Un succès doit parler : le boot-sync était totalement muet en prod."""
+    data = _sqlite_bytes(tmp_path)
+    manifest = {"schema_version": 2, "generated_at": "x",
+                "sqlite_url": "https://h/reference.sqlite",
+                "sqlite_sha256": hashlib.sha256(data).hexdigest(),
+                "window_start": "x", "window_end": "y"}
+    ref = ReferenceDb(tmp_path / "reference.sqlite")
+    await ref.open()
+    sync = ReferenceSync(reference=ref, manifest_url="https://h/manifest.json",
+                         client_factory=_client_factory(manifest, data))
+    with caplog.at_level(logging.INFO, logger="astro_brain.services.reference.sync"):
+        assert (await sync.sync()).status == "updated"
+    assert any("mis à jour" in r.getMessage() for r in caplog.records)
+
+
+class _ExplodingSync:
+    """Stand-in whose `sync()` raises what `ReferenceSync` never expects."""
+
+    async def sync(self) -> None:
+        raise OSError("No space left on device")
+
+
+async def test_boot_sync_logs_unexpected_failure_instead_of_dying(caplog) -> None:
+    """An unexpected error must reach journald, not vanish as a lost task.
+
+    `asyncio.create_task(sync())` used to be fired bare: anything outside the
+    handled (HTTPError, KeyError, ValueError) set died as a never-retrieved
+    task exception.
+    """
+    with caplog.at_level(logging.ERROR, logger="astro_brain.app"):
+        await _boot_reference_sync(_ExplodingSync())  # type: ignore[arg-type]
+
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert len(errors) == 1
+    assert "No space left on device" in caplog.text

@@ -87,6 +87,7 @@ class ReferenceSync:
                     return SyncResult("rejected_schema", sv)
                 sha = manifest["sqlite_sha256"]
                 if local_sha256(self._reference.path) == sha:
+                    logger.info("reference: déjà à jour (schema v%s)", sv)
                     return SyncResult("up_to_date", sv)
                 dl = await client.get(manifest["sqlite_url"])
                 dl.raise_for_status()
@@ -104,7 +105,14 @@ class ReferenceSync:
         tmp_sv = self._temp_schema_version(tmp)
         if tmp_sv is None or tmp_sv > SUPPORTED_SCHEMA_VERSION:
             tmp.unlink(missing_ok=True)
+            logger.warning(
+                "reference: fichier téléchargé en schema v%s (max v%s), rejeté",
+                tmp_sv, SUPPORTED_SCHEMA_VERSION,
+            )
             return SyncResult("rejected_schema", tmp_sv)
         os.replace(tmp, self._reference.path)
         await self._reference.reopen()
+        logger.info(
+            "reference: mis à jour (schema v%s, %.1f Mo)", sv, len(data) / 1e6
+        )
         return SyncResult("updated", sv)

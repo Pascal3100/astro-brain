@@ -16,9 +16,18 @@ State mapping (gpsd ``mode``):
     else    no_fix
     ======  ===========
 
+``gpsd-py3`` raises ``UserWarning('GPS not active')`` whenever the daemon
+reports ``mode < 1``. That is the *nominal* no-fix state, so it maps to an
+absent packet and follows the normal publish path — treating it as an error
+would freeze the published state on the last fix.
+
 Publishing is throttled: the enum is emitted as soon as it changes, but
 detail updates (lat/lon/altitude/hdop) are limited to one publish every
 :data:`DETAIL_THROTTLE_S` seconds when the enum hasn't moved.
+
+Logging is per *transition*, never per poll: one line when the state enum
+moves, and one warning per failure episode (re-armed on recovery). At two
+polls a second, a per-iteration stacktrace floods journald and the SD card.
 """
 
 from __future__ import annotations
@@ -63,6 +72,8 @@ class GpsdAdapter:
         # non-zero value sticky so ``details.satellites`` doesn't flap to 0.
         self._last_sats: int = 0
         self._last_fix: GpsFix | None = None
+        # One warning per failure episode, re-armed once a poll succeeds.
+        self._poll_error_logged: bool = False
 
     async def start(self) -> None:
         import gpsd  # type: ignore[import-not-found]
@@ -96,7 +107,13 @@ class GpsdAdapter:
         while True:
             try:
                 await asyncio.sleep(POLL_INTERVAL_S)
-                packet = await asyncio.to_thread(gpsd.get_current)
+                try:
+                    packet = await asyncio.to_thread(gpsd.get_current)
+                except UserWarning:
+                    # 'GPS not active': gpsd reports mode < 1. Nominal no-fix,
+                    # not a failure — fall through with no packet so the state
+                    # is still republished and the stale fix is cleared.
+                    packet = None
                 mode = int(getattr(packet, "mode", 0) or 0)
                 sats_now = int(getattr(packet, "sats_valid", 0) or 0)
                 if sats_now > 0:
@@ -139,6 +156,13 @@ class GpsdAdapter:
                     or now - self._last_detail_publish
                     >= timedelta(seconds=DETAIL_THROTTLE_S)
                 )
+                if state_changed:
+                    logger.info(
+                        "gps state: %s -> %s (sats=%d)",
+                        self._last_state or "-",
+                        state,
+                        sats,
+                    )
                 if state_changed or detail_ready:
                     self._bus.publish(
                         "gps",
@@ -146,10 +170,17 @@ class GpsdAdapter:
                     )
                     self._last_state = state
                     self._last_detail_publish = now
+
+                if self._poll_error_logged:
+                    logger.info("gpsd poll recovered")
+                    self._poll_error_logged = False
             except asyncio.CancelledError:
                 return
             except Exception:
-                # Keep the loop alive across transient gpsd errors, but log
-                # them so silent failures can be diagnosed from journalctl.
-                logger.warning("gpsd poll failed", exc_info=True)
+                # Keep the loop alive across transient gpsd errors, and log the
+                # first failure of an episode so it is diagnosable from
+                # journalctl — without repeating it on every poll.
+                if not self._poll_error_logged:
+                    logger.warning("gpsd poll failed", exc_info=True)
+                    self._poll_error_logged = True
                 continue

@@ -41,6 +41,12 @@ cd astro-brain/backend
 # 2. Installer uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
+# 2b. Rendre uv atteignable en SSH non-interactif
+# L'installeur le pose dans ~/.local/bin, absent du PATH d'un `ssh pi '<cmd>'`
+# (le early-return non-interactif de ~/.bashrc empêche tout export d'agir).
+# /usr/local/bin, lui, y est toujours :
+sudo ln -sf ~/.local/bin/uv /usr/local/bin/uv
+
 # 3. Sync deps avec extra hardware
 uv sync --extra hardware
 
@@ -59,6 +65,18 @@ journalctl -u astro-brain.service -f
 
 # Redémarrage après pull
 git pull && sudo systemctl restart astro-brain.service
+
+# Si le pull touche les dépendances (pyproject.toml / uv.lock)
+cd ~/code/astro-brain/backend && uv sync --extra hardware
+```
+
+Les migrations SQLite (`repository/migrations/_00N_*.py`) s'appliquent
+automatiquement au démarrage du service. Certaines sont destructrices
+(`DROP TABLE`, `DELETE`) et forward-only : sauvegarder `state.db` avant un
+pull qui en apporte de nouvelles.
+
+```bash
+cp /var/lib/astro-brain/state.db /var/lib/astro-brain/state.db.bak-$(date +%F)
 ```
 
 ## mDNS

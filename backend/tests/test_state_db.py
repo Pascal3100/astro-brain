@@ -36,7 +36,7 @@ async def _table_names(db: aiosqlite.Connection) -> set[str]:
 
 async def test_run_migrations_creates_schema(db: aiosqlite.Connection) -> None:
     version = await run_migrations(db)
-    assert version == 5
+    assert version == 6
 
     tables = await _table_names(db)
     assert {
@@ -51,14 +51,14 @@ async def test_run_migrations_creates_schema(db: aiosqlite.Connection) -> None:
     row = await cursor.fetchone()
     await cursor.close()
     assert row is not None
-    assert row[0] == 5
+    assert row[0] == 6
 
 
 async def test_run_migrations_is_idempotent(db: aiosqlite.Connection) -> None:
     first = await run_migrations(db)
     second = await run_migrations(db)
-    assert first == 5
-    assert second == 5
+    assert first == 6
+    assert second == 6
 
     tables = await _table_names(db)
     assert {
@@ -69,7 +69,7 @@ async def test_run_migrations_is_idempotent(db: aiosqlite.Connection) -> None:
     assert "catalog_objects" not in tables
     assert "mount_limits" not in tables
 
-    cursor = await db.execute("SELECT COUNT(*) FROM schema_version WHERE version = 5")
+    cursor = await db.execute("SELECT COUNT(*) FROM schema_version WHERE version = 6")
     row = await cursor.fetchone()
     await cursor.close()
     assert row is not None
@@ -104,6 +104,36 @@ async def test_migration_005_drops_mount_limits(tmp_path) -> None:
     assert (await cur.fetchone())[0] >= 5
     await cur.close()
     await conn.close()
+
+
+async def _sensor_ids(db: aiosqlite.Connection) -> set[str]:
+    cursor = await db.execute("SELECT sensor_id FROM calibration_sensor")
+    rows = await cursor.fetchall()
+    await cursor.close()
+    return {row[0] for row in rows}
+
+
+async def test_migration_006_purges_retired_sensor_calibrations(
+    db: aiosqlite.Connection,
+) -> None:
+    """Rows for retired sensors go; the live `lis3mdl` calibration stays.
+
+    Reproduces the state found on the Pi on 2026-08-12: an `adxl345_mount`
+    row left over from before the 2026-07-17 sensor retirement.
+    """
+    await _seed_schema_at_version_4(db)
+    for sensor_id in ("adxl345_mount", "adxl345_tube", "lis3mdl"):
+        await db.execute(
+            "INSERT INTO calibration_sensor (sensor_id, payload_json, calibrated_at)"
+            " VALUES (?, '{}', '2026-05-07T19:38:21Z')",
+            (sensor_id,),
+        )
+    await db.commit()
+
+    version = await run_migrations(db)
+
+    assert version == 6
+    assert await _sensor_ids(db) == {"lis3mdl"}
 
 
 async def _seed_schema_at_version_4(db: aiosqlite.Connection) -> None:
@@ -142,13 +172,13 @@ async def test_migration_005_is_forward_only_from_version_4(
     assert "catalog_objects" not in tables_before
 
     version = await run_migrations(db)
-    assert version == 5
+    assert version == 6
 
     cursor = await db.execute("SELECT MAX(version) FROM schema_version")
     row = await cursor.fetchone()
     await cursor.close()
     assert row is not None
-    assert row[0] == 5
+    assert row[0] == 6
 
     tables_after = await _table_names(db)
     assert "mount_limits" not in tables_after
