@@ -70,6 +70,13 @@ git pull && sudo systemctl restart astro-brain.service
 cd ~/code/astro-brain/backend && uv sync --extra hardware
 ```
 
+Verbosité des logs : `ASTRO_BRAIN_LOG_LEVEL` (défaut `INFO`, configuré par
+`main.py` — uvicorn ne configure que ses propres loggers). Le backend confirme
+son niveau effectif au démarrage (`logging configuré au niveau INFO`), ce qui
+permet de distinguer un journal muet d'un journal réduit au silence. `httpx` et
+`httpcore` sont maintenus à `WARNING` sauf en `DEBUG` (ils loguent l'URL signée
+complète de chaque requête, ~700 caractères pour la release Oracle).
+
 Les migrations SQLite (`repository/migrations/_00N_*.py`) s'appliquent
 automatiquement au démarrage du service. Certaines sont destructrices
 (`DROP TABLE`, `DELETE`) et forward-only : sauvegarder `state.db` avant un

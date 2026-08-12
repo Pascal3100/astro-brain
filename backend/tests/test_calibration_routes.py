@@ -50,6 +50,36 @@ _FAST = {
     "progress_period_s": 0.005,
 }
 
+# Défaut de CalibrationServiceImpl.lis3mdl_min_samples, laissé tel quel pour
+# que le seuil réellement servi en prod soit celui qu'on franchit ici.
+_MIN_SAMPLES = 500
+
+
+async def _wait_for_samples(
+    svc: CalibrationServiceImpl,
+    session_id: str,
+    minimum: int,
+    *,
+    timeout_s: float = 10.0,
+) -> int:
+    """Attendre `minimum` échantillons via le flux public de progression.
+
+    Une temporisation fixe ne tient pas : la tâche d'échantillonnage est en
+    concurrence avec le reste de la suite, et sous charge elle n'atteint pas
+    le seuil dans le délai imparti (test flaky constaté jusqu'en S50).
+    """
+    stream = svc.progress(session_id)
+    try:
+        async with asyncio.timeout(timeout_s):
+            async for progress in stream:
+                if progress.samples_n >= minimum:
+                    return progress.samples_n
+    except TimeoutError:
+        pytest.fail(f"moins de {minimum} échantillons après {timeout_s} s")
+    finally:
+        await stream.aclose()
+    pytest.fail(f"flux de progression clos avant d'atteindre {minimum} échantillons")
+
 
 # ---------------------------------------------------------------------------
 # Fixture
@@ -101,8 +131,10 @@ async def test_round_trip_start_finalize_status(db: aiosqlite.Connection) -> Non
         session_id = r.json()["session_id"]
         assert len(session_id) == 32
 
-        # Let the sampling task accumulate past lis3mdl_min_samples (default 500).
-        await asyncio.sleep(0.7)
+        # Let the sampling task accumulate past lis3mdl_min_samples.
+        await _wait_for_samples(
+            app.state.calibration_service, session_id, _MIN_SAMPLES
+        )
 
         # Finalize
         r2 = client.post("/calibration/lis3mdl/finalize")

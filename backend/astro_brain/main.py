@@ -27,9 +27,20 @@ __all__ = ["app", "configure_logging", "run"]
 
 LOG_LEVEL_ENV = "ASTRO_BRAIN_LOG_LEVEL"
 
+# Libraries too chatty at INFO. `httpx` logs the full URL of every request:
+# for the Oracle release that is a ~700-character signed URL, twice per boot,
+# which drowns the startup journal.
+_QUIET_LOGGERS = ("httpx", "httpcore")
+
 
 def configure_logging() -> None:
-    """Send package logs to stderr at ``ASTRO_BRAIN_LOG_LEVEL`` (default INFO)."""
+    """Send package logs to stderr at ``ASTRO_BRAIN_LOG_LEVEL`` (default INFO).
+
+    :data:`_QUIET_LOGGERS` are pinned to ``WARNING`` unless ``DEBUG`` was
+    asked for explicitly — at that point the caller wants everything, so they
+    are handed back to the root level rather than left as a previous call set
+    them. Calling this twice must give the same result as calling it once.
+    """
     level = os.environ.get(LOG_LEVEL_ENV, "INFO").upper()
     logging.basicConfig(
         level=level, format="%(levelname)s: %(name)s: %(message)s"
@@ -38,6 +49,12 @@ def configure_logging() -> None:
     # level explicitly: the requested verbosity must hold even if something
     # else configured logging first.
     logging.getLogger().setLevel(level)
+    quiet_level = logging.NOTSET if level == "DEBUG" else logging.WARNING
+    for name in _QUIET_LOGGERS:
+        logging.getLogger(name).setLevel(quiet_level)
+    # Confirm the effective level, so a silent journal can be told apart from
+    # a journal silenced by configuration.
+    logging.getLogger(__name__).info("logging configuré au niveau %s", level)
 
 
 configure_logging()
