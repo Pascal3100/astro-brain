@@ -195,8 +195,15 @@ Minors différés à la revue finale Opus du plan SP3-B (l'app lit `reference.sq
 ## Ops & déploiement (à automatiser post-Macro 0)
 
 - **Service systemd** pour le backend — livré (`astro-brain.service`).
-- **Déploiement backend** — script `deploy.sh` ou cible Make (SSH → `git pull && systemctl restart astro-brain`). Évite le workflow manuel actuel.
+- **Déploiement backend** — script `deploy.sh` ou cible Make (SSH → `git pull && systemctl restart astro-brain`). Évite le workflow manuel actuel. Le script devrait embarquer les deux étapes découvertes en S50 : sauvegarde `state.db` avant un pull qui apporte des migrations (forward-only et parfois destructrices), et `uv sync --extra hardware` si `pyproject.toml`/`uv.lock` bougent.
 - **Mise à jour app Flutter** — pipeline build APK (+ TestFlight/iOS si concerné). À traiter séparément, pas via le Pi.
+- **Déploiements espacés = surprises accumulées (S50).** Le Pi avait 133 commits de retard : 5 migrations d'un coup, et 4 défauts d'observabilité découverts seulement en production, dont un vrai bug de correctness (fix GPS périmé). Piste : redéployer à chaque fin de session, même sans validation matérielle — c'est le seul endroit où le code tourne avec de vrais capteurs.
+
+## Observabilité backend (post-S50)
+
+- **Log httpx verbeux au boot.** Le fetch du manifeste Oracle logue en INFO l'URL signée complète de la release GitHub (~700 caractères, 2 lignes par boot). Piste : `logging.getLogger("httpx").setLevel(logging.WARNING)` dans `configure_logging()`. Cosmétique, mais ces lignes noient le journal de démarrage.
+- **Aucun log de niveau au démarrage.** `configure_logging()` ne dit pas à quel niveau il s'est configuré ; en cas de `ASTRO_BRAIN_LOG_LEVEL` mal orthographié, `basicConfig` lève `ValueError` au boot (fail-fast, acceptable) mais rien ne confirme le niveau effectif quand ça marche.
+- **Test flaky pré-existant : `test_calibration_routes.py::test_round_trip_start_finalize_status`.** Passe en isolation, échoue sous charge de suite complète (« insufficient samples: 497 < 500 »). Cause : un `await asyncio.sleep(0.7)` fixe qui course avec l'accumulation de 500 échantillons. Vérifié en S50 comme **antérieur** aux modifs de la session (échoue aussi sur `main` vierge). Piste : remplacer le sleep par une attente de condition bornée par timeout, comme les helpers `_until` de `test_gpsd_loop.py`.
 
 ## [Macro 3] AlignmentService publish hook (symétrie architecturale)
 
