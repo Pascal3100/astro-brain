@@ -140,6 +140,16 @@ class ConflictError(Exception):
     """A calibration session is already active for another sensor."""
 
 
+class SensorUnavailableError(Exception):
+    """A sensor did not answer on its bus.
+
+    Raised by hardware adapters when the chip is absent or unpowered — the
+    nominal state of a bench that is simply unplugged, not a bug. Routes map
+    it to ``503`` so the caller gets a legible refusal instead of a ``500``
+    (and, on SSE routes, instead of a truncated body).
+    """
+
+
 class CalibrationService(Protocol):
     """Orchestrates per-sensor calibration sessions.
 

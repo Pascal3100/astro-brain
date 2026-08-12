@@ -31,7 +31,7 @@ Détails dans la spec Setup : [`docs/superpowers/specs/2026-05-01-astro-brain-v0
 `sensor_id ∈ { lis3mdl }`. Une seule session active à la fois (verrou backend) ; conflit → `409`.
 
 ```
-POST /calibration/{sensor_id}/start          # 202 { session_id }
+POST /calibration/{sensor_id}/start          # 202 { session_id } | 503 capteur muet
 GET  /calibration/{sensor_id}/stream         # SSE — event: progress | end
 POST /calibration/{sensor_id}/finalize       # 200 CalibrationStatus (persisté state.db)
 POST /calibration/{sensor_id}/abort          # 200 { ok: true }
@@ -49,7 +49,14 @@ Stream `progress` : `{ state: "sampling"|"computing", samples_n, coverage_pct, s
 GET /sensors/compass/stream?hz=5             # SSE CompassReading { heading_deg, tilt_compensated, magnitude_uT }
 ```
 
-`hz` ∈ [1, 20]. Hors borne → `422`. Streams lazy : aucun I2C lu tant qu'aucun client connecté.
+`hz` ∈ [1, 10]. Hors borne → `422`. Streams lazy : aucun I2C lu tant qu'aucun client connecté.
+
+**Capteur absent** (puce non alimentée ou débranchée — l'état nominal du bench) :
+le LIS3MDL fait lever `OSError` à smbus2, traduit en `SensorUnavailableError` et
+rendu en **`503`**. Le capteur est acquis *avant* que la réponse SSE ne soit
+rendue, sinon l'échec arriverait après les en-têtes et le client recevrait un
+corps chunké tronqué au lieu d'un statut. Une puce perdue *en cours* de flux
+émet un événement `error` (`{ detail }`) puis ferme le flux.
 
 ### À propos (livré)
 

@@ -4,6 +4,7 @@ import time
 import pytest
 
 from astro_brain.adapters.lis3mdl_adapter import LIS3MDL_I2C_ADDR, Lis3mdlAdapter
+from astro_brain.services.interfaces import SensorUnavailableError
 from tests.fakes.fake_i2c import make_fake_i2c, preload_int16_le
 
 
@@ -36,6 +37,37 @@ async def test_stop_powers_down() -> None:
     await adapter.start()
     await adapter.stop()
     assert bus.registers[(LIS3MDL_I2C_ADDR, 0x22)] == 0x03
+
+
+async def test_absent_chip_raises_sensor_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Une puce absente lève ``OSError`` côté smbus2 → ``SensorUnavailableError``.
+
+    C'est l'état nominal du bench débranché : sans cette traduction les routes
+    rendaient un 500 (et un corps SSE tronqué). Le message doit nommer l'adresse
+    et le bus pour être diagnostiquable depuis le journal.
+    """
+
+    def absent(*args: object) -> None:
+        raise OSError(5, "Input/output error")
+
+    monkeypatch.setattr("astro_brain.adapters.lis3mdl_adapter.write_byte", absent)
+    monkeypatch.setattr("astro_brain.adapters.lis3mdl_adapter.read_bytes", absent)
+
+    adapter = Lis3mdlAdapter(fake=make_fake_i2c())
+
+    with pytest.raises(SensorUnavailableError) as excinfo:
+        await adapter.start()
+    assert "0x1E" in str(excinfo.value)
+    assert "i2c-1" in str(excinfo.value)
+
+    # read_raw et stop traduisent aussi : la puce peut être arrachée en vol
+    # (start() a armé le bus avant d'échouer sur la séquence d'init).
+    with pytest.raises(SensorUnavailableError):
+        await adapter.read_raw()
+    with pytest.raises(SensorUnavailableError):
+        await adapter.stop()
 
 
 async def test_i2c_io_does_not_block_the_event_loop(

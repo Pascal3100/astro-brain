@@ -17,6 +17,7 @@ from astro_brain.models.calibration import Lis3mdlOffsets
 from astro_brain.repository.calibration_repo import upsert_offsets
 from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.sensors import _LazySensor, compass_stream, router
+from astro_brain.services.interfaces import SensorUnavailableError
 
 from .fakes.sensor_fakes import FakeLis3mdl as _FakeLis3mdl
 
@@ -247,3 +248,107 @@ async def test_lazy_sensor_start_stop_lifecycle() -> None:
 
     assert lis.stop_calls == 1  # now fully released
     assert lis.start_calls == 1
+
+
+# ---------------------------------------------------------------------------
+# Capteur absent — le bench débranché est un état nominal, pas un 500
+# ---------------------------------------------------------------------------
+
+
+class _AbsentLis3mdl(_FakeLis3mdl):
+    """Fake dont la puce ne répond pas sur le bus.
+
+    ``fail_after`` samples sont servis avant la panne : 0 simule une puce absente
+    au démarrage, n > 0 une puce arrachée en cours de flux.
+    """
+
+    def __init__(self, *, fail_after: int = 0) -> None:
+        super().__init__([(50.0, 0.0, 30.0)] * 1_000)
+        self._fail_after = fail_after
+        self._reads = 0
+
+    async def start(self) -> None:
+        await super().start()
+        if self._fail_after == 0:
+            raise SensorUnavailableError("LIS3MDL muet à 0x1E sur i2c-1")
+
+    async def read_raw(self) -> tuple[float, float, float]:
+        if self._reads >= self._fail_after:
+            raise SensorUnavailableError("LIS3MDL muet à 0x1E sur i2c-1")
+        self._reads += 1
+        return await super().read_raw()
+
+
+async def test_absent_sensor_yields_503_not_a_truncated_stream(
+    db: aiosqlite.Connection,
+) -> None:
+    """Puce absente à l'ouverture → 503, avant que les en-têtes SSE ne partent.
+
+    Le capteur doit être acquis *avant* de rendre la réponse : une fois le 200 et
+    les en-têtes envoyés, l'échec ne peut plus devenir un statut HTTP et le client
+    reçoit un corps chunké tronqué (constaté sur le Pi en S50).
+    """
+    from fastapi import HTTPException
+
+    lis = _AbsentLis3mdl()
+    app = _make_compass_app(db, lis)
+    fake_request = AsyncMock()
+    fake_request.app = app
+    fake_request.is_disconnected = AsyncMock(return_value=False)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await compass_stream(
+            request=fake_request,
+            hz=5,
+            lazy_lis3mdl=app.state.lazy_lis3mdl,
+            db=db,
+        )
+    assert excinfo.value.status_code == 503
+    assert "LIS3MDL" in excinfo.value.detail
+
+
+async def test_sensor_lost_mid_stream_emits_an_error_event(
+    db: aiosqlite.Connection,
+) -> None:
+    """Puce perdue en vol → un événement ``error`` puis fermeture propre."""
+    lis = _AbsentLis3mdl(fail_after=1)
+    app = _make_compass_app(db, lis)
+    fake_request = AsyncMock()
+    fake_request.app = app
+    fake_request.is_disconnected = AsyncMock(return_value=False)
+
+    response = await compass_stream(
+        request=fake_request,
+        hz=10,
+        lazy_lis3mdl=app.state.lazy_lis3mdl,
+        db=db,
+    )
+    events = await _collect_events(response, count=3, timeout=2.0)
+
+    assert [ev["event"] for ev in events] == ["compass", "error"]
+    assert "LIS3MDL" in json.loads(events[1]["data"])["detail"]
+    # Le flux s'est fermé en relâchant le capteur : pas de refcount qui dérive.
+    assert lis.stop_calls == 1
+
+
+async def test_failed_acquire_leaves_no_dangling_refcount() -> None:
+    """Un ``acquire()`` en échec ne doit pas consommer une référence.
+
+    Sinon le premier client à trouver la puce absente laisse le refcount à 1 et
+    plus jamais aucun ``start()`` n'est retenté — le capteur reste mort même
+    rebranché.
+    """
+    lis = _AbsentLis3mdl()
+    lazy = _LazySensor(lis)
+
+    with pytest.raises(SensorUnavailableError):
+        await lazy.acquire()
+    assert lazy._refcount == 0
+
+    # Puce rebranchée : le prochain client relance bien start().
+    lis._fail_after = 1
+    adapter = await lazy.acquire()
+    assert adapter is lis
+    assert lis.start_calls == 2
+    await lazy.release()
+    assert lis.stop_calls == 1

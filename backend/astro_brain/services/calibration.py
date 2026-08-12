@@ -85,6 +85,9 @@ class CalibrationServiceImpl:
         Raises:
             ValueError: Unknown *sensor_id*.
             ConflictError: Another session is already active.
+            SensorUnavailableError: The chip did not answer on its bus. The
+                session state is rolled back before the error propagates, so a
+                retry after plugging the sensor back in works.
         """
         if sensor_id not in SENSOR_IDS:
             raise ValueError(f"unknown sensor_id: {sensor_id!r}")

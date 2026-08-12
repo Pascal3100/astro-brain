@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.calibration import router, stream_calibration
 from astro_brain.services.calibration import CalibrationServiceImpl
+from astro_brain.services.interfaces import SensorUnavailableError
 
 from ._calibration_samples import full_sphere_samples as _full_sphere_samples
 
@@ -160,6 +161,33 @@ async def test_concurrent_start_returns_409(db: aiosqlite.Connection) -> None:
 
         # Clean up
         client.post("/calibration/lis3mdl/abort")
+
+
+async def test_absent_sensor_returns_503_and_stays_startable(
+    db: aiosqlite.Connection,
+) -> None:
+    """Puce absente → 503 (pas 500), et une seconde tentative reste possible.
+
+    Le bench débranché est un état nominal : `start` doit refuser lisiblement et
+    rembobiner la session, sinon le service reste bloqué en « session active »
+    alors qu'aucune session ne tourne (constaté sur le Pi en S50).
+    """
+    app = _make_app(db)
+
+    async def _absent() -> None:
+        raise SensorUnavailableError("LIS3MDL muet à 0x1E sur i2c-1")
+
+    svc = app.state.calibration_service
+    svc._adapters["lis3mdl"].start = _absent  # type: ignore[method-assign]
+
+    with TestClient(app) as client:
+        r = client.post("/calibration/lis3mdl/start")
+        assert r.status_code == 503, r.text
+        assert "LIS3MDL" in r.json()["detail"]
+
+        # Aucune session fantôme : la seconde tentative rejoue start(), pas 409.
+        assert await svc.current_session() is None
+        assert client.post("/calibration/lis3mdl/start").status_code == 503
 
 
 def test_invalid_sensor_id_returns_400(db: aiosqlite.Connection) -> None:

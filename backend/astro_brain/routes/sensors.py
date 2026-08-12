@@ -18,6 +18,7 @@ from astro_brain import deps
 from astro_brain.models.calibration import Lis3mdlOffsets
 from astro_brain.repository import calibration_repo
 from astro_brain.services._heading import naive_heading
+from astro_brain.services.interfaces import SensorUnavailableError
 
 router = APIRouter(tags=["sensors"])
 
@@ -57,14 +58,24 @@ class _LazySensor:
         self._lock = asyncio.Lock()
         self._refcount = 0
 
-    async def __aenter__(self) -> Any:
+    async def acquire(self) -> Any:
+        """Start the adapter if this is the first subscriber, and return it.
+
+        Exposed separately from :meth:`__aenter__` so a route can acquire the
+        sensor *before* committing to a response: a failure raised from inside
+        a streaming generator can no longer become an HTTP status.
+
+        Raises:
+            SensorUnavailableError: The chip did not answer on its bus.
+        """
         async with self._lock:
             if self._refcount == 0:
                 await self._adapter.start()
             self._refcount += 1
         return self._adapter
 
-    async def __aexit__(self, *args: Any) -> None:
+    async def release(self) -> None:
+        """Drop one subscriber, stopping the adapter when the last one goes."""
         async with self._lock:
             self._refcount -= 1
             if self._refcount == 0:
@@ -75,6 +86,12 @@ class _LazySensor:
                     _log.warning(
                         "LazySensor adapter.stop() error: %s", exc
                     )
+
+    async def __aenter__(self) -> Any:
+        return await self.acquire()
+
+    async def __aexit__(self, *args: Any) -> None:
+        await self.release()
 
 
 # ---------------------------------------------------------------------------
@@ -104,14 +121,33 @@ async def compass_stream(
         mag_status.payload if isinstance(mag_status.payload, Lis3mdlOffsets) else None
     )
 
+    # Le capteur est acquis AVANT de rendre la réponse : une fois les en-têtes
+    # SSE partis, une panne matérielle ne peut plus devenir un statut HTTP —
+    # elle s'échappe dans la couche ASGI et le client reçoit un corps chunké
+    # tronqué. C'est ce qui arrivait avec le LIS3MDL débranché.
+    try:
+        lis3mdl = await lazy_lis3mdl.acquire()
+    except SensorUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
     async def _gen() -> AsyncIterator[dict[str, Any]]:
-        async with lazy_lis3mdl as lis3mdl:
+        try:
             period = 1.0 / rate
             while True:
                 if await request.is_disconnected():
                     break
 
-                raw_mag = await lis3mdl.read_raw()
+                try:
+                    raw_mag = await lis3mdl.read_raw()
+                except SensorUnavailableError as exc:
+                    # Puce arrachée en cours de flux : le dire dans le flux et
+                    # fermer, plutôt que tronquer le corps.
+                    _log.warning("compass stream interrompu: %s", exc)
+                    yield {
+                        "event": "error",
+                        "data": json.dumps({"detail": str(exc)}),
+                    }
+                    break
 
                 rmx, rmy, rmz = raw_mag
 
@@ -145,5 +181,7 @@ async def compass_stream(
                 }
                 yield {"event": "compass", "data": json.dumps(payload)}
                 await asyncio.sleep(period)
+        finally:
+            await lazy_lis3mdl.release()
 
     return EventSourceResponse(_gen(), ping=_PING_S)

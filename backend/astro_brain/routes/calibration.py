@@ -11,6 +11,9 @@ Error mapping
                                  → 404 ``{"detail": "no active session for <id>"}``
 * Threshold failure from ``finalize``
                                  → 422 ``{"detail": <message>}``
+* :class:`~astro_brain.services.interfaces.SensorUnavailableError` (chip
+  absent or unpowered) from ``start``
+                                 → 503 ``{"detail": <message>}``
 """
 
 from __future__ import annotations
@@ -25,7 +28,11 @@ from sse_starlette.sse import EventSourceResponse
 from astro_brain import deps
 from astro_brain.models.calibration import CalibrationStatus
 from astro_brain.repository.calibration_repo import SENSOR_IDS, get_offsets
-from astro_brain.services.interfaces import CalibrationService, ConflictError
+from astro_brain.services.interfaces import (
+    CalibrationService,
+    ConflictError,
+    SensorUnavailableError,
+)
 
 router = APIRouter(tags=["calibration"])
 
@@ -50,13 +57,16 @@ async def start_calibration(
 ) -> JSONResponse:
     """Begin a calibration session for *sensor_id*.
 
-    Returns ``202 Accepted`` with ``{"session_id": "<hex>"}`` on success.
+    Returns ``202 Accepted`` with ``{"session_id": "<hex>"}`` on success,
+    ``503`` when the sensor does not answer on its bus.
     """
     _validate_sensor_id(sensor_id)
     try:
         session_id = await service.start(sensor_id)
     except ConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SensorUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return JSONResponse({"session_id": session_id}, status_code=202)
 
 
