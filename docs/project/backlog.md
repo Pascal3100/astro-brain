@@ -259,3 +259,24 @@ Piste : faire de l'adresse du pont une **configuration du backend** (env ou tabl
 l'adaptateur pousse — ou au minimum vérifie et signale — à la connexion. À arbitrer avec le reste
 du chantier « config du driver » (le `MOUNT_TYPE` de S51/S52 est de la même famille : des réglages
 structurants du pointage vivent dans un fichier que personne ne relit).
+
+## `current_position()` n'a aucune garantie de fraîcheur (S54)
+
+`MountIndiAdapter.current_position()` attend via `_await_widgets` que le vecteur
+`TELESCOPE_ENCODER_ANGLES` **existe** avec ses deux widgets, puis lit `getValue()`. Rien ne dit que
+la valeur lue vient d'une réponse récente de la monture : quand le driver rejette une trame, il
+republie simplement sa valeur en cache, et l'adaptateur la renvoie comme une mesure fraîche.
+
+C'est exactement ce qui a mordu en S54 : le pont relayait bus→TCP octet par octet, le driver
+rejetait toutes les réponses ALT (`Partial message recv. dropping`) et `AXIS_ALT` restait figé —
+bit pour bit identique après un mouvement de 2 s. Le correctif firmware (réassemblage des trames,
+commit `c3f647e`) a supprimé **cette** cause, pas le mode de défaillance : n'importe quelle autre
+perte de trames (bruit sur le bus, moteur qui ne répond plus, socket TCP saturée) reproduira le
+même silence. Enjeu réel pour Macro 3 : le wizard 3 étoiles enregistrerait une position fausse
+sans le moindre signal d'erreur.
+
+Pistes : comparer le timestamp du vecteur INDI à `now` et lever `SensorUnavailableError` au-delà
+d'un seuil ; ou exiger que la valeur ait bougé sur un déplacement connu avant de la valider. La
+première est la moins intrusive — reste à vérifier que `pyindi-client` expose bien le timestamp de
+dernière mise à jour du vecteur, et que le driver l'actualise seulement sur trame acceptée (sinon
+le timestamp ne vaut pas mieux que la valeur).
