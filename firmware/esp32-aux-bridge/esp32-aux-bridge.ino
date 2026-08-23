@@ -54,6 +54,7 @@ constexpr int OE_HIZ   = HIGH;
 
 constexpr uint32_t ECHO_DRAIN_MS = 5;   // garde : au-delà, on cesse d'attendre l'écho
 constexpr uint32_t RX_FRAME_MS   = 20;  // réponse incomplète au-delà -> on abandonne la trame
+constexpr uint32_t TCP_WRITE_MS  = 20;  // pousse le reste d'une écriture courte, borné
 
 // ---- Réseau (station, IP fixe hors plage DHCP) ----
 constexpr uint16_t TCP_PORT = 2000;     // port attendu par le mode "Celestron WiFi"
@@ -238,7 +239,16 @@ void loop() {
   //     19200) : le driver lisait une trame tronquée et la jetait
   //     ("Partial message recv. dropping (i=0 9/8)"), donc la position
   //     ALT restait figée sur un cache — 0/25 trames acceptées en 30 s
-  //     alors que l'AZM passait à 28/28 (diagnostic S54). ---
+  //     alors que l'AZM passait à 28/28 (diagnostic S54).
+  //
+  //     EFFET DE BORD ASSUMÉ : avant, un octet d'écho qui échappait au
+  //     drain de busSend() partait brut et la chasse au 0x3b du driver
+  //     le sautait. Nos trames COMMENÇANT par 0x3b, un écho qui fuit
+  //     peut désormais s'assembler en trame complète et être relayé
+  //     comme une fausse réponse (src=0x20, que le driver ignore). On
+  //     ne filtre pas src : ça n'attraperait que la fuite propre (un
+  //     écho tronqué donne un src quelconque), donc une fausse
+  //     assurance. Le vrai garde-fou reste un drain d'écho correct. ---
   if (rxLen > 0 && now - rxLastByteMs > RX_FRAME_MS) {
     rxLen = 0; rxNeed = 0;         // trame qui ne se complète pas : sans ça, un
   }                                // len corrompu bloquerait le RX jusqu'au reboot
@@ -251,7 +261,21 @@ void loop() {
     rxFrame[rxLen++] = b;
     if (rxLen == 2) rxNeed = (uint16_t)rxFrame[1] + 3;
     if (rxLen >= 2 && rxLen == rxNeed) {             // complète -> TCP en un bloc
-      if (client && client.connected()) client.write(rxFrame, rxLen);
+      // Une écriture courte retronquerait la trame — le défaut même
+      // qu'on corrige. On pousse le reste, borné dans le temps.
+      if (client && client.connected()) {
+        size_t   sent     = 0;
+        uint32_t deadline = millis() + TCP_WRITE_MS;
+        while (sent < rxLen && (int32_t)(millis() - deadline) < 0) {
+          size_t n = client.write(rxFrame + sent, rxLen - sent);
+          if (n == 0) { delay(1); continue; }
+          sent += n;
+        }
+        if (sent < rxLen) {
+          Serial.printf("[tcp] trame tronquée %u/%u\n",
+                        (unsigned)sent, (unsigned)rxLen);
+        }
+      }
       rxLen = 0; rxNeed = 0;
     } else if (rxLen >= sizeof(rxFrame)) {           // garde-fou (len corrompue)
       rxLen = 0; rxNeed = 0;
