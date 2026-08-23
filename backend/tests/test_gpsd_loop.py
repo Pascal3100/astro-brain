@@ -259,6 +259,68 @@ async def test_losing_the_fix_clears_the_position(
         await adapter.stop()
 
 
+async def test_a_stale_tpv_expires_even_while_sky_keeps_coming(
+    daemon: _FakeGpsd, fast_loop: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fix must expire on its own age, not only on stream silence.
+
+    gpsd emits SKY at 1 Hz whether or not there is a fix, so the readline
+    deadline never fires while satellites keep arriving. A receiver that
+    stops reporting positions while still reporting satellites would
+    otherwise leave the last fix frozen — and re-stamped as current on
+    every SKY — which the orchestrator syncs to the mount and the wizard
+    uses as the observer position.
+    """
+    monkeypatch.setattr(gpsd_adapter, "FIX_TIMEOUT_S", 0.02)
+    bus = StateBus()
+    adapter = GpsdAdapter(bus, host="127.0.0.1", port=daemon.port)
+    await adapter.start()
+    try:
+        await _until("the watch command", lambda: bool(daemon.watches))
+        await daemon.push(_sky(seen=12, used=8))
+        await daemon.push(_tpv(mode=3))
+        await _until("the 3D fix", lambda: adapter.latest_fix() is not None)
+
+        # No further TPV. The stream stays alive on SKY alone, so the
+        # readline deadline never fires — only the fix's own age can.
+        await asyncio.sleep(0.1)
+        await daemon.push(_sky(seen=12, used=8))
+        await _until("the fix to expire", lambda: adapter.latest_fix() is None)
+        # satellites are still seen, so this is "searching", not blind
+        assert _gps(bus).state == "searching"
+        assert _gps(bus).details["satellites_visible"] == 12
+    finally:
+        await adapter.stop()
+
+
+async def test_a_fix_is_stamped_with_its_tpv_arrival_not_the_publish_time(
+    daemon: _FakeGpsd, fast_loop: None
+) -> None:
+    """``GpsFix.timestamp`` must date the position, not the last SKY."""
+    bus = StateBus()
+    adapter = GpsdAdapter(bus, host="127.0.0.1", port=daemon.port)
+    await adapter.start()
+    try:
+        await _until("the watch command", lambda: bool(daemon.watches))
+        await daemon.push(_tpv(mode=3))
+        await _until("the 3D fix", lambda: adapter.latest_fix() is not None)
+        fix = adapter.latest_fix()
+        assert fix is not None
+        stamped = fix.timestamp
+
+        await asyncio.sleep(0.05)
+        await daemon.push(_sky(seen=12, used=8))
+        await _until(
+            "the satellite count",
+            lambda: _gps(bus).details.get("satellites_visible") == 12,
+        )
+        again = adapter.latest_fix()
+        assert again is not None
+        assert again.timestamp == stamped
+    finally:
+        await adapter.stop()
+
+
 async def test_a_silent_stream_clears_the_fix(
     daemon: _FakeGpsd, fast_loop: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:

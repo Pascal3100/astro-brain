@@ -29,7 +29,11 @@ adapter publishes ``no_fix`` and keeps retrying every
 :data:`RECONNECT_DELAY_S`. A silent stream is also a failure — the
 receiver can be unplugged without gpsd saying anything — so
 :data:`STALE_TIMEOUT_S` without a report clears the position rather than
-freezing the state on the last fix.
+freezing the state on the last fix. The **TPV expires on its own** by
+the same deadline: SKY alone keeps the stream alive, so a receiver that
+stops reporting positions while still reporting satellites would
+otherwise leave the last fix frozen — and re-stamped as current on
+every SKY.
 
 Publishing is throttled: the enum is emitted as soon as it changes, but
 detail updates (lat/lon/altitude/hdop/satellites) are limited to one
@@ -61,6 +65,11 @@ GPSD_PORT = 2947
 # nothing and leaves us with ?POLL;, which has no satellite count.
 WATCH_COMMAND = b'?WATCH={"enable":true,"json":true}\n'
 STALE_TIMEOUT_S = 5.0
+# Deliberately the same magnitude as STALE_TIMEOUT_S, but a distinct
+# concern: that one bounds the silence of the *stream*, this one the
+# age of the last *position*. SKY keeps the stream alive, so only this
+# deadline can expire a fix that stopped being refreshed.
+FIX_TIMEOUT_S = 5.0
 RECONNECT_DELAY_S = 2.0
 DETAIL_THROTTLE_S = 1.0
 
@@ -114,6 +123,9 @@ class GpsdAdapter:
         # field-wise — see :meth:`_ingest`.
         self._tpv: dict[str, Any] = {}
         self._sky: dict[str, Any] = {}
+        # Arrival time of the retained TPV, so it can expire without
+        # waiting for the whole stream to go silent.
+        self._tpv_at: datetime | None = None
         # One warning per failure episode, re-armed once a stream succeeds.
         self._error_logged: bool = False
 
@@ -193,6 +205,7 @@ class GpsdAdapter:
         cls = report.get("class")
         if cls == "TPV":
             self._tpv = report
+            self._tpv_at = datetime.now(UTC)
         elif cls == "SKY":
             # gpsd alternates a full SKY with one reduced to the DOPs
             # (measured on 3.25: 24/14, then nothing, then 24/14...).
@@ -207,11 +220,24 @@ class GpsdAdapter:
         """Drop everything we knew and republish (position included)."""
         self._tpv = {}
         self._sky = {}
+        self._tpv_at = None
         self._publish()
 
     def _publish(self) -> None:
+        now = datetime.now(UTC)
         tpv, sky = self._tpv, self._sky
-        mode = int(tpv.get("mode") or 0)
+        # gpsd emits SKY at 1 Hz whether or not there is a fix, so the
+        # readline deadline never fires while satellites keep coming.
+        # A TPV that stopped arriving must therefore expire on its own,
+        # or ``latest_fix()`` would serve a frozen position — which the
+        # orchestrator syncs to the mount and the wizard uses as the
+        # observer position.
+        fix_at = self._tpv_at
+        if fix_at is not None and now - fix_at > timedelta(
+            seconds=FIX_TIMEOUT_S
+        ):
+            fix_at = None
+        mode = int(tpv.get("mode") or 0) if fix_at is not None else 0
         seen, used = _sat_counts(sky)
         state = mode_to_state(mode, seen)
 
@@ -232,16 +258,14 @@ class GpsdAdapter:
         if hdop is not None:
             details["hdop"] = float(hdop)
 
-        now = datetime.now(UTC)
-
         # Typed live position, refreshed on every report regardless of the
         # bus-publish throttle below — the two functional consumers
         # (orchestrator, alignment bridge) read this, not the bus details.
-        if "lat" in details and "lon" in details:
+        if fix_at is not None and "lat" in details and "lon" in details:
             self._last_fix = GpsFix(
                 lat=details["lat"],
                 lon=details["lon"],
-                timestamp=now,
+                timestamp=fix_at,
                 is_3d=(mode == 3),
             )
         else:
