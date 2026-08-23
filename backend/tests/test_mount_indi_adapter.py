@@ -12,6 +12,7 @@ from astro_brain.adapters.mount_indi_adapter import (
     MountIndiAdapter,
 )
 from astro_brain.bus import StateBus
+from astro_brain.services.interfaces import SensorUnavailableError
 from tests.fakes.fake_indi import FakeDevice, FakeIndiClient
 
 
@@ -428,6 +429,60 @@ async def test_set_location_publishes_error_when_property_never_arrives(
     mount = bus.get_full_state().subsystems["mount"]
     assert mount.state == "error"
     assert "GEOGRAPHIC_COORD" in (mount.message or "")
+
+
+@pytest.mark.asyncio
+async def test_current_position_reads_encoder_angles() -> None:
+    """(az, alt) come from TELESCOPE_ENCODER_ANGLES, the mount's own frame."""
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    dev = client.getDevice(INDI_DEVICE_NAME)
+    dev.add_number(
+        "TELESCOPE_ENCODER_ANGLES", {"AXIS_AZ": 123.45, "AXIS_ALT": -12.5}
+    )
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    az, alt = await adapter.current_position()
+
+    assert az == pytest.approx(123.45)
+    assert alt == pytest.approx(-12.5)
+    assert bus.get_full_state().subsystems["mount"].state == "ready"
+
+
+@pytest.mark.asyncio
+async def test_current_position_raises_when_encoders_unreadable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A mount whose return path is dead must refuse, not return garbage.
+
+    This is the S51 hardware case: the driver connects and accepts commands,
+    but never receives a reply, so it never publishes encoder angles. The
+    caller needs a refusal it can turn into a 503 — not ``(0, 0)``.
+    """
+    monkeypatch.setattr(mount_indi_adapter, "PROPERTY_READY_TIMEOUT_S", 0.3)
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    with pytest.raises(SensorUnavailableError):
+        await adapter.current_position()
+
+    assert bus.get_full_state().subsystems["mount"].state == "error"
+
+
+@pytest.mark.asyncio
+async def test_current_position_raises_when_device_absent() -> None:
+    """Diverges from the other commands: a read cannot silently no-op."""
+    bus = StateBus()
+    client = FakeIndiClient()  # pas de device seedé
+    adapter = MountIndiAdapter(bus, client=client)
+
+    with pytest.raises(SensorUnavailableError):
+        await adapter.current_position()
 
 
 def _seed_sync_properties(client: FakeIndiClient) -> None:

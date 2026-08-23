@@ -73,6 +73,19 @@ class MountService(Protocol):
     async def set_time(self, utc_iso: str) -> None: ...
     async def set_location(self, lat: float, lon: float) -> None: ...
 
+    async def current_position(self) -> tuple[float, float]:
+        """Return the mount's own ``(az, alt)`` in degrees.
+
+        Raw axis angles in the *mount* frame, independent of any alignment
+        model — the alignment wizard pairs them with the sky position of a
+        known star to solve its own model.
+
+        Raises:
+            SensorUnavailableError: the mount is not connected or does not
+                report usable axis angles.
+        """
+        ...
+
     async def sync_radec(self, ra_deg: float, dec_deg: float) -> None:
         """Push a sync point to the mount's native alignment model.
 

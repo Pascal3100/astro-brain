@@ -16,7 +16,10 @@ from astro_brain.models.alignment import (
 )
 from astro_brain.routes.alignment import router
 from astro_brain.services._ephemeris import Observer
-from astro_brain.services.interfaces import ConflictError
+from astro_brain.services.interfaces import (
+    ConflictError,
+    SensorUnavailableError,
+)
 
 
 def _stub_session() -> AlignmentSession:
@@ -75,6 +78,18 @@ def test_post_record_idx_mismatch_returns_409() -> None:
     client, _ = _client_with_service(svc)
     r = client.post("/align/record", json={"idx": 5})
     assert r.status_code == 409
+
+
+def test_post_record_returns_503_when_mount_unreadable() -> None:
+    """Encodeurs monture illisibles → 503, pas un 500 opaque (journal S51)."""
+    svc = MagicMock()
+    svc.record = AsyncMock(
+        side_effect=SensorUnavailableError("encoder angles unavailable")
+    )
+    client, _ = _client_with_service(svc)
+    r = client.post("/align/record", json={"idx": 0})
+    assert r.status_code == 503
+    assert "encoder" in r.json()["detail"]
 
 
 def test_post_finalize_before_3_returns_409() -> None:

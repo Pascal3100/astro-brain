@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from astro_brain.bus import StateBus
 from astro_brain.services.fakes import (
     FakeGps,
@@ -10,6 +12,7 @@ from astro_brain.services.fakes import (
     FakeSystemInfo,
     FakeTracking,
 )
+from astro_brain.services.interfaces import SensorUnavailableError
 
 
 async def test_fake_mount_publishes_ready_on_start() -> None:
@@ -100,3 +103,17 @@ async def test_fake_system_info_transitions_to_critical_over_threshold() -> None
     await sys.start()
     assert bus.get_full_state().subsystems["system"].state == "critical"
     await sys.stop()
+
+
+
+async def test_fake_mount_position_is_programmable() -> None:
+    """``position = None`` mimics a mount whose encoders cannot be read."""
+    mount = FakeMount(StateBus())
+    assert await mount.current_position() == (0.0, 0.0)
+
+    mount.position = (200.0, 45.0)
+    assert await mount.current_position() == (200.0, 45.0)
+
+    mount.position = None
+    with pytest.raises(SensorUnavailableError):
+        await mount.current_position()

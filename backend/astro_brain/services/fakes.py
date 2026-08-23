@@ -15,7 +15,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from astro_brain.bus import StateBus
-from astro_brain.services.interfaces import Axis, Direction, GpsFix
+from astro_brain.services.interfaces import (
+    Axis,
+    Direction,
+    GpsFix,
+    SensorUnavailableError,
+)
 from astro_brain.subsystems import SubsystemState
 
 
@@ -33,6 +38,9 @@ class FakeMount:
         self.goto_calls: list[tuple[float, float, str | None]] = []
         self.reconnect_calls: int = 0
         self.reconnect_requests: int = 0
+        # Programmable axis angles; set to None to simulate a mount whose
+        # encoders cannot be read (dead return path on the AUX bus).
+        self.position: tuple[float, float] | None = (0.0, 0.0)
 
     async def start(self) -> None:
         self._bus.publish(
@@ -111,6 +119,11 @@ class FakeMount:
 
     async def set_location(self, lat: float, lon: float) -> None:
         return None
+
+    async def current_position(self) -> tuple[float, float]:
+        if self.position is None:
+            raise SensorUnavailableError("fake mount: encoders unreadable")
+        return self.position
 
     # --- sync (alignment model fed via INDI ON_COORD_SET=SYNC) -----------
 

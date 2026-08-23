@@ -26,7 +26,11 @@ from astro_brain.adapters._indi_property_helpers import (
     set_switch_one_of_many,
 )
 from astro_brain.bus import StateBus
-from astro_brain.services.interfaces import Axis, Direction
+from astro_brain.services.interfaces import (
+    Axis,
+    Direction,
+    SensorUnavailableError,
+)
 from astro_brain.subsystems import SubsystemState
 
 logger = logging.getLogger(__name__)
@@ -42,6 +46,7 @@ DEVICE_DISCOVERY_TIMEOUT_S = 5.0
 DEVICE_DISCOVERY_POLL_S = 0.1
 CONNECT_CONFIRM_TIMEOUT_S = 8.0
 PROPERTY_READY_TIMEOUT_S = 5.0
+ENCODER_ANGLES_PROPERTY = "TELESCOPE_ENCODER_ANGLES"
 
 
 def _now() -> datetime:
@@ -518,6 +523,43 @@ class MountIndiAdapter:
             await asyncio.to_thread(self._client.sendNewProperty, geo)
         except Exception as exc:
             self._publish_error(exc, context="set_location")
+
+    # --- position courante -----------------------------------------------
+
+    async def current_position(self) -> tuple[float, float]:
+        """Read the mount's raw encoder angles as ``(az, alt)`` in degrees.
+
+        Reads ``TELESCOPE_ENCODER_ANGLES`` (``AXIS_AZ`` 0–360, ``AXIS_ALT``
+        −90–+90, read-only, refreshed by the driver every polling period)
+        rather than ``HORIZONTAL_COORD``: the alignment wizard records the
+        mount's **own** frame, which must not depend on whatever partial
+        alignment model the driver happens to hold mid-wizard.
+
+        Unlike the fire-and-forget commands in this adapter, this is a read
+        whose caller needs a value — so a failure **raises** instead of
+        silently no-op'ing, and also publishes ``error`` on the bus since
+        unreadable encoders are a genuine fault, not an idle bench.
+
+        Raises:
+            SensorUnavailableError: mount not connected, or the driver never
+                published usable encoder angles.
+        """
+        if self._device is None:
+            raise SensorUnavailableError("mount not connected")
+        try:
+            angles = await self._await_widgets(
+                lambda dev: dev.getNumber(ENCODER_ANGLES_PROPERTY),
+                widgets=("AXIS_AZ", "AXIS_ALT"),
+                context=ENCODER_ANGLES_PROPERTY,
+            )
+            az = float(find_widget(angles, "AXIS_AZ").getValue())
+            alt = float(find_widget(angles, "AXIS_ALT").getValue())
+        except Exception as exc:
+            self._publish_error(exc, context="current_position")
+            raise SensorUnavailableError(
+                f"encoder angles unavailable: {exc}"
+            ) from exc
+        return az, alt
 
     # --- alignment sync (native Celestron model via INDI) ----------------
 

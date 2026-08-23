@@ -9,7 +9,7 @@ import pytest
 
 from astro_brain.models.alignment import Star
 from astro_brain.services.alignment import AlignmentServiceImpl
-from astro_brain.services.interfaces import ConflictError
+from astro_brain.services.interfaces import ConflictError, MountService
 
 
 def _stub_candidates() -> list[Star]:
@@ -26,9 +26,11 @@ def _build_service(
 ) -> AlignmentServiceImpl:
     """Service avec mocks pour repo, mount, sensors et catalog."""
     selector = MagicMock(return_value=candidates or _stub_candidates())
-    mount = MagicMock()
-    mount.current_position = AsyncMock(return_value=(100.0, 50.0))
-    mount.sync_radec = AsyncMock()
+    # spec=MountService : un mock nu acceptait n'importe quel attribut, ce
+    # qui a laissé `current_position` absent du protocole et de l'adaptateur
+    # jusqu'au test sur monture réelle (journal S51).
+    mount = MagicMock(spec=MountService)
+    mount.current_position.return_value = (100.0, 50.0)
     sensors = MagicMock()
     sensors.gps_fix = MagicMock(return_value=(48.8, 2.3))
     sensors.sky_az_alt_for = MagicMock(side_effect=lambda s: (s.ra_deg % 360, s.dec_deg))

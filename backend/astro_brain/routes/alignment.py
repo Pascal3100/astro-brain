@@ -2,6 +2,7 @@
 
 Erreurs :
 - ConflictError → 409
+- SensorUnavailableError → 503
 - ValueError du solver → 422
 """
 from __future__ import annotations
@@ -18,7 +19,11 @@ from astro_brain.bus import StateBus
 from astro_brain.models.alignment import AlignmentModel, AlignmentSession, Star
 from astro_brain.services._alignment_catalog import MountLimits, visible_stars
 from astro_brain.services.constellation_figures import figure_for, render_figure
-from astro_brain.services.interfaces import AlignmentService, ConflictError
+from astro_brain.services.interfaces import (
+    AlignmentService,
+    ConflictError,
+    SensorUnavailableError,
+)
 from astro_brain.subsystems import SubsystemState
 
 
@@ -138,6 +143,9 @@ async def record(
         sess = await service.record(body.idx)
     except ConflictError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
+    except SensorUnavailableError as e:
+        # Encodeurs monture illisibles : refus lisible plutôt qu'un 500.
+        raise HTTPException(status_code=503, detail=str(e)) from e
     _publish_session(bus, service)
     return sess
 
