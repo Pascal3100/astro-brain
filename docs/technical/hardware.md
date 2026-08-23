@@ -179,6 +179,49 @@ Un **pont ESP32** se pose sur le bus AUX et l'expose au driver `indi_celestron_a
 
 Tout est en logique 5 V (rail externe), masses communes. **Schémas détaillés (netlist, brochages, valeurs)** : [cablage-interface-aux.html](cablage-interface-aux.html) (étages RX/TX) + [cablage-pont-esp32.html](cablage-pont-esp32.html) (GPIO, réseau, rôles firmware).
 
+#### ⚠️ Topologie du bus DATA : un TX sain ne prouve **rien** sur le RX
+
+Les deux étages attaquent DATA par des **straps physiquement distincts** — c'est la source du plus long faux diagnostic du projet (S51→S53). Sur la perfboard, la **rangée 11 est le bus DATA** : le 74AHCT125 s'y raccorde via son propre 470 Ω, **en aval** du point où R1 prélève la ligne pour le comparateur. Donc :
+
+- le TX peut fonctionner parfaitement (la monture bouge au joystick) alors que **le prélèvement RX n'a jamais été connecté** ;
+- « la monture ne répond pas » a été attribué pendant plusieurs sessions au driver, au turnaround, au protocole — alors que le diviseur d'entrée du LM2902 était ouvert.
+
+Deux soudures manquaient sur la carte courante, découvertes successivement en S52 puis S53, et **aucune n'a jamais existé** (omissions de montage, pas des reprises) :
+
+1. le strap `(23,11) → (49,11)` qui amène le bus DATA jusqu'à R1 ;
+2. le strap `(20,11) → (20,7)` qui porte le **nœud du diviseur** vers `U1.3` (pin 3, IN+).
+
+La deuxième est particulièrement traître : R1 **et** R2 mesurent bon, le nœud est électriquement correct (~2,2 V), et pourtant l'ampli ne le voit pas.
+
+**Mesures qui discriminent, dans cet ordre** (monture allumée, carte alimentée) :
+
+| Point | Attendu au repos | Si faux |
+|---|---|---|
+| DATA (RJ-12 br.4, rangée 11) | ≈ **4,4 V** (pull-up monture) | ligne morte ou en court — problème de bus, pas d'interface |
+| `U1.3` (IN+) | ≈ **2,2 V** (moitié de DATA via R1/R2) | ~0,1 V → diviseur ouvert **ou** nœud non relié à pin 3 |
+| `U1.2` (IN−, Vréf) | ≈ **0,9 V** | diviseur R3/R4 |
+| `U1.1` (OUT) | ≈ 4,4 V (car IN+ > IN−) | 0 V = conséquence normale d'un IN+ à 0,1 V, **pas** un ampli HS |
+| `ESP32.GPIO16` | haut | 0 V = break UART permanent → l'IDF jette les octets en erreur de framing, donc **0 octet relayé** |
+
+⚠️ **Un silence total ne discrimine pas** : nœud RX bloqué **haut** → UART au repos → 0 octet ; bloqué **bas** → erreurs de framing → 0 octet aussi. Il faut le voltmètre, la trace TCP ne suffit pas.
+
+⚠️ **Piège de calibre** sur les 1 MΩ : sur une gamme 200 kΩ, 1 MΩ affiche un dépassement qu'on lit à tort comme « rien ». Utiliser 2 MΩ ou 20 MΩ. Et en circuit, un chemin parallèle ne peut que **baisser** une lecture, jamais la monter.
+
+**Passe de continuité complète** (hors tension) — à faire intégralement sur toute carte neuve, l'expérience S52/S53 montre qu'une omission unique se cache derrière un symptôme qui ressemble à autre chose. Netlist de référence : [`hardware/aux-bridge/README.md`](../../hardware/aux-bridge/README.md).
+
+| Net | Doit relier |
+|---|---|
+| `DATA` | `J1.4` · `R1`(haut) · `R7` 470 Ω → `U2.3` |
+| `IN+` | `R1`(bas) · `R2`(haut) · `U1.3` |
+| `VREF` | `R3`(bas) · `R4`(haut) · `U1.2` |
+| `RX` | `U1.1` → `R5` 1k → nœud · `R6` 4k7 → GND · `ESP32.GPIO16` |
+| `TX_DATA` | `ESP32.GPIO17` · `U2.2` |
+| `TX_OE` | `ESP32.GPIO32` · `U2.1` |
+| `+5V` | `J2.1` · `U1.4` · `U2.14` · `U2.4/10/13` · `ESP32.VIN` · `R3`(haut) · `C1+ C2+ C3+` |
+| `GND` | `J2.2` · `J1.5` · `U1.11` · `U2.7` · `U2.5/9/12` · `ESP32.GND` · `R2 R4 R6`(bas) · `C1– C2– C3–` |
+
+Plus les deux contrôles **négatifs** : `DATA` ne doit toucher ni `+5V` ni `GND`, et `J1.3` (**+12 V**) doit être isolée de tout.
+
 > ⚠️ Pièges historiques à connaître : le « smoke test INDI réussi » initial était un **faux positif** (`CONNECT=On` = port ouvert + écho ; positions AZ=360/ALT=0 = défauts driver). Et le **dongle USB-TTL CH340** posé direct perturbait le bus (broche RX non haute-Z) — c'est ce qui a motivé le pivot ESP32. Détails : journal S26→S29.
 
 ### Brochage RJ-12 6P6C du port AUX/HAND CONTROL
@@ -211,17 +254,70 @@ indiserver -v indi_celestron_aux          # doit énumérer le device "Celestron
 
 Le pont ESP32 se flashe en USB sur la workstation (`/dev/ttyUSB0`, FQBN `esp32:esp32:esp32`), pas sur le Pi. Tests réseau **depuis le Pi** (vrai client du driver).
 
+#### Prérequis réseau : entrée ARP statique côté Pi (S53)
+
+Le Pi peut voir le pont **injoignable** (`No route to host` sur `ping` comme sur `nc`) alors que la workstation le joint parfaitement au même instant. La résolution ARP `192.168.1.200` échoue depuis le Pi (l'entrée reste `INCOMPLETE`) ; tout le reste du réseau du Pi est sain (SSH, passerelle). Contournement immédiat :
+
+```bash
+# sur le Pi — MAC du pont : 30:ae:a4:40:a8:38
+sudo ip neigh replace 192.168.1.200 lladdr 30:ae:a4:40:a8:38 dev wlan0 nud permanent
+ip neigh show 192.168.1.200      # doit afficher PERMANENT
+ping -c3 192.168.1.200           # 0% packet loss
+nc -vz 192.168.1.200 2000        # open
+```
+
+⚠️ Cette entrée est **en RAM** : elle disparaît à chaque reboot du Pi (constaté en séance). À rendre durable (unit systemd / hook NetworkManager) — cf. [`backlog.md`](../project/backlog.md).
+
+⚠️ Ne pas confondre avec le power-save WiFi du **Pi** (S50), qui rend le Pi injoignable *depuis l'extérieur*. Ici c'est le chemin **Pi → pont** qui casse, et le côté fautif n'est pas encore tranché (broadcast ARP du Pi qui ne sort pas, ou pont qui n'y répond pas). Test discriminant à faire : `arping` unicast vers la MAC connue — s'il répond alors que le broadcast échoue, c'est le broadcast qui ne parvient pas au pont.
+
+#### Sonde AUX brute — juge de paix du bus
+
+Quand la question est « la monture répond-elle, oui ou non », court-circuiter INDI : on parle directement les trames AUX en TCP. Script persistant sur le Pi : `~/aux_probe.py`.
+
+```python
+import socket, time
+APP, AZM, ALT = 0x20, 0x10, 0x11
+def frame(src, dst, cmd, data=b""):
+    body = bytes([3 + len(data), src, dst, cmd]) + data
+    return b"\x3b" + body + bytes([(-sum(body)) & 0xff])
+s = socket.create_connection(("192.168.1.200", 2000), timeout=3)
+for dst in (AZM, ALT):
+    for cmd in (0xfe, 0x05, 0x01):      # GET_VER, MC_GET_MODEL, MC_GET_POSITION
+        s.sendall(frame(APP, dst, cmd)); time.sleep(0.05)
+```
+
+**Arrêter `indiserver` d'abord** (client TCP unique, cf. plus bas). Réponses attendues avec le firmware nominal (`ECHO_SUPPRESS 1`, monture allumée, raquette débranchée) — firmware moteur 5.9 :
+
+```
+3b 05 10 20 fe 05 09 bf     # AZM version 5.9
+3b 05 11 20 fe 05 09 be     # ALT version 5.9
+```
+
+Interprétation :
+
+| Observation | Conclusion |
+|---|---|
+| Réponses des deux axes | bus OK **dans les deux sens** — le problème est au-dessus (driver, backend) |
+| **0 octet** | chemin RX mort → passer au voltmètre (tableau des mesures plus haut), la trace TCP ne discriminera pas |
+| Trames + écho de nos propres octets | normal si `ECHO_SUPPRESS 0` — ce mode sert justement de test RX **sans dépendre d'une réponse monture** : tout octet revenu prouve que le RX conduit |
+
 ### Flash OTA (sans débrancher la carte)
 
 Le firmware embarque `ArduinoOTA` depuis S37 : une fois le pont sur le WiFi, on reflashe sans le sortir du banc (le débranchement du bench est sinon nécessaire — conflit 5 V).
 
 ```bash
 cd firmware/esp32-aux-bridge
-arduino-cli compile --fqbn esp32:esp32:esp32 .
+OUT=/tmp/fw-aux
+arduino-cli compile --clean --fqbn esp32:esp32:esp32 --output-dir "$OUT" .
+ls -l "$OUT/esp32-aux-bridge.ino.bin"     # vérifier la DATE et la TAILLE
 python3 ~/.arduino15/packages/esp32/hardware/esp32/3.3.10/tools/espota.py \
-  -i 192.168.1.200 -p 3232 -a astrobrain \
-  -f build/esp32.esp32.esp32/esp32-aux-bridge.ino.bin
+  -d -i 192.168.1.200 -p 3232 -a astrobrain \
+  -f "$OUT/esp32-aux-bridge.ino.bin" | grep -E 'Upload size|Success|ERROR'
 ```
+
+🔴 **`--output-dir` n'est pas optionnel.** Sans lui, `arduino-cli compile` écrit dans un répertoire temporaire, **pas** dans `build/` local. Un `build/esp32.esp32.esp32/*.bin` d'une compilation antérieure survit alors indéfiniment et **chaque flash OTA renvoie le même binaire périmé**, en annonçant « Success ». En S53, trois flashs consécutifs ont ainsi rechargé un binaire de trois heures plus tôt — d'où un « bug » de firmware entièrement imaginaire, diagnostiqué puis corrigé, avant de constater qu'il n'existait pas. Réflexe : **`stat` le `.bin` après compilation**, et croiser `Upload size` renvoyé par `espota` avec la taille du fichier attendu. Une taille inchangée après un `--clean` = on flashe le mauvais fichier.
+
+- `espota.py` est bavard mais son verdict est en fin de flux : garder `-d` et grepper (`Upload size`, `Success`), sinon un `tail`/`tr` tronque justement la ligne qui compte.
 
 - Hostname OTA `astro-brain-aux`, mot de passe `astrobrain` (`OTA_HOSTNAME`/`OTA_PASS` dans le sketch).
 - **Le service OTA écoute en UDP 3232** : un `nc -z 192.168.1.200 3232` (TCP) répond toujours « refused ». Ce n'est **pas** une panne — ne pas en conclure que l'OTA est mort.
@@ -253,3 +349,7 @@ Mount    HAND CONTROL/AUX (RJ-12) — bus AUX, via pont ESP32 WiFi :
 | `i2cdetect -y 1` tout `--` | I2C off ou SDA/SCL inversés | raspi-config + recâblage |
 | LED `PWR` éteinte | VCC débranché ou mauvaise tension | continuité + 5V↔3V3 |
 | `gpsd` "already opened by another process" | serial-getty squatte le port | `systemctl disable serial-getty@ttyAMA0` |
+| `No route to host` vers `.200` **depuis le Pi seul** | résolution ARP KO | `ip neigh replace … nud permanent` (voir Vérification) |
+| Monture muette, TX OK (joystick fonctionne) | prélèvement RX non connecté | voltmètre sur `U1.3` : ≈2,2 V attendu |
+| Flash OTA « Success » mais comportement inchangé | binaire périmé rechargé | recompiler avec `--output-dir`, croiser `Upload size` |
+| Sonde brute = 0 octet alors que le driver tourne | client TCP unique du pont | `systemctl stop`/kill `indiserver` avant de sonder |
