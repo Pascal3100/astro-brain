@@ -172,6 +172,34 @@ async def test_sky_report_publishes_the_real_satellite_count(
         await adapter.stop()
 
 
+async def test_a_dop_only_sky_does_not_erase_the_satellite_count(
+    daemon: _FakeGpsd, fast_loop: None
+) -> None:
+    """gpsd alternates a full SKY and a DOP-only one (measured on 3.25).
+
+    Retaining the last SKY wholesale zeroed the count every other report,
+    and the 1 s publish throttle landed on the empty ones.
+    """
+    bus = StateBus()
+    adapter = GpsdAdapter(bus, host="127.0.0.1", port=daemon.port)
+    await adapter.start()
+    try:
+        await _until("the watch command", lambda: bool(daemon.watches))
+        await daemon.push(_sky(seen=24, used=14))
+        await _until(
+            "the satellite count",
+            lambda: _gps(bus).details.get("satellites") == 14,
+        )
+        await daemon.push({"class": "SKY", "device": "/dev/serial0", "hdop": 0.92})
+        await asyncio.sleep(0.05)
+        details = _gps(bus).details
+        assert details["satellites"] == 14
+        assert details["satellites_visible"] == 24
+        assert details["hdop"] == pytest.approx(0.92)  # the DOP did refresh
+    finally:
+        await adapter.stop()
+
+
 async def test_satellites_seen_without_a_fix_reads_as_searching(
     daemon: _FakeGpsd, fast_loop: None
 ) -> None:

@@ -108,9 +108,10 @@ class GpsdAdapter:
         self._last_state: str | None = None
         self._last_detail_publish: datetime | None = None
         self._last_fix: GpsFix | None = None
-        # Latest report of each class. TPV carries the fix, SKY the
+        # Latest known content of each class. TPV carries the fix, SKY the
         # satellites and the DOPs; they arrive in separate messages, so both
-        # are retained and combined on every publish.
+        # are retained and combined on every publish. SKY accumulates
+        # field-wise — see :meth:`_ingest`.
         self._tpv: dict[str, Any] = {}
         self._sky: dict[str, Any] = {}
         # One warning per failure episode, re-armed once a stream succeeds.
@@ -193,7 +194,11 @@ class GpsdAdapter:
         if cls == "TPV":
             self._tpv = report
         elif cls == "SKY":
-            self._sky = report
+            # gpsd alternates a full SKY with one reduced to the DOPs
+            # (measured on 3.25: 24/14, then nothing, then 24/14...).
+            # Merging keeps the counts instead of erasing them every other
+            # report; a SKY that really sees nothing overwrites them with 0.
+            self._sky = self._sky | report
         else:
             return  # VERSION / DEVICES / WATCH: acks, no state to derive
         self._publish()
