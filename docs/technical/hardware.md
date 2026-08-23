@@ -270,6 +270,12 @@ nc -vz 192.168.1.200 2000        # open
 
 ⚠️ Ne pas confondre avec le power-save WiFi du **Pi** (S50), qui rend le Pi injoignable *depuis l'extérieur*. Ici c'est le chemin **Pi → pont** qui casse, et le côté fautif n'est pas encore tranché (broadcast ARP du Pi qui ne sort pas, ou pont qui n'y répond pas). Test discriminant à faire : `arping` unicast vers la MAC connue — s'il répond alors que le broadcast échoue, c'est le broadcast qui ne parvient pas au pont.
 
+#### Test de mouvement : rate 7 minimum pour une validation à l'œil
+
+**En dessous de `rate 7`, le déplacement n'est pas observable à l'œil nu** sur cette monture (constaté en S53). Un smoke test de mouvement dont le critère est visuel doit donc se faire en **rate 7 ou 8** (`TELESCOPE_SLEW_RATE` s'arrête à `8x`, il n'y a pas de `9x`) — sinon un « je n'ai rien vu » ne vaut pas mesure, et on risque de conclure à une panne d'émission qui n'existe pas.
+
+Critère non visuel, préférable quand il est disponible : le **delta d'encodeur** avant/après (`TELESCOPE_ENCODER_ANGLES`), qui prouve la boucle complète commande → monture → encodeurs → Pi. Script : `~/slew_smoke.py` sur le Pi (mouvements bornés à 2 s, `stop` garanti en `finally`).
+
 #### Sonde AUX brute — juge de paix du bus
 
 Quand la question est « la monture répond-elle, oui ou non », court-circuiter INDI : on parle directement les trames AUX en TCP. Script persistant sur le Pi : `~/aux_probe.py`.
