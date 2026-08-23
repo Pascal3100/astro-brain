@@ -53,6 +53,7 @@ constexpr int OE_DRIVE = LOW;
 constexpr int OE_HIZ   = HIGH;
 
 constexpr uint32_t ECHO_DRAIN_MS = 5;   // garde : au-delà, on cesse d'attendre l'écho
+constexpr uint32_t RX_FRAME_MS   = 20;  // réponse incomplète au-delà -> on abandonne la trame
 
 // ---- Réseau (station, IP fixe hors plage DHCP) ----
 constexpr uint16_t TCP_PORT = 2000;     // port attendu par le mode "Celestron WiFi"
@@ -80,6 +81,10 @@ WiFiClient client;
 uint8_t  txFrame[32];         // réassemblage d'une trame AUX avant émission contiguë
 uint8_t  txLen         = 0;   // octets accumulés dans txFrame
 uint16_t txNeed        = 0;   // longueur totale attendue de la trame courante
+uint8_t  rxFrame[32];         // réassemblage d'une trame de réponse avant relais TCP
+uint8_t  rxLen         = 0;   // octets accumulés dans rxFrame
+uint16_t rxNeed        = 0;   // longueur totale attendue de la réponse courante
+uint32_t rxLastByteMs  = 0;   // date du dernier octet reçu (garde RX_FRAME_MS)
 uint32_t lastClientMs  = 0;   // dernière activité du client TCP
 uint32_t wifiDownSince = 0;   // 0 = connecté ; sinon date du décrochage
 bool     apFallback    = false;
@@ -113,6 +118,7 @@ void startSTA() {
 // dernier octet est sorti (avant que le moteur réponde), puis on avale notre écho.
 void busSend(const uint8_t* buf, uint8_t n) {
   while (Serial2.available()) Serial2.read();    // repartir d'un RX propre
+  rxLen = 0; rxNeed = 0;                        // la purge invalide tout réassemblage en cours
 
   digitalWrite(AUX_OE_PIN, OE_DRIVE);            // 74AHCT125 pilote le bus (push-pull)
   Serial2.write(buf, n);
@@ -194,6 +200,7 @@ void loop() {
       client.setNoDelay(true);     // trames AUX minuscules : envoi immédiat (pas de Nagle)
       lastClientMs = now;
       txLen = 0; txNeed = 0;        // nouveau dialogue -> on repart propre
+      rxLen = 0; rxNeed = 0;
       Serial.println("[tcp] client connecté");
     }
   }
@@ -224,10 +231,30 @@ void loop() {
   }
 
   // --- bus AUX -> TCP : après le turnaround, l'écho est déjà avalé par busSend()
-  //     -> tout ce qui arrive ici est la vraie réponse moteur, on la relaie. ---
+  //     -> tout ce qui arrive ici est la vraie réponse moteur. On la
+  //     RÉASSEMBLE avant de la relayer, symétriquement au sens TCP -> bus.
+  //     Relayée octet par octet (setNoDelay), une réponse de 9 octets
+  //     partait en 9 segments TCP étalés sur ~5 ms (1 octet / 573 us à
+  //     19200) : le driver lisait une trame tronquée et la jetait
+  //     ("Partial message recv. dropping (i=0 9/8)"), donc la position
+  //     ALT restait figée sur un cache — 0/25 trames acceptées en 30 s
+  //     alors que l'AZM passait à 28/28 (diagnostic S54). ---
+  if (rxLen > 0 && now - rxLastByteMs > RX_FRAME_MS) {
+    rxLen = 0; rxNeed = 0;         // trame qui ne se complète pas : sans ça, un
+  }                                // len corrompu bloquerait le RX jusqu'au reboot
+
   while (Serial2.available()) {
     uint8_t b = Serial2.read();
     lastClientMs = now;
-    if (client && client.connected()) client.write(b);
+    rxLastByteMs = now;
+    if (rxLen == 0 && b != 0x3b) continue;           // attend le préambule 0x3b
+    rxFrame[rxLen++] = b;
+    if (rxLen == 2) rxNeed = (uint16_t)rxFrame[1] + 3;
+    if (rxLen >= 2 && rxLen == rxNeed) {             // complète -> TCP en un bloc
+      if (client && client.connected()) client.write(rxFrame, rxLen);
+      rxLen = 0; rxNeed = 0;
+    } else if (rxLen >= sizeof(rxFrame)) {           // garde-fou (len corrompue)
+      rxLen = 0; rxNeed = 0;
+    }
   }
 }
