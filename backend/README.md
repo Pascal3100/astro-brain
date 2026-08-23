@@ -32,7 +32,7 @@ uv sync --extra hardware
 ASTRO_BRAIN_HARDWARE=1 uv run uvicorn astro_brain.main:app --host 0.0.0.0 --port 8000
 ```
 
-The `[hardware]` extra pulls in `pyindi-client` and `gpsd-py3` (installed via apt on the Pi; see `docs/technical/hardware.md`). The mount is controlled via INDI (`MountIndiAdapter` / `indiserver`) over USB-serial — no direct serial protocol.
+The `[hardware]` extra pulls in `pyindi-client` (INDI client) and `smbus2` (I2C compass). GPS needs no package: the adapter speaks the gpsd JSON protocol over TCP directly. The mount is controlled via INDI (`MountIndiAdapter` / `indiserver`) through the ESP32 bridge that exposes the AUX bus on TCP 2000 — see `docs/technical/hardware.md`.
 
 ## Deployment (Pi, systemd)
 
