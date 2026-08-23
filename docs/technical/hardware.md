@@ -254,7 +254,7 @@ indiserver -v indi_celestron_aux          # doit énumérer le device "Celestron
 
 Le pont ESP32 se flashe en USB sur la workstation (`/dev/ttyUSB0`, FQBN `esp32:esp32:esp32`), pas sur le Pi. Tests réseau **depuis le Pi** (vrai client du driver).
 
-#### Prérequis réseau : entrée ARP statique côté Pi (S53)
+#### Prérequis réseau : entrée ARP statique côté Pi (S53, tranché S54)
 
 Le Pi peut voir le pont **injoignable** (`No route to host` sur `ping` comme sur `nc`) alors que la workstation le joint parfaitement au même instant. La résolution ARP `192.168.1.200` échoue depuis le Pi (l'entrée reste `INCOMPLETE`) ; tout le reste du réseau du Pi est sain (SSH, passerelle). Contournement immédiat :
 
@@ -266,9 +266,42 @@ ping -c3 192.168.1.200           # 0% packet loss
 nc -vz 192.168.1.200 2000        # open
 ```
 
-⚠️ Cette entrée est **en RAM** : elle disparaît à chaque reboot du Pi (constaté en séance). À rendre durable (unit systemd / hook NetworkManager) — cf. [`backlog.md`](../project/backlog.md).
+Cette entrée est **en RAM** et disparaît au reboot, d'où le hook dispatcher NetworkManager
+installé sur le Pi en S54 :
 
-⚠️ Ne pas confondre avec le power-save WiFi du **Pi** (S50), qui rend le Pi injoignable *depuis l'extérieur*. Ici c'est le chemin **Pi → pont** qui casse, et le côté fautif n'est pas encore tranché (broadcast ARP du Pi qui ne sort pas, ou pont qui n'y répond pas). Test discriminant à faire : `arping` unicast vers la MAC connue — s'il répond alors que le broadcast échoue, c'est le broadcast qui ne parvient pas au pont.
+```sh
+# /etc/NetworkManager/dispatcher.d/50-arp-esp32-bridge  (root:root, 755)
+[ "$1" = wlan0 ] && case "$2" in up|dhcp4-change)
+  ip neigh replace 192.168.1.200 lladdr 30:ae:a4:40:a8:38 dev wlan0 nud permanent ;;
+esac
+```
+
+**Dispatcher et pas unit systemd** : une reconnexion WiFi en cours de nuit vide la table de
+voisinage, et un `After=network-online.target` ne rejouerait qu'au boot. Le fichier n'est pas
+versionné (il vit sur le Pi) — c'est un réglage d'hôte, comme l'adresse du pont dans
+`~/.indi/Celestron AUX_config.xml`.
+
+⚠️ Ne pas confondre avec le power-save WiFi du **Pi** (S50), qui rend le Pi injoignable *depuis
+l'extérieur*. Ici c'est le chemin **Pi → pont** qui casse. Côté fautif **tranché en S54** :
+
+| Test | Résultat |
+| --- | --- |
+| ARP **unicast** (entrée forcée `nud stale`, la sonde du noyau s'en charge) | **répondue** → `REACHABLE` |
+| ARP **broadcast** (entrée supprimée, résolution à froid) | `INCOMPLETE`, 100 % de perte |
+| Idem avec `iw dev wlan0 set power_save off` | `INCOMPLETE` — power-save **hors de cause** |
+| Workstation, **même BSSID / canal 100**, entrée dynamique `STALE` | résout sans problème |
+
+Donc **le pont répond bien à l'ARP** et `WiFi.setSleep(false)` est déjà dans le firmware : le
+correctif n'est **pas** côté pont, et l'entrée statique n'est pas un pis-aller — le pont a une IP
+fixe, l'entrée fixe est cohérente. La cause racine du broadcast qui n'aboutit pas n'est en revanche
+**pas** épinglée (il faudrait une capture, donc `tcpdump`, absent du Pi).
+
+⚠️ **Piège d'outillage rencontré** : `iputils-arping` ne peut pas faire ce test — il démarre en
+broadcast et ne passe en unicast qu'*après* une première réponse. Une sonde raw-socket maison a
+produit un faux « le pont ne répond pas » : le contrôle vers la passerelle renvoyait le même 0/5, et
+la sonde ne voyait même pas les requêtes ARP émises par le noyau. L'instrument fiable et déjà
+présent est la **machine à états de voisinage du noyau** : `nud stale` + du trafic, puis lire
+`ip neigh` (`REACHABLE` = unicast répondue, `FAILED`/`INCOMPLETE` = pas de réponse).
 
 #### Test de mouvement : rate 7 minimum pour une validation à l'œil
 
@@ -355,7 +388,7 @@ Mount    HAND CONTROL/AUX (RJ-12) — bus AUX, via pont ESP32 WiFi :
 | `i2cdetect -y 1` tout `--` | I2C off ou SDA/SCL inversés | raspi-config + recâblage |
 | LED `PWR` éteinte | VCC débranché ou mauvaise tension | continuité + 5V↔3V3 |
 | `gpsd` "already opened by another process" | serial-getty squatte le port | `systemctl disable serial-getty@ttyAMA0` |
-| `No route to host` vers `.200` **depuis le Pi seul** | résolution ARP KO | `ip neigh replace … nud permanent` (voir Vérification) |
+| `No route to host` vers `.200` **depuis le Pi seul** | broadcast ARP qui n'aboutit pas (pont innocenté S54) | entrée `nud permanent` ; hook dispatcher absent ou non joué (voir Vérification) |
 | Monture muette, TX OK (joystick fonctionne) | prélèvement RX non connecté | voltmètre sur `U1.3` : ≈2,2 V attendu |
 | Flash OTA « Success » mais comportement inchangé | binaire périmé rechargé | recompiler avec `--output-dir`, croiser `Upload size` |
 | Sonde brute = 0 octet alors que le driver tourne | client TCP unique du pont | `systemctl stop`/kill `indiserver` avant de sonder |
