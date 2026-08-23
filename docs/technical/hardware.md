@@ -211,6 +211,22 @@ indiserver -v indi_celestron_aux          # doit énumérer le device "Celestron
 
 Le pont ESP32 se flashe en USB sur la workstation (`/dev/ttyUSB0`, FQBN `esp32:esp32:esp32`), pas sur le Pi. Tests réseau **depuis le Pi** (vrai client du driver).
 
+### Flash OTA (sans débrancher la carte)
+
+Le firmware embarque `ArduinoOTA` depuis S37 : une fois le pont sur le WiFi, on reflashe sans le sortir du banc (le débranchement du bench est sinon nécessaire — conflit 5 V).
+
+```bash
+cd firmware/esp32-aux-bridge
+arduino-cli compile --fqbn esp32:esp32:esp32 .
+python3 ~/.arduino15/packages/esp32/hardware/esp32/3.3.10/tools/espota.py \
+  -i 192.168.1.200 -p 3232 -a astrobrain \
+  -f build/esp32.esp32.esp32/esp32-aux-bridge.ino.bin
+```
+
+- Hostname OTA `astro-brain-aux`, mot de passe `astrobrain` (`OTA_HOSTNAME`/`OTA_PASS` dans le sketch).
+- **Le service OTA écoute en UDP 3232** : un `nc -z 192.168.1.200 3232` (TCP) répond toujours « refused ». Ce n'est **pas** une panne — ne pas en conclure que l'OTA est mort.
+- Le pont ne sert **qu'un seul client TCP** sur le port 2000 et ne remplace le courant que s'il est déconnecté (`if (!client || !client.connected())`). Une deuxième connexion reste dans le backlog, jamais lue : toute sonde manuelle du bus lancée pendant que le driver est connecté renvoie **zéro octet** — faux négatif qui a coûté un diagnostic entier en S51. Arrêter `indiserver` avant toute sonde directe, ou passer par un proxy TCP inséré dans le chemin du driver.
+
 ## Récap fils
 
 ```
