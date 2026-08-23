@@ -245,3 +245,16 @@ Le menu déroulant de filtrage par constellation de `CatalogueScreen` est client
 ## [Macro 3 #2] Projection ConstellationChart près du nord (azimut wrap-around)
 
 La projection orientée-ciel de `ConstellationChart` mappe l'azimut directement en x. Une constellation à cheval sur l'azimut 0°/360° (ex. circumpolaires près du pôle nord) produit une plage x dégénérée → figure écrasée ou coupée. Acceptable pour une aide de reconnaissance visuelle (le chart n'est pas une carte astrométrique de précision). À corriger seulement si ça devient un vrai problème UX : détecter le straddle (écart entre az_min et az_max > 180°), unwrapper les azimuts autour du centre de la figure, tester en isolation sur des données synthétiques circumpolaires.
+
+## Adresse du pont ESP32 : seule source = un fichier non versionné du Pi (S52)
+
+Le backend ne pousse **jamais** `DEVICE_ADDRESS` / `CONNECTION_MODE` au driver : l'adresse du pont
+(`192.168.1.200:2000`) ne vit que dans `~/.indi/Celestron AUX_config.xml`, hors git, sur le Pi.
+Conséquence constatée en S52 : une session de debug avait laissé le driver pointé sur
+`127.0.0.1:2001` (un proxy mort depuis), et rien côté backend ne pouvait le savoir ni le dire —
+la seule trace était un échec de connexion générique.
+
+Piste : faire de l'adresse du pont une **configuration du backend** (env ou table `state.db`), que
+l'adaptateur pousse — ou au minimum vérifie et signale — à la connexion. À arbitrer avec le reste
+du chantier « config du driver » (le `MOUNT_TYPE` de S51/S52 est de la même famille : des réglages
+structurants du pointage vivent dans un fichier que personne ne relit).
