@@ -224,6 +224,7 @@ class FakeGps:
             "lon": lon,
             "altitude_m": altitude_m,
             "satellites": sats,
+            "satellites_visible": sats,
             "hdop": hdop,
         }
 

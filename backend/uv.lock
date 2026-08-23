@@ -56,7 +56,6 @@ dependencies = [
 
 [package.optional-dependencies]
 hardware = [
-    { name = "gpsd-py3" },
     { name = "pyindi-client" },
     { name = "smbus2" },
 ]
@@ -73,7 +72,6 @@ dev = [
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.20" },
     { name = "fastapi", specifier = ">=0.115" },
-    { name = "gpsd-py3", marker = "extra == 'hardware'" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pyindi-client", marker = "extra == 'hardware'", specifier = ">=2.0" },
@@ -208,12 +206,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/4e/d9/e66315807e41e69e7
 wheels = [
     { url = "https://files.pythonhosted.org/packages/26/a3/0bd5f0cdb0bbc92650e8dc457e9250358411ee5d1b65e42b6632387daf81/fastapi-0.136.0-py3-none-any.whl", hash = "sha256:8793d44ec7378e2be07f8a013cf7f7aa47d6327d0dfe9804862688ec4541a6b4", size = 117556, upload-time = "2026-04-16T11:47:11.922Z" },
 ]
-
-[[package]]
-name = "gpsd-py3"
-version = "0.3.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/62/1e/8ffc5bbbbea1a4501e59280b6f8127d4a54c20888dfa9ffdd7d08a06991a/gpsd-py3-0.3.0.tar.gz", hash = "sha256:2908d3bd78dfb6720ecfe22f97e139b5a4a198f38df3a77215cf644a33513192", size = 4103, upload-time = "2017-10-14T20:42:14.647Z" }
 
 [[package]]
 name = "h11"
