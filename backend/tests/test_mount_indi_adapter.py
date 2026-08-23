@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
+from astro_brain.adapters import mount_indi_adapter
 from astro_brain.adapters.mount_indi_adapter import (
     INDI_DEVICE_NAME,
     MountIndiAdapter,
@@ -371,6 +374,60 @@ async def test_set_location_pushes_geographic_coord() -> None:
     geo = dev.getNumber("GEOGRAPHIC_COORD")
     assert geo.findWidgetByName("LAT").getValue() == pytest.approx(43.6043)
     assert geo.findWidgetByName("LONG").getValue() == pytest.approx(1.4437)
+
+
+@pytest.mark.asyncio
+async def test_set_location_waits_for_late_widgets() -> None:
+    """Boot race: GEOGRAPHIC_COORD is fetchable before LAT/LONG are named.
+
+    Reproduces the hardware failure of journal S51 — the orchestrator syncs
+    the instant ``start()`` publishes ``ready``, while the driver is still
+    streaming its property tree, and ``mount`` flipped to ``error`` with the
+    message ``'LAT'``. The adapter must wait, not fail.
+    """
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    dev = client.getDevice(INDI_DEVICE_NAME)
+    # Placeholder vector: present, but without the widgets we write to.
+    dev.add_number("GEOGRAPHIC_COORD", {"ELEV": 0.0})
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    async def complete_property() -> None:
+        await asyncio.sleep(0.15)
+        dev.add_number(
+            "GEOGRAPHIC_COORD", {"LAT": 0.0, "LONG": 0.0, "ELEV": 0.0}
+        )
+
+    filler = asyncio.create_task(complete_property())
+    await adapter.set_location(43.6043, 1.4437)
+    await filler
+
+    geo = client.getDevice(INDI_DEVICE_NAME).getNumber("GEOGRAPHIC_COORD")
+    assert geo.findWidgetByName("LAT").getValue() == pytest.approx(43.6043)
+    assert bus.get_full_state().subsystems["mount"].state == "ready"
+
+
+@pytest.mark.asyncio
+async def test_set_location_publishes_error_when_property_never_arrives(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A genuinely absent property still errors — bounded, not hanging."""
+    monkeypatch.setattr(
+        mount_indi_adapter, "PROPERTY_READY_TIMEOUT_S", 0.3
+    )
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    await adapter.set_location(43.6043, 1.4437)
+
+    mount = bus.get_full_state().subsystems["mount"]
+    assert mount.state == "error"
+    assert "GEOGRAPHIC_COORD" in (mount.message or "")
 
 
 def _seed_sync_properties(client: FakeIndiClient) -> None:

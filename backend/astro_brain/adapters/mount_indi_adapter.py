@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -40,6 +41,7 @@ SERIAL_DEVICE_DEFAULT = "/dev/ttyUSB0"
 DEVICE_DISCOVERY_TIMEOUT_S = 5.0
 DEVICE_DISCOVERY_POLL_S = 0.1
 CONNECT_CONFIRM_TIMEOUT_S = 8.0
+PROPERTY_READY_TIMEOUT_S = 5.0
 
 
 def _now() -> datetime:
@@ -282,6 +284,47 @@ class MountIndiAdapter:
             await asyncio.sleep(DEVICE_DISCOVERY_POLL_S)
         return None
 
+    async def _await_widgets(
+        self,
+        fetch: Callable[[Any], Any],
+        *,
+        widgets: tuple[str, ...],
+        context: str,
+    ) -> Any:
+        """Poll until ``fetch`` yields a vector exposing every named widget.
+
+        Generalises :meth:`_await_connection_switch` to any property. The
+        driver's property tree streams in over the socket *after* the device
+        is advertised, so a vector fetched the instant ``start()`` publishes
+        ``ready`` can be a placeholder holding nameless widgets — reading one
+        raises ``KeyError`` (journal S37/S38). The boot sync hit exactly that:
+        ``GEOGRAPHIC_COORD`` was already fetchable while ``LAT`` was not, and
+        the mount pill flipped to ``error`` with the cryptic message ``'LAT'``.
+
+        ``fetch`` receives a freshly-fetched device handle (never a cached
+        one) and returns the vector or ``None``.
+
+        Raises:
+            TimeoutError: if the widgets are still missing after
+                :data:`PROPERTY_READY_TIMEOUT_S` — a genuinely absent
+                property rather than a slow one.
+        """
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + PROPERTY_READY_TIMEOUT_S
+        while True:
+            dev = self._client.getDevice(self._device_name)
+            vector = fetch(dev) if dev is not None else None
+            if vector is not None and all(
+                vector.findWidgetByName(name) is not None for name in widgets
+            ):
+                return vector
+            if loop.time() >= deadline:
+                raise TimeoutError(
+                    f"{context}: widgets {', '.join(widgets)} not defined "
+                    f"within {PROPERTY_READY_TIMEOUT_S}s"
+                )
+            await asyncio.sleep(DEVICE_DISCOVERY_POLL_S)
+
     async def _ensure_connected(self) -> None:
         """Push ``CONNECTION.CONNECT=On`` and wait for the driver to confirm.
 
@@ -449,9 +492,11 @@ class MountIndiAdapter:
             dt = datetime.fromisoformat(utc_iso)
             # INDI TIME_UTC.UTC expects ISO without tzinfo (UTC implicit).
             utc_naive = dt.astimezone(UTC).replace(tzinfo=None)
-            time_vec = self._device.getText("TIME_UTC")
-            if time_vec is None:
-                raise RuntimeError("TIME_UTC property not found")
+            time_vec = await self._await_widgets(
+                lambda dev: dev.getText("TIME_UTC"),
+                widgets=("UTC", "OFFSET"),
+                context="TIME_UTC",
+            )
             find_widget(time_vec, "UTC").setText(utc_naive.isoformat())
             find_widget(time_vec, "OFFSET").setText("0")
             await asyncio.to_thread(self._client.sendNewProperty, time_vec)
@@ -462,9 +507,11 @@ class MountIndiAdapter:
         if self._device is None:
             return
         try:
-            geo = self._device.getNumber("GEOGRAPHIC_COORD")
-            if geo is None:
-                raise RuntimeError("GEOGRAPHIC_COORD property not found")
+            geo = await self._await_widgets(
+                lambda dev: dev.getNumber("GEOGRAPHIC_COORD"),
+                widgets=("LAT", "LONG"),
+                context="GEOGRAPHIC_COORD",
+            )
             find_widget(geo, "LAT").setValue(float(lat))
             find_widget(geo, "LONG").setValue(float(lon))
             # ELEV left at its current value (set by user/setup later).
