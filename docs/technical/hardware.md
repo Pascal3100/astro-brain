@@ -6,21 +6,14 @@ Référence pratique pour le matériel et les branchements physiques.
 
 | Composant | Rôle | Connexion |
 |---|---|---|
-| **Raspberry Pi 3 B+** | Backend FastAPI, GPS, calculs astro, plate solving (Macro 5+) | — |
+| **Raspberry Pi 3 B+** | Backend FastAPI, calculs astro, plate solving (Macro 5+) | — |
 | **Monture Celestron NexStar SLT** | GoTo + suivi sidéral | Bus AUX (port HAND CONTROL RJ-12) via **pont ESP32 WiFi** : interface single-wire **RX comparateur LM2902 + TX buffer 74AHCT125** → ESP32 (`192.168.1.200:2000`) → driver INDI `indi_celestron_aux` en mode Network. Schémas : [cablage-interface-aux.html](cablage-interface-aux.html) + [cablage-pont-esp32.html](cablage-pont-esp32.html) |
-| **GPS DroTek Ublox M8N + compass XL** | Géolocalisation, heure UTC, cap magnétique | UART0 GPIO (GPS) + I2C1 GPIO (compass LIS3MDL) |
 | **Caméras astrophoto** (Macro 5+) | T7C, StarShoot Autoguider, lunette guide SV165 | USB |
 | **Alimentation** | 3 sources : (1) secteur 220 V → 5 V/2,5 A pour le **Pi seul** ; (2) **rail 5 V** (12 V → 5 V) pour **tout le reste du 5 V** (ESP32, interface AUX, pull-ups, VCC capteurs) ; (3) **3,3 V fourni par le Pi** (logique). Masses communes. | [cablage-alimentation.html](cablage-alimentation.html) |
 
-La monture passe désormais par le **WiFi** (pont ESP32 sur le bus AUX), plus par l'USB → les ports USB du Pi sont réservés aux **caméras** (Macro 5+). **Tous les capteurs passent par les GPIO** ; leur **VCC vient du rail 5 V externe** (12 V → 5 V), pas des broches 5 V du Pi — seul le 3,3 V vient du Pi.
+La monture passe désormais par le **WiFi** (pont ESP32 sur le bus AUX), plus par l'USB → les ports USB du Pi sont réservés aux **caméras** (Macro 5+). Le Pi n'embarque **plus aucun capteur** depuis le retrait du module DroTek ([ADR 2026-08-26](../project/decisions.md)) : la position vient du **site d'observation** persisté en base (réglé depuis le GPS du téléphone) et l'heure vient de **NTP**. Le 5 V des périphériques restants vient du **rail 5 V externe** (12 V → 5 V), pas des broches 5 V du Pi ; seul le 3,3 V vient du Pi.
 
 ![Raspberry Pi 3 B+ — vue d'ensemble](../introduction-to-raspberry-pi-3-b-plus-2.png)
-
-## Bus I2C1
-
-| Device | Adresse | Usage |
-|---|---|---|
-| LIS3MDL (compass) | `0x1E` | Cap magnétique, alignement assisté (Macro 3+) |
 
 ## Plan du header GPIO (Pi 3 B+, vue du dessus)
 
@@ -32,8 +25,8 @@ Extrait des broches du haut du header (celles qu'on utilise) :
 
 ```
          3V3  (1) (2)  5V
-       GPIO2  (3) (4)  5V          ← SDA1
-       GPIO3  (5) (6)  GND         ← SCL1
+       GPIO2  (3) (4)  5V
+       GPIO3  (5) (6)  GND
        GPIO4  (7) (8)  GPIO14      ← TXD0
          GND  (9) (10) GPIO15      ← RXD0
 ```
@@ -42,26 +35,18 @@ Broches utilisées :
 
 | Pin | BCM | Fonction | Usage |
 |-----|-----|----------|-------|
-| 2   | —   | 5V       | **non utilisé** (VCC capteurs ← rail 5 V externe) |
+| 2   | —   | 5V       | **non utilisé** (VCC périphériques ← rail 5 V externe) |
 | 1   | —   | 3V3      | logique 3,3 V (référence) |
 | 6   | —   | GND      | GND commun |
-| 8   | GPIO14 | TXD0  | Pi TX → GPS RX |
-| 10  | GPIO15 | RXD0  | Pi RX ← GPS TX |
-| 3   | GPIO2  | SDA1  | I2C data (compass) |
-| 5   | GPIO3  | SCL1  | I2C clock |
+| 8   | GPIO14 | TXD0  | UART0 TX — réservé au pont AUX filaire |
+| 10  | GPIO15 | RXD0  | UART0 RX — réservé au pont AUX filaire |
 
-## GPS — UART0
+## UART0 (GPIO14/15)
 
-### Câblage
-
-| GPS | Pi header | Sens |
-|---|---|---|
-| VCC | **rail 5 V externe**\* | alimentation |
-| GND | Pin 6 (GND) | masse commune |
-| TX | Pin 10 (RXD0) | GPS → Pi |
-| RX | Pin 8 (TXD0) | Pi → GPS (config) |
-
-*\*VCC depuis le **rail 5 V** (12 V → 5 V), pas les broches 5 V du Pi. La plupart des DroTek M8N acceptent 5V (LDO intégré, logique I2C/UART en 3,3 V). Masse commune Pi ↔ rail obligatoire.*
+L'UART0 matériel du Pi n'alimente plus aucun capteur : il est **réservé au pont
+ESP32 filaire** (plan `2026-08-26-pont-esp32-serie.md`). La configuration
+ci-dessous — UART hardware activé, Bluetooth déplacé, console série et getty
+désactivés — reste donc en place telle quelle.
 
 ### Config Pi OS
 
@@ -78,11 +63,11 @@ sudo nano /boot/firmware/config.txt
 #   enable_uart=1
 #   dtoverlay=disable-bt
 
-# 3. Désactiver la console série kernel (pollue les trames NMEA)
+# 3. Désactiver la console série kernel (elle squatterait la ligne)
 sudo nano /boot/firmware/cmdline.txt
 # retirer console=serial0,115200
 
-# 4. Désactiver le serial-getty (sinon "already opened" sur gpsd)
+# 4. Désactiver le serial-getty (sinon "already opened" côté client)
 sudo systemctl disable --now serial-getty@ttyAMA0.service
 
 # Note : hciuart.service n'existe plus sur Pi OS 64-bit Lite récent ;
@@ -91,69 +76,11 @@ sudo systemctl disable --now serial-getty@ttyAMA0.service
 sudo reboot
 ```
 
-### Config gpsd
-
-```bash
-sudo apt install gpsd gpsd-clients
-sudo nano /etc/default/gpsd
-# contenu :
-#   START_DAEMON="true"
-#   DEVICES="/dev/serial0"
-#   GPSD_OPTIONS="-n"
-#   USBAUTO="false"
-
-sudo systemctl restart gpsd
-```
-
 ### Vérification
 
 ```bash
 dmesg | grep -i tty                  # /dev/ttyAMA0 doit être listé
-cat /dev/serial0                     # NMEA brut : $GPGGA, $GPRMC… (Ctrl-C)
-gpsmon                               # dashboard gpsd
-cgps -s                              # vue simple lat/lon/altitude
-```
-
-LED `FTX` du module clignote ~1 Hz quand la puce émet (bon signe même sans fix). LED `PWR` doit être fixe.
-
-## Compass LIS3MDL — I2C1
-
-Identifié en live le 2026-04-21 sur le module DroTek "Ublox + compass Version XL" :
-
-- Adresse : `0x1E`
-- `WHO_AM_I` (0x0F) : `0x3D` (signature LIS3MDL)
-- Power-down par défaut — init via `CTRL_REG1-3` avant lecture
-
-**Câblage** (VCC + GND partagés avec le GPS) :
-
-| Compass | Pi header |
-|---|---|
-| SDA | Pin 3 (SDA1) |
-| SCL | Pin 5 (SCL1) |
-
-### Config Pi OS
-
-```bash
-sudo raspi-config
-  # → Interface Options → I2C → Yes
-
-# Charger le module en persistance (sinon /dev/i2c-1 absent au boot)
-echo 'i2c-dev' | sudo tee /etc/modules-load.d/i2c-dev.conf
-
-sudo apt install i2c-tools python3-smbus
-sudo reboot
-```
-
-### Vérification
-
-```bash
-sudo i2cdetect -y 1                  # LIS3MDL à 0x1E
-sudo i2cget -y 1 0x1e 0x0F           # → 0x3d (WHO_AM_I LIS3MDL)
-
-# Réveil mode continu + lecture 3 axes
-sudo i2cset -y 1 0x1e 0x20 0x1C      # CTRL_REG1 : high-perf X/Y, 10 Hz
-sudo i2cset -y 1 0x1e 0x23 0x0C      # CTRL_REG4 : high-perf Z
-sudo i2cset -y 1 0x1e 0x22 0x00      # CTRL_REG3 : mode continu
+sudo lsof /dev/ttyAMA0               # vide : personne ne squatte la ligne
 ```
 
 ## Monture — bus AUX via pont ESP32 (port HAND CONTROL de la base SLT)
@@ -365,12 +292,6 @@ python3 ~/.arduino15/packages/esp32/hardware/esp32/3.3.10/tools/espota.py \
 ## Récap fils
 
 ```
-GPS  VCC  ──── rail 5 V externe   (PAS le Pi)
-GPS  GND  ──── Pin 6  (GND)        (masse commune)
-GPS  TX   ──── Pin 10 (RXD0)
-GPS  RX   ──── Pin 8  (TXD0)
-Mag  SDA  ──── Pin 3  (SDA1)       VCC ── rail 5 V
-Mag  SCL  ──── Pin 5  (SCL1)
 Mount    HAND CONTROL/AUX (RJ-12) — bus AUX, via pont ESP32 WiFi :
   Pin 3 (+12V) ──── NE PAS connecter
   Pin 4 (DATA single-wire) ──┬── RX LM2902 ──► GPIO16 ┐
@@ -384,10 +305,7 @@ Mount    HAND CONTROL/AUX (RJ-12) — bus AUX, via pont ESP32 WiFi :
 |---|---|---|
 | `cat /dev/serial0` rien | UART pas activé / serial console encore là | refaire `raspi-config` + reboot |
 | Caractères illisibles | mini-UART instable | `dtoverlay=disable-bt` + reboot |
-| `gpsmon` "NO FIX" > 10 min en intérieur | normal sous toit | tester dehors / fenêtre |
-| `i2cdetect -y 1` tout `--` | I2C off ou SDA/SCL inversés | raspi-config + recâblage |
-| LED `PWR` éteinte | VCC débranché ou mauvaise tension | continuité + 5V↔3V3 |
-| `gpsd` "already opened by another process" | serial-getty squatte le port | `systemctl disable serial-getty@ttyAMA0` |
+| `/dev/ttyAMA0` "already opened by another process" | serial-getty squatte le port | `systemctl disable serial-getty@ttyAMA0` |
 | `No route to host` vers `.200` **depuis le Pi seul** | broadcast ARP qui n'aboutit pas (pont innocenté S54) | entrée `nud permanent` ; hook dispatcher absent ou non joué (voir Vérification) |
 | Monture muette, TX OK (joystick fonctionne) | prélèvement RX non connecté | voltmètre sur `U1.3` : ≈2,2 V attendu |
 | Flash OTA « Success » mais comportement inchangé | binaire périmé rechargé | recompiler avec `--output-dir`, croiser `Upload size` |

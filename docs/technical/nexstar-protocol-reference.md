@@ -152,7 +152,7 @@ The reply is `responseBytes` bytes of data + `'#'`. If the destination did not a
 | 0x04 | 4 | Hand control | Use as source on direct PC port; on HC pass-through, the HC handles source. |
 | 0x10 | 16 | AZM/RA motor controller | |
 | 0x11 | 17 | ALT/DEC motor controller | |
-| 0xB0 | 176 | GPS / Compass | NexStar GPS only (ours uses our own DroTek GPS, so this is moot). |
+| 0xB0 | 176 | GPS / Compass | NexStar GPS only (we have no GPS at all since 2026-08-26, so this is moot). |
 | 0xB2 | 178 | RTC | **CGE only.** |
 | 0xB4 | 180 | Focuser (community) | Celestron motorised focuser. Not relevant pre-Macro 6. |
 | 0xB5 | 181 | Wi-Fi controller | Evolution-only. |
@@ -265,7 +265,7 @@ From `nexstar-evo` notes — present on Evolution, **probably not on SLT 4.x**. 
 
 ## GPS unit AUX commands (destId 0xB0)
 
-> Our DroTek GPS is **not** wired through the mount, so these are largely irrelevant. Documented for completeness; they only return useful data on a NexStar GPS / CPC with a built-in GPS.
+> We have no GPS wired to the mount (nor to the Pi since 2026-08-26), so these are largely irrelevant. Documented for completeness; they only return useful data on a NexStar GPS / CPC with a built-in GPS.
 
 | MsgID | Name | Response | Notes |
 | --- | --- | --- | --- |
@@ -460,7 +460,7 @@ Inventory taken directly from `nexstarpy/constants.py` and `nexstarpy/nexstar.py
 - **`h` — Get Time.** Same.
 - **`x` / `y` — Hibernate / Wake.** Needs HC firmware check first.
 - **All AUX motor pass-through** — backlash, cordwrap, autoguide rate, approach, GoTo-slow, MC version probe per axis, slew-done per axis, max-slew-rate, pulse-guide. None of these have any wrapper.
-- **All GPS pass-through except `is_linked`** — irrelevant for us (we use the DroTek GPS), but worth noting for completeness.
+- **All GPS pass-through except `is_linked`** — irrelevant for us (no GPS in the system), but worth noting for completeness.
 
 ---
 

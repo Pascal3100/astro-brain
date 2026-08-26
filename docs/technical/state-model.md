@@ -13,18 +13,19 @@ Document vivant. Liste les sous-systèmes, leurs états, et les règles d'agrég
 | Kind | Service | États | Détails clés |
 |---|---|---|---|
 | `mount` | `MountService` (INDI) | `unknown / ready / moving / error / off` | `firmware_version` |
-| `gps` | `GpsService` (gpsd) | `unknown / acquiring / fix_2d / fix_3d / off / error` | `lat, lon, alt, satellites, hdop, time_utc` |
 | `tracking` | `MountService` | `off / sidereal / lunar / solar / error` | — |
 | `network` | `NetworkInfoService` | `unknown / client / hotspot / offline / error` | `ssid, ip, iface, mode` |
-| `system` | `SystemInfoService` | `unknown / ok / warn / error` | `cpu_temp, load_avg, uptime` |
+| `system` | `SystemInfoService` | `unknown / ok / warn / error` | `cpu_temp, load_avg, uptime, clock_synced` |
 
-## Sous-systèmes prévus Macro 2 — Setup
-
-| Kind | Service | États | Détails clés |
-|---|---|---|---|
-| `compass` | `CompassService` (LIS3MDL `0x1E`) | `unknown / ok / needs_calibration / error` | `heading_deg, magnitude_uT` |
-
-> **Calibration hors bus.** Les payloads de calibration capteurs (`calibration_sensor`) **ne sont pas publiés sur le bus santé** en Macro 2. Ils sont persistés dans `state.db` (aiosqlite) et lus à la demande via REST. Le bus santé reste donc sur ses 5 sous-systèmes initiaux (`mount`, `gps`, `tracking`, `network`, `system`), plus `compass` quand le service sera livré. (Les courses ALT — sous-système `mount_limits` — ont été retirées le 2026-07-17 avec la feature Courses ALT, voir [ADR](../project/decisions.md).) Voir [architecture.md](architecture.md#état-persistant--statedb).
+> **Le bus santé porte 4 sous-systèmes** — `mount`, `tracking`, `network`, `system` — plus `alignment` (ci-dessous).
+>
+> Ce qui n'y est **pas**, et pourquoi :
+>
+> - **`gps` et `compass` n'existent plus.** Le module DroTek est retiré ([ADR 2026-08-26](../project/decisions.md)) : le Pi ne mesure plus ni position ni cap. La position vient du **site d'observation** persisté, écrit par l'app (`PUT /site`) — un état de configuration, pas un état de santé, donc hors bus. Lu/écrit à la demande via REST.
+> - **L'horloge n'a pas son propre sous-système** : un booléen ne justifie pas un `SubsystemKind`. La synchro NTP sort dans `system.details.clock_synced` — et c'est elle qui autorise ou non la poussée d'heure vers la monture (sans synchro, `fake-hwclock` restitue l'heure du dernier arrêt).
+> - Les **courses ALT** (`mount_limits`) ont été retirées le 2026-07-17 avec la feature Courses ALT, voir [ADR](../project/decisions.md).
+>
+> Voir [architecture.md](architecture.md#état-persistant--statedb).
 
 ## Sous-systèmes Macro 3 — Mise en station + GoTo (software livré)
 
@@ -42,15 +43,10 @@ L'agrégateur **dérive ses règles des enums** (FATAL / TRANSIENT / DEGRADED) �
 
 ### Macro 0 — Socle
 
-- `mount=error` ou `system=error` → `red`
-- `gps=acquiring`, `mount=moving`, `tracking=*` (transitionnel) → `blue`
-- `gps=off`, `network=offline` → `orange` (degraded)
+- `mount=disconnected|error` → `red` (`mount` est le seul sous-système *critique*)
+- `mount=connecting` → `blue` (transitionnel)
+- `network=offline`, `system=warning|critical` → `orange` (degraded)
 - Tout vert → `green`
-
-### Extensions Macro 2 — Setup (à confirmer dans la spec Setup)
-
-- `compass=needs_calibration` → `orange` (degraded — utilisable mais le wizard refuse de continuer)
-- `compass=error` → `orange` (capteur capricieux, app reste utilisable)
 
 ### Extensions Macro 3 — Mise en station + GoTo
 

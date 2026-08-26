@@ -35,7 +35,7 @@ Source de vérité sur ce que la **lib `nexstarpy` 0.1.0** expose. Évite les hy
 - ⚠️ **Pas de `get_location`/`get_time` exposés** alors que les commandes existent en constants (`0x77`, `0x68`).
 
 ### GPS
-- `is_gps_linked() -> bool` — pass-through `0x50` vers `DeviceID.GPS_UNIT=0xB0`. Vérifie qu'un GPS Celestron StarSense est branché — **sans rapport avec le DroTek qu'on utilise**.
+- `is_gps_linked() -> bool` — pass-through `0x50` vers `DeviceID.GPS_UNIT=0xB0`. Vérifie qu'un GPS Celestron StarSense est branché — **sans objet** : le système n'a plus aucun GPS depuis le 2026-08-26.
 
 ### Misc
 - `get_version() -> (major, minor)` — firmware monture.
@@ -72,7 +72,7 @@ Source de vérité sur ce que la **lib `nexstarpy` 0.1.0** expose. Évite les hy
 
 | Item | Implémentation | Source |
 |---|---|---|
-| Calibration LIS3MDL (compass) | Off-mount, full Pi-side (lecture I2C, persistance disque). | Indépendant de NexStar. |
+| Calibration LIS3MDL (compass) | Off-mount, full Pi-side (lecture I2C, persistance disque). | Indépendant de NexStar. **Retiré le 2026-08-26** avec le module DroTek. |
 | ~~Calibration ADXL345 ×2~~ | ~~Off-mount, full Pi-side.~~ (capteurs retirés — voir ADR 2026-07-17) | Indépendant de NexStar. |
 | ~~Courses ALT min/max~~ | ~~Lecture position via ADXL345 tube. Stockées Pi-side, appliquées en software (clamp côté backend avant émission slew/goto).~~ (feature retirée — voir ADR 2026-07-17) | Pas de slew limits dans le protocole. |
 | **Cordwrap protection AZ** | **Côté monture, via AUX** : `MC_CWRAP_ENABLE/DISABLE` (msgId 0x38/0x39), `MC_CWRAP_GET_POS/SET_POS` (0x3B/0x3C). On expose un toggle dans Setup + une position de cordwrap. | AUX pass-through, AZM motor (0x10). |

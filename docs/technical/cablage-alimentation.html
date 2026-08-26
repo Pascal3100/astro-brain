@@ -172,16 +172,10 @@
       <text x="710" y="223" text-anchor="middle" class="blk-sub">VCC LM2902 · VCC 74AHCT125 (pin 14)</text>
       <text x="710" y="237" text-anchor="middle" class="blk-sub">+ pull-ups éventuels</text>
     </a>
-    <a href="cablage-capteurs-pi.html">
-      <rect x="560" y="262" width="300" height="58" class="blk"/>
-      <text x="710" y="283" text-anchor="middle" class="blk-title">VCC capteurs</text>
-      <text x="710" y="299" text-anchor="middle" class="blk-sub">GPS M8N · LIS3MDL</text>
-    </a>
 
     <!-- Fils rail 5 V -> destinations (éventail) -->
     <path d="M460 210 L510 210 L510 144 L560 144" class="w-pwr" marker-end="url(#ah)"/>
     <path d="M460 218 L530 218 L530 212 L560 212" class="w-pwr" marker-end="url(#ah)"/>
-    <path d="M460 226 L510 226 L510 290 L560 290" class="w-pwr" marker-end="url(#ah)"/>
     <text x="468" y="120" class="t-pwr">rail 5 V → destinations</text>
 
     <!-- ===== MASSE COMMUNE ===== -->
@@ -193,7 +187,6 @@
     <line x1="390" y1="252" x2="390" y2="500" class="w-gnd"/>
     <line x1="710" y1="168" x2="710" y2="500" class="w-gnd"/>
     <line x1="710" y1="244" x2="710" y2="500" class="w-gnd"/>
-    <line x1="710" y1="320" x2="710" y2="500" class="w-gnd"/>
 
     <circle cx="105" cy="500" r="3.5" fill="var(--gnd)"/>
     <circle cx="390" cy="500" r="3.5" fill="var(--gnd)"/>
@@ -225,13 +218,13 @@
       <tr>
         <td>② Rail 5 V</td>
         <td>Batterie 12 V → convertisseur buck dédié 12 V → 5 V</td>
-        <td>ESP32 (VIN) · interface AUX (VCC LM2902 + VCC 74AHCT125 pin 14 + pull-ups) · VCC capteurs (GPS M8N, LIS3MDL)</td>
+        <td>ESP32 (VIN) · interface AUX (VCC LM2902 + VCC 74AHCT125 pin 14 + pull-ups)</td>
         <td><b style="color:var(--power)">Tout le reste du 5 V.</b> <span class="muted">Aucun 5 V ne sort du Pi — les broches 5 V du header Pi ne sont pas utilisées.</span></td>
       </tr>
       <tr>
         <td>③ 3,3 V</td>
         <td>Fourni par le Pi — header broche 1 (3V3)</td>
-        <td>Logique côté Pi uniquement (niveaux GPIO / I2C / UART du Pi)</td>
+        <td>Logique côté Pi uniquement (niveaux GPIO / UART du Pi)</td>
         <td><span class="muted">Ne sort pas de la zone Pi.</span></td>
       </tr>
       <tr>

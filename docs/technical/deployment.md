@@ -2,7 +2,7 @@
 
 ## Prérequis Pi OS
 
-Pi OS 64-bit Lite (install fraîche). Voir [hardware.md](hardware.md) pour la config matérielle (UART, I2C, désactivation Bluetooth/serial-getty).
+Pi OS 64-bit Lite (install fraîche). Voir [hardware.md](hardware.md) pour la config matérielle (UART0 réservé au pont ESP32, désactivation Bluetooth/serial-getty).
 
 ## Stack INDI (prérequis pour la monture, à partir de Macro 1)
 
@@ -24,9 +24,13 @@ Signed-By: /etc/apt/keyrings/astroberry.gpg
 EOF
 
 sudo apt update
-sudo apt install -y indi-bin indi-celestronaux indi-gpsd libindi-dev
-sudo usermod -aG dialout pascal3100   # accès /dev/ttyUSB0 monture
+sudo apt install -y indi-bin indi-celestronaux libindi-dev
+sudo usermod -aG dialout pascal3100   # accès aux ports série (/dev/ttyAMA0)
 ```
+
+`indi-gpsd` n'est plus installé : le driver GPS INDI est parti avec le module
+DroTek le 2026-08-26 ([ADR](../project/decisions.md)). Sur un Pi déjà en
+service : `sudo apt purge -y gpsd gpsd-clients indi-gpsd`.
 
 Sanity check : `indiserver -v indi_celestron_aux` doit démarrer, écouter sur **port 7624**, et énumérer les math plugins SVD + Nearest. Service systemd dédié à câbler dans le plan migration INDI (cf. `docs/superpowers/plans/2026-05-01-mount-indi-migration.md`).
 

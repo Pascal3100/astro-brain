@@ -26,37 +26,30 @@ GET /events                           # SSE — event: state | snapshot
 
 Détails dans la spec Setup : [`docs/superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md`](../superpowers/specs/2026-05-01-astro-brain-v02-setup-design.md).
 
-### Calibration capteurs (livré)
+### Site d'observation (livré)
 
-`sensor_id ∈ { lis3mdl }`. Une seule session active à la fois (verrou backend) ; conflit → `409`.
-
-```
-POST /calibration/{sensor_id}/start          # 202 { session_id } | 503 capteur muet
-GET  /calibration/{sensor_id}/stream         # SSE — event: progress | end
-POST /calibration/{sensor_id}/finalize       # 200 CalibrationStatus (persisté state.db)
-POST /calibration/{sensor_id}/abort          # 200 { ok: true }
-GET  /calibration/{sensor_id}                # 200 CalibrationStatus | 404 (jamais calibré)
-```
-
-Payloads par capteur :
-- `lis3mdl` : `{ offsets: [x,y,z], scale_matrix: [[…]×3], coverage_pct: float, residual: float }`
-
-Stream `progress` : `{ state: "sampling"|"computing", samples_n, coverage_pct, sigma, hint? }`. `end` : payload `CalibrationStatus` (succès) ou `{ error }` (échec).
-
-### Streams capteurs live (livré)
+Seule source de position du backend depuis le retrait du module DroTek
+([ADR 2026-08-26](../project/decisions.md)). Persisté en base
+(`observing_site`, singleton), semé au boot, réécrit à chaud.
 
 ```
-GET /sensors/compass/stream?hz=5             # SSE CompassReading { heading_deg, tilt_compensated, magnitude_uT }
+GET /site                    # 200 { lat, lon, set_at } | 200 null (jamais réglé)
+PUT /site  { lat, lon }      # 204 — persiste + applique à chaud (422 hors bornes)
 ```
 
-`hz` ∈ [1, 10]. Hors borne → `422`. Streams lazy : aucun I2C lu tant qu'aucun client connecté.
+`GET` renvoie le littéral `null` plutôt qu'un `404` : l'absence de site est un
+état nominal (première installation), pas une erreur. `PUT` met aussi à jour le
+provider de position en mémoire, pour que `/align/start` débloque sans
+redémarrage. Bornes : `lat ∈ [-90, 90]`, `lon ∈ [-180, 180]`.
 
-**Capteur absent** (puce non alimentée ou débranchée — l'état nominal du bench) :
-le LIS3MDL fait lever `OSError` à smbus2, traduit en `SensorUnavailableError` et
-rendu en **`503`**. Le capteur est acquis *avant* que la réponse SSE ne soit
-rendue, sinon l'échec arriverait après les en-têtes et le client recevrait un
-corps chunké tronqué au lieu d'un statut. Une puce perdue *en cours* de flux
-émet un événement `error` (`{ detail }`) puis ferme le flux.
+Le site n'est écrit que sur **action explicite** de l'utilisateur (bouton
+« Utiliser la position du téléphone » dans Setup) — jamais automatiquement au
+lancement de l'app : la garde ΔGPS 20 m de l'alignement comparerait sinon le
+modèle persisté à un GPS téléphone qui gigue, et invaliderait un alignement
+encore valide.
+
+_(Les endpoints `/calibration/*` et `/sensors/compass/stream` ont été retirés
+le 2026-08-26 avec le module DroTek — voir [ADR](../project/decisions.md).)_
 
 ### À propos (livré)
 
@@ -76,7 +69,6 @@ Adapter backend `get/set_backlash` déjà écrit (vecteur INDI `MOUNT_AXIS_BACKL
 
 ```
 GET    /align/session                                     # { session: AlignmentSession | null }
-POST   /align/location/client { lat, lon }                # position téléphone si pas de fix GPS Pi
 POST   /align/start                                       # démarre le wizard (409 si position inconnue / conflit)
 POST   /align/swap/{idx}      { star }                    # remplace l'étoile idx du triplet
 POST   /align/record          { idx }                     # enregistre le sync sur l'étoile idx
@@ -114,10 +106,10 @@ POST /reference/sync       # { status, schema_version? } — refresh online-firs
 
 ```
 event: snapshot
-data: { "subsystems": { "mount": {...}, "gps": {...}, ... }, "overall": "green" }
+data: { "subsystems": { "mount": {...}, "tracking": {...}, "network": {...}, "system": {...} }, "overall": "green" }
 
 event: state
-data: { "subsystem": "gps", "state": {...} }
+data: { "subsystem": "mount", "state": {...} }
 ```
 
 Reconnexion : SSE relance auto avec backoff exp `[1s, 2s, 4s, 10s]` côté client. À la reconnexion, le serveur envoie un `snapshot` complet pour resynchroniser.
@@ -125,5 +117,5 @@ Reconnexion : SSE relance auto avec backoff exp `[1s, 2s, 4s, 10s]` côté clien
 ## Erreurs
 
 - `409 Conflict` : précondition non remplie (ex: `/goto` sans alignement). Message explicite dans le body.
-- `503 Service Unavailable` : sous-système hardware en `error` (monture déconnectée, I2C fail). Message + `subsystem` dans le body.
+- `503 Service Unavailable` : sous-système hardware en `error` (monture déconnectée). Message + `subsystem` dans le body.
 - `400 Bad Request` : payload invalide (RA/Dec hors plage, valeurs incohérentes).
