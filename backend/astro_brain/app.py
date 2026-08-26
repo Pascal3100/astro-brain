@@ -30,7 +30,7 @@ from astro_brain.alignment_invalidator import AlignmentInvalidator
 from astro_brain.bus import StateBus, iter_state_snapshots
 from astro_brain.mount_connection_supervisor import MountConnectionSupervisor
 from astro_brain.orchestrator import Orchestrator
-from astro_brain.repository import alignment_repo
+from astro_brain.repository import alignment_repo, site_repo
 from astro_brain.repository.reference_db import (
     ReferenceDb,
     manifest_url,
@@ -47,6 +47,7 @@ from astro_brain.routes.goto import router as goto_router
 from astro_brain.routes.reference import router as reference_router
 from astro_brain.routes.sensors import _LazySensor
 from astro_brain.routes.sensors import router as sensors_router
+from astro_brain.routes.site import router as site_router
 from astro_brain.routes.state import router as state_router
 from astro_brain.services._alignment_catalog import (
     MountLimits,
@@ -96,21 +97,26 @@ class _AlignmentSensorsBridge:
     `sensors` interface AlignmentServiceImpl expects (`gps_fix`,
     `sky_az_alt_for`).
 
-    Chaîne de position : fix GPS Pi → position client (téléphone) → None.
-    Plus de fallback codé en dur.
+    Chaîne de position : fix GPS Pi → site d'observation persisté → None.
+    Le site est semé au boot depuis ``observing_site`` et réécrit à chaud par
+    ``PUT /site``. Plus de fallback codé en dur.
     """
 
     def __init__(self, gps: GpsSource) -> None:
         self._gps = gps
-        self._client: tuple[float, float] | None = None
+        self._site: tuple[float, float] | None = None
 
-    def set_client_location(self, lat: float, lon: float) -> None:
-        """Set the observer position reported by the client (phone)."""
-        self._client = (lat, lon)
+    def set_site(self, lat: float, lon: float) -> None:
+        """Set the persisted observing site position (in-memory copy)."""
+        self._site = (lat, lon)
 
-    def clear_client_location(self) -> None:
-        """Clear the client-reported observer position."""
-        self._client = None
+    def clear_site(self) -> None:
+        """Clear the in-memory observing site position."""
+        self._site = None
+
+    def site(self) -> tuple[float, float] | None:
+        """Return the in-memory copy of the persisted observing site."""
+        return self._site
 
     def gps_fix(self) -> tuple[float, float] | None:
         fix = self._gps.latest_fix()
@@ -119,8 +125,8 @@ class _AlignmentSensorsBridge:
         return (fix.lat, fix.lon)
 
     def position(self) -> tuple[float, float] | None:
-        """Return the best available position: Pi GPS fix, then client, then None."""
-        return self.gps_fix() or self._client
+        """Return the best available position: Pi GPS fix, then site, then None."""
+        return self.gps_fix() or self._site
 
     def observer(self) -> Observer | None:
         pos = self.position()
@@ -282,6 +288,9 @@ def build_app(
         _app.state.lazy_lis3mdl = _LazySensor(services["lis3mdl"])
 
         sensors_bridge = _AlignmentSensorsBridge(services["gps"])
+        stored_site = await site_repo.get_site(db_conn)
+        if stored_site is not None:
+            sensors_bridge.set_site(stored_site.lat, stored_site.lon)
         _app.state.position_provider = sensors_bridge
 
         def _candidates_provider() -> list[Any]:
@@ -358,6 +367,7 @@ def build_app(
     app.include_router(events_router)
     app.include_router(calibration_router)
     app.include_router(sensors_router)
+    app.include_router(site_router)
     app.include_router(alignment_router)
     app.include_router(goto_router)
     app.include_router(reference_router)

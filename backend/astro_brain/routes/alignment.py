@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -17,6 +18,7 @@ from pydantic import BaseModel
 from astro_brain import deps
 from astro_brain.bus import StateBus
 from astro_brain.models.alignment import AlignmentModel, AlignmentSession, Star
+from astro_brain.repository import site_repo
 from astro_brain.services._alignment_catalog import MountLimits, visible_stars
 from astro_brain.services.constellation_figures import figure_for, render_figure
 from astro_brain.services.interfaces import (
@@ -90,15 +92,18 @@ async def get_session(
 @router.post("/location/client")
 async def set_client_location(
     body: _ClientLocationBody,
+    db: aiosqlite.Connection = Depends(deps.get_db),
     position: Any = Depends(deps.get_position_provider),
 ) -> dict[str, bool]:
-    """Store a position provided by the client (téléphone GPS).
+    """Règle le site d'observation depuis le GPS du téléphone.
 
-    Called when the Pi has no GPS fix and the phone forwards its own
-    coordinates.  The coordinates are stored in the position provider and
-    used by ``/align/start`` to unlock the session.
+    Appelée par l'app quand ``/align/start`` renvoie 409 faute de position.
+    Alias historique de ``PUT /site`` : elle **persiste** désormais, au lieu
+    de ne vivre qu'en RAM jusqu'au prochain redémarrage. Elle disparaîtra
+    quand l'app aura basculé sur ``PUT /site``.
     """
-    position.set_client_location(body.lat, body.lon)
+    site = await site_repo.set_site(db, body.lat, body.lon)
+    position.set_site(site.lat, site.lon)
     return {"ok": True}
 
 

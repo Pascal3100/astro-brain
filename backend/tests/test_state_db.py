@@ -36,13 +36,14 @@ async def _table_names(db: aiosqlite.Connection) -> set[str]:
 
 async def test_run_migrations_creates_schema(db: aiosqlite.Connection) -> None:
     version = await run_migrations(db)
-    assert version == 6
+    assert version == 7
 
     tables = await _table_names(db)
     assert {
         "schema_version",
         "calibration_sensor",
         "alignment_model",
+        "observing_site",
     }.issubset(tables)
     assert "catalog_objects" not in tables
     assert "mount_limits" not in tables
@@ -51,25 +52,26 @@ async def test_run_migrations_creates_schema(db: aiosqlite.Connection) -> None:
     row = await cursor.fetchone()
     await cursor.close()
     assert row is not None
-    assert row[0] == 6
+    assert row[0] == 7
 
 
 async def test_run_migrations_is_idempotent(db: aiosqlite.Connection) -> None:
     first = await run_migrations(db)
     second = await run_migrations(db)
-    assert first == 6
-    assert second == 6
+    assert first == 7
+    assert second == 7
 
     tables = await _table_names(db)
     assert {
         "schema_version",
         "calibration_sensor",
         "alignment_model",
+        "observing_site",
     }.issubset(tables)
     assert "catalog_objects" not in tables
     assert "mount_limits" not in tables
 
-    cursor = await db.execute("SELECT COUNT(*) FROM schema_version WHERE version = 6")
+    cursor = await db.execute("SELECT COUNT(*) FROM schema_version WHERE version = 7")
     row = await cursor.fetchone()
     await cursor.close()
     assert row is not None
@@ -106,6 +108,28 @@ async def test_migration_005_drops_mount_limits(tmp_path) -> None:
     await conn.close()
 
 
+async def test_migration_007_creates_observing_site_singleton(
+    db: aiosqlite.Connection,
+) -> None:
+    """La table existe et le `CHECK (id = 1)` interdit une seconde ligne."""
+    await run_migrations(db)
+
+    tables = await _table_names(db)
+    assert "observing_site" in tables
+
+    await db.execute(
+        "INSERT INTO observing_site (id, lat, lon, set_at) "
+        "VALUES (1, 43.6, 1.44, '2026-08-26T20:00:00+00:00')"
+    )
+    await db.commit()
+    with pytest.raises(sqlite3.IntegrityError):
+        await db.execute(
+            "INSERT INTO observing_site (id, lat, lon, set_at) "
+            "VALUES (2, 48.85, 2.35, '2026-08-26T20:00:00+00:00')"
+        )
+        await db.commit()
+
+
 async def _sensor_ids(db: aiosqlite.Connection) -> set[str]:
     cursor = await db.execute("SELECT sensor_id FROM calibration_sensor")
     rows = await cursor.fetchall()
@@ -132,7 +156,7 @@ async def test_migration_006_purges_retired_sensor_calibrations(
 
     version = await run_migrations(db)
 
-    assert version == 6
+    assert version == 7
     assert await _sensor_ids(db) == {"lis3mdl"}
 
 
@@ -172,13 +196,13 @@ async def test_migration_005_is_forward_only_from_version_4(
     assert "catalog_objects" not in tables_before
 
     version = await run_migrations(db)
-    assert version == 6
+    assert version == 7
 
     cursor = await db.execute("SELECT MAX(version) FROM schema_version")
     row = await cursor.fetchone()
     await cursor.close()
     assert row is not None
-    assert row[0] == 6
+    assert row[0] == 7
 
     tables_after = await _table_names(db)
     assert "mount_limits" not in tables_after

@@ -38,23 +38,23 @@ def test_gps_fix_returns_tuple_when_fix_3d() -> None:
     assert bridge.gps_fix() == (48.5, 2.3)
 
 
-def test_observer_returns_none_without_fix_or_client() -> None:
+def test_observer_returns_none_without_fix_or_site() -> None:
     bridge = _AlignmentSensorsBridge(_StubGps(None))
     assert bridge.observer() is None
 
 
-def test_observer_uses_client_location_when_no_fix() -> None:
+def test_observer_uses_site_when_no_fix() -> None:
     bridge = _AlignmentSensorsBridge(_StubGps(None))
-    bridge.set_client_location(43.6, 1.44)
+    bridge.set_site(43.6, 1.44)
     obs = bridge.observer()
     assert obs is not None
     assert (obs.lat_deg, obs.lon_deg) == (43.6, 1.44)
 
 
-def test_pi_fix_takes_precedence_over_client() -> None:
+def test_pi_fix_takes_precedence_over_site() -> None:
     fix = GpsFix(lat=48.0, lon=2.0, timestamp=_now(), is_3d=True)
     bridge = _AlignmentSensorsBridge(_StubGps(fix))
-    bridge.set_client_location(0.0, 0.0)
+    bridge.set_site(0.0, 0.0)
     obs = bridge.observer()
     assert obs is not None
     assert (obs.lat_deg, obs.lon_deg) == (48.0, 2.0)

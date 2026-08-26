@@ -1,6 +1,7 @@
 """Tests du router /align/* via FastAPI TestClient."""
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,6 +15,7 @@ from astro_brain.models.alignment import (
     Star,
     StarRecord,
 )
+from astro_brain.routes import alignment as alignment_routes
 from astro_brain.routes.alignment import router
 from astro_brain.services._ephemeris import Observer
 from astro_brain.services.interfaces import (
@@ -48,6 +50,7 @@ def _client_with_service(
     else:
         pp = position_provider
     app.state.position_provider = pp
+    app.state.db = MagicMock()
     return TestClient(app), bus
 
 
@@ -193,9 +196,9 @@ class _FakePositionProvider:
     """Fake position provider for tests.
 
     Starts with no position (simulates no GPS fix, no client location set).
-    ``set_client_location`` stores the coordinates so that ``position``
-    returns them on the next call, and ``observer`` returns an ``Observer``
-    instance once a position is available.
+    ``set_site`` stores the coordinates so that ``position`` returns them
+    on the next call, and ``observer`` returns an ``Observer`` instance once
+    a position is available.
     """
 
     def __init__(self) -> None:
@@ -204,7 +207,7 @@ class _FakePositionProvider:
     def position(self) -> tuple[float, float] | None:
         return self._pos
 
-    def set_client_location(self, lat: float, lon: float) -> None:
+    def set_site(self, lat: float, lon: float) -> None:
         self._pos = (lat, lon)
 
     def observer(self) -> Observer | None:
@@ -213,14 +216,30 @@ class _FakePositionProvider:
         return Observer(lat_deg=self._pos[0], lon_deg=self._pos[1])
 
 
-def test_post_client_location_then_start_succeeds() -> None:
+def test_post_client_location_then_start_succeeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """L'alias du wizard persiste le site puis débloque ``/align/start``.
+
+    La persistance elle-même est couverte par ``test_site_routes`` sur une
+    vraie base ; ici on ne veut que le contrat de la route, d'où le stub.
+    """
     svc = MagicMock()
     svc.start = AsyncMock(return_value=_stub_session())
     svc.session = MagicMock(return_value=_stub_session())
     pp = _FakePositionProvider()
+    saved: list[tuple[float, float]] = []
+
+    async def _fake_set_site(_db, lat: float, lon: float):
+        saved.append((lat, lon))
+        return SimpleNamespace(lat=lat, lon=lon)
+
+    monkeypatch.setattr(alignment_routes.site_repo, "set_site", _fake_set_site)
+
     client, _ = _client_with_service(svc, position_provider=pp)
     r = client.post("/align/location/client", json={"lat": 43.6, "lon": 1.44})
     assert r.status_code == 200
+    assert saved == [(43.6, 1.44)]
     r2 = client.post("/align/start", json={})
     assert r2.status_code == 200
 
@@ -229,7 +248,7 @@ def test_start_without_position_returns_409() -> None:
     svc = MagicMock()
     svc.start = AsyncMock(return_value=_stub_session())
     svc.session = MagicMock(return_value=_stub_session())
-    pp = _FakePositionProvider()  # no GPS fix, no client location set
+    pp = _FakePositionProvider()  # ni fix GPS, ni site réglé
     client, _ = _client_with_service(svc, position_provider=pp)
     r = client.post("/align/start", json={})
     assert r.status_code == 409
@@ -246,7 +265,7 @@ def client_located() -> TestClient:
     svc = MagicMock()
     svc.session = MagicMock(return_value=None)
     pp = _FakePositionProvider()
-    pp.set_client_location(43.6, 1.44)
+    pp.set_site(43.6, 1.44)
     client, _ = _client_with_service(svc, position_provider=pp)
     return client
 
@@ -299,7 +318,7 @@ def test_get_visible_stars_grouped(client_located: TestClient) -> None:
 def test_get_visible_stars_without_position_returns_409() -> None:
     svc = MagicMock()
     svc.session = MagicMock(return_value=None)
-    pp = _FakePositionProvider()  # no GPS fix, no client location set
+    pp = _FakePositionProvider()  # ni fix GPS, ni site réglé
     client, _ = _client_with_service(svc, position_provider=pp)
     r = client.get("/align/stars/visible")
     assert r.status_code == 409

@@ -49,6 +49,10 @@ class AlignmentModel(BaseModel):
     rms_arcmin: float
     residuals: dict[str, float]
     validated_at_utc: datetime
+    # Noms historiques (schéma appliqué, non renommé) : depuis le retrait du
+    # module DroTek (ADR 2026-08-26), la valeur est la position du **site
+    # d'observation** au moment du `record`, plus un fix GPS embarqué. La
+    # garde ΔGPS 20 m d'`alignment_repo.load` compare donc deux sites.
     gps_lat: float | None = Field(default=None, ge=-90, le=90)
     gps_lon: float | None = Field(default=None, ge=-180, le=180)
     quality: Literal["good", "poor"] = "good"
