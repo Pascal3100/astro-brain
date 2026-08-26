@@ -54,7 +54,6 @@
   .swatch { width:18px; height:4px; border-radius:2px; display:inline-block; flex:0 0 auto; }
   .s-sig { background:var(--sig); } .s-out { background:var(--out); }
   .s-pwr { background:var(--power); } .s-gnd { background:var(--gnd); }
-  .s-wifi { background:var(--sig); height:0; border-top:2px dashed var(--sig); }
 
   .schwrap { display:flex; justify-content:center; overflow-x:auto; }
   svg text { font-family:inherit; }
@@ -67,7 +66,6 @@
   .w-out { stroke:var(--out);   stroke-width:2.5; fill:none; }
   .w-pwr { stroke:var(--power); stroke-width:2.5; fill:none; }
   .w-gnd { stroke:var(--gnd);   stroke-width:2.5; fill:none; }
-  .w-wifi{ stroke:var(--sig);   stroke-width:2; fill:none; stroke-dasharray:6 4; }
   .t-sig { fill:var(--sig); font-size:11px; } .t-pwr { fill:var(--power); font-size:11px; }
   .t-gnd { fill:var(--gnd); font-size:11px; } .t-dim { fill:var(--txt-dim); font-size:10.5px; }
   .arrow { fill:var(--txt-dim); }
@@ -100,7 +98,7 @@
 
   <header>
     <h1>Pont ESP32 ↔ bus AUX
-      <span class="sub">WiFi STA · TCP:2000 · Serial2 + output-enable · 2026-06-29</span>
+      <span class="sub">liaison série 3 fils vers le Pi · Serial2 + output-enable · 2026-08-26</span>
     </h1>
     <span class="badge mix">◆ mixte</span>
   </header>
@@ -109,8 +107,7 @@
 
   <div class="legend">
     <span><i class="swatch s-pwr"></i> 5 V / alim (VIN)</span>
-    <span><i class="swatch s-sig"></i> signal / Serial2</span>
-    <span><i class="swatch s-wifi"></i> liaison WiFi</span>
+    <span><i class="swatch s-sig"></i> signal / série (Serial1 Pi · Serial2 bus)</span>
     <span><i class="swatch s-gnd"></i> masse commune</span>
   </div>
 
@@ -124,23 +121,25 @@
       </marker>
     </defs>
 
-    <!-- ===== PI (gauche, liaison WiFi) ===== -->
+    <!-- ===== PI (gauche, liaison série filaire) ===== -->
     <rect x="40" y="150" width="170" height="92" class="blk"/>
     <text x="125" y="182" text-anchor="middle" class="blk-title">Raspberry Pi</text>
     <text x="125" y="200" text-anchor="middle" class="blk-sub">driver INDI</text>
     <text x="125" y="216" text-anchor="middle" class="blk-sub">indi_celestron_aux</text>
-    <text x="125" y="232" text-anchor="middle" class="blk-tag" fill="var(--sig)">mode Network · TCP:2000</text>
+    <text x="125" y="232" text-anchor="middle" class="blk-tag" fill="var(--sig)">mode Serial · /dev/ttyAMA0</text>
 
-    <!-- WiFi link Pi <-> ESP32 -->
-    <path d="M210 184 L370 184" class="w-wifi" marker-end="url(#ah)"/>
-    <path d="M370 208 L210 208" class="w-wifi" marker-end="url(#ah)"/>
-    <text x="222" y="172" class="t-sig">WiFi STA · 192.168.1.200:2000</text>
-    <text x="222" y="228" class="t-dim">octets driver ↔ bus AUX</text>
+    <!-- Liaison série filaire Pi <-> ESP32 (3 fils, masse commune) -->
+    <path d="M210 184 L370 184" class="w-sig" marker-end="url(#ah)"/>
+    <path d="M370 208 L210 208" class="w-sig" marker-end="url(#ah)"/>
+    <line x1="210" y1="228" x2="370" y2="228" class="w-gnd"/>
+    <text x="222" y="172" class="t-sig">GPIO14/TXD0 (br. 8) → GPIO25</text>
+    <text x="222" y="202" class="t-sig">GPIO26 → GPIO15/RXD0 (br. 10)</text>
+    <text x="222" y="244" class="t-gnd">GND (br. 6) ↔ GND — masse commune</text>
 
     <!-- ===== ESP32 (centre) ===== -->
     <rect x="370" y="120" width="190" height="150" class="blk"/>
     <text x="465" y="150" text-anchor="middle" class="blk-title">ESP32 DevKit</text>
-    <text x="465" y="167" text-anchor="middle" class="blk-sub">CP2102 · WiFi STA</text>
+    <text x="465" y="167" text-anchor="middle" class="blk-sub">CP2102 · Serial1 19200 8N2</text>
     <text x="465" y="183" text-anchor="middle" class="blk-sub">Serial2 19200 8N2</text>
     <text x="465" y="252" text-anchor="middle" class="blk-tag" fill="var(--ok)">✓ pont · <tspan fill="var(--wip)">🔬 /OE</tspan></text>
 
@@ -207,6 +206,16 @@
         <td>→ <b>/OE (pin 1)</b> du 74AHCT125 — <b>LOW</b> pendant l'émission (buffer actif), <b>HIGH</b> au repos (buffer en Hi-Z → le LM2902 lit le bus)</td>
       </tr>
       <tr>
+        <td class="pin">GPIO25</td>
+        <td>RX (Serial1)</td>
+        <td>← <b>GPIO14 / TXD0</b> du Pi (broche 8) — trame du driver INDI</td>
+      </tr>
+      <tr>
+        <td class="pin">GPIO26</td>
+        <td>TX (Serial1)</td>
+        <td>→ <b>GPIO15 / RXD0</b> du Pi (broche 10) — réponse de la monture</td>
+      </tr>
+      <tr>
         <td class="pin">VIN</td>
         <td>Alimentation</td>
         <td>← <b>rail 5 V</b> (en exploitation ; <span class="muted">PAS l'USB</span>)</td>
@@ -214,7 +223,8 @@
     </tbody>
   </table>
   <p class="muted" style="margin:10px 0 0; font-size:12px;">
-    Serial2 initialisé par <code>Serial2.begin(19200, SERIAL_8N2, 16, 17)</code>.
+    Serial2 (bus AUX) initialisé par <code>Serial2.begin(19200, SERIAL_8N2, 16, 17)</code>,
+    Serial1 (Pi) par <code>Serial1.begin(19200, SERIAL_8N2, 25, 26)</code> — même vitesse et même format des deux côtés.
     <code>pinMode(32, OUTPUT)</code> avec <code>digitalWrite(32, HIGH)</code> par défaut (buffer désactivé = Hi-Z).
   </p>
   <p class="muted" style="margin:8px 0 0; font-size:12px;">
@@ -224,37 +234,52 @@
   </p>
   </div>
 
-  <h2>Liaison réseau</h2>
+  <h2>Liaison Pi ↔ pont (série filaire, 3 fils)</h2>
   <div class="panel">
     <table>
+      <thead>
+        <tr><th style="width:220px;">Pi (connecteur 40 broches)</th><th>ESP32</th><th>Rôle</th></tr>
+      </thead>
       <tbody>
-        <tr><td style="width:160px;"><b>Mode WiFi</b></td><td>Station (<b>STA</b>), repli AP au boot si la station ne se connecte pas.</td></tr>
-        <tr><td><b>IP fixe</b></td><td><code>192.168.1.200</code></td></tr>
-        <tr><td><b>Serveur</b></td><td>TCP, port <code>2000</code>.</td></tr>
-        <tr><td><b>Client</b></td><td>Driver <code>indi_celestron_aux</code> (sur le Pi) en <b>mode Network</b> → <code>192.168.1.200:2000</code>, au lieu d'une liaison série.</td></tr>
+        <tr><td>GPIO14 / TXD0 — broche 8</td><td><code>GPIO25</code> (RX de <code>Serial1</code>)</td><td>Pi → pont</td></tr>
+        <tr><td>GPIO15 / RXD0 — broche 10</td><td><code>GPIO26</code> (TX de <code>Serial1</code>)</td><td>pont → Pi</td></tr>
+        <tr><td>GND — broche 6 (ou 9, 14…)</td><td><code>GND</code></td><td>masse commune, obligatoire</td></tr>
       </tbody>
     </table>
+    <p class="muted" style="margin:10px 0 0; font-size:12px;">
+      <b>Croisé</b> : le TX d'un côté va sur le RX de l'autre. <b>3,3 V des deux côtés</b> — liaison directe,
+      aucun adaptateur de niveau. Le driver <code>indi_celestron_aux</code> tourne en <b>mode Serial</b> sur
+      <code>/dev/ttyAMA0</code> (19200 8N2), plus en mode Network.
+    </p>
+    <p class="muted" style="margin:8px 0 0; font-size:12px;">
+      Le WiFi et l'OTA ont été retirés du firmware le <b>2026-08-26</b> : le mode Network du driver ne détecte
+      pas une réponse manquante (<code>tcpReadResponse()</code> renvoie toujours vrai), là où le mode Serial
+      bloque avec timeout et remonte l'échec. Rollback : tag git <code>firmware-wifi-final</code>.
+    </p>
   </div>
 
   <h2>Rôles firmware</h2>
   <div class="panel">
     <ol>
-      <li><b>Relais bidirectionnel</b> TCP ↔ UART : les octets du driver INDI transitent vers le bus AUX, et inversement.</li>
+      <li><b>Relais bidirectionnel</b> Serial1 (Pi) ↔ Serial2 (bus AUX) : les octets du driver INDI transitent vers le bus AUX, et inversement, trame par trame (préambule <code>0x3b</code>, longueur en octet 2).</li>
       <li><b>Suppression d'écho half-duplex</b> : le bus single-wire renvoie notre propre émission ; le firmware mémorise le dernier paquet émis et <b>jette l'écho</b> (comparaison), de sorte que seule la vraie réponse moteur remonte au driver.</li>
       <li><b>Fenêtre de turnaround</b> : <code>digitalWrite(GPIO32, LOW)</code> AVANT d'émettre (active le buffer), puis <code>HIGH</code> APRÈS (relâche en Hi-Z pour écouter). C'est le point <b>à valider</b> matériellement.</li>
-      <li><b>Robustesse WiFi</b> : reconnexion sur événement <code>STA_DISCONNECTED</code>, watchdog <code>ESP.restart()</code> si station down &gt; 30 s, fermeture des sockets morts, <code>setNoDelay</code>.</li>
     </ol>
   </div>
 
   <div class="note">
-    <b>🔬 À valider — /OE sur GPIO32 + fenêtre de turnaround.</b>
-    Le pont WiFi/TCP, le RX (GPIO16 depuis le LM2902) et la robustesse WiFi sont <b>validés</b> (prouvés sessions S29/S32/S33 : la monture bouge via le pont, RX prouvé de bout en bout).
-    En revanche, le contrôle <b>/OE sur GPIO32</b> et la fenêtre de turnaround pilotant le TX via le 74AHCT125 restent <b>à valider</b> matériellement : il faut vérifier que le buffer s'active LOW juste avant l'émission et relâche en Hi-Z juste après, sans rogner ni traîner sur les octets du bus.
+    <b>🔴 Ne pas « simplifier » le firmware.</b>
+    Le pont, le RX (GPIO16 depuis le LM2902) et le <b>/OE sur GPIO32</b> sont <b>validés</b> matériellement
+    (S29 → S36 : la monture bouge via le pont, RX prouvé de bout en bout, turnaround sans garde après
+    <code>Serial2.flush()</code>). Deux points restent délicats et doivent être déplacés <i>verbatim</i> :
+    la séquence <code>/OE</code> (LOW avant l'émission, HIGH juste après le <code>flush()</code>, sans délai
+    ajouté) et le drain d'écho (exactement N octets, borné par <code>ECHO_DRAIN_MS</code>).
   </div>
 
   <footer>
     Astro-Brain DIY — ③ Pont ESP32 · fil matériel Macro 1 (liaison monture).
-    Référence markdown : <code>docs/technical/hardware.md</code>. Firmware réf. : g7ltt / Mark Lord <code>esp32_wifi-V3.8.ino</code>. Historique : journal S29 → S33.
+    Référence markdown : <code>docs/technical/hardware.md</code>. Firmware : <code>firmware/esp32-aux-bridge/</code>
+    (inspiré de g7ltt / Mark Lord <code>esp32_wifi-V3.8.ino</code> pour le timing /OE). Historique : journal S29 → S56.
   </footer>
 </div>
 </body>

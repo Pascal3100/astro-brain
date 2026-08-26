@@ -35,19 +35,22 @@ le HTML reste la spec de référence. Les deux doivent rester cohérents.
 | C3 | 10 µF | céram. / tantale | réservoir près VIN ESP32 |
 | J1 | RJ-12 6P6C | jack PCB traversant | vers HAND CONTROL monture |
 | J2 | bornier 2 pts | screw / KF2510 | entrée 5 V (+ / GND) |
+| J3 | barrette 3 pts | 1×03 pas 2,54 (ou toron soudé) | liaison série vers le Pi (TX / RX / GND) |
 
 ## Netlist
 
 | Net | Nœuds |
 |-----|-------|
 | `+5V` | J2.1 · U1.4 · U2.14 · U2.4/10/13 · ESP32.VIN · R3(haut) · C1+ C2+ C3+ |
-| `GND` | J2.2 · J1.5 · U1.11 · U2.7 · U2.5/9/12 · ESP32.GND · R2 R4 R6(bas) · C1– C2– C3– · réf. amplis inutilisés |
+| `GND` | J2.2 · J1.5 · U1.11 · U2.7 · U2.5/9/12 · ESP32.GND · J3.3 · R2 R4 R6(bas) · C1– C2– C3– · réf. amplis inutilisés |
 | `DATA` | J1.4 · R1(haut) · R7 470Ω → U2.3 (1Y) |
 | `IN+` | R1(bas) · R2(haut) · U1.3 (IN1+) |
 | `VREF` | R3(bas) · R4(haut) · U1.2 (IN1−) |
 | `RX` | U1.1 (OUT1) → R5 1k → nœud · R6 4k7(bas→GND) · ESP32.GPIO16 |
 | `TX_DATA` | ESP32.GPIO17 · U2.2 (1A) |
 | `TX_OE` | ESP32.GPIO32 · U2.1 (1/OE, actif bas) |
+| `PI_TX` | J3.1 (← Pi GPIO14/TXD0, broche 8) · ESP32.GPIO25 |
+| `PI_RX` | ESP32.GPIO26 · J3.2 (→ Pi GPIO15/RXD0, broche 10) |
 
 Rappel LM2902 (DIP-14) : `1`=OUT1, `2`=IN1−, `3`=IN1+, `4`=V+, `11`=GND.
 
@@ -58,7 +61,7 @@ qui émet [`aux-bridge.net`](aux-bridge.net) — un netlist KiCad importable dir
 C'est la **source éditable** du board : on modifie le `.py`, on régénère, on ré-importe.
 
 ```bash
-python3 gen_netlist.py        # régénère aux-bridge.net (15 composants, 13 nets)
+python3 gen_netlist.py        # régénère aux-bridge.net (16 composants, 15 nets)
 ```
 
 **Import dans KiCad (snap) :**
@@ -91,6 +94,7 @@ le chevelu se résoudra alors tout seul. À l'import, Pcbnew signalera « A1 san
 | ESP32 | `ESP32-DEVKITC-V4` | `MCU_Module` |
 | J1 | jack modulaire 6P6C | `Connector` |
 | J2 | bornier 2 pts | `Connector_Generic` |
+| J3 | barrette 3 pts | `Connector_Generic` |
 | R*, C* | `R`, `C` | `Device` |
 
 ## Pièges à la saisie (ERC)
@@ -100,7 +104,7 @@ le chevelu se résoudra alors tout seul. À l'import, Pcbnew signalera « A1 san
    - LM2902 amplis B/C/D en suiveurs : `IN+ → GND`, `OUT ↔ IN−`
      (B : `5→GND`, `7↔6` · C : `10→GND`, `8↔9` · D : `12→GND`, `14↔13`).
    - 74AHCT125 gates 2/3/4 : `/OE (4·10·13) → VCC`, `A (5·9·12) → GND`, sorties `Y (6·8·11)` en l'air.
-3. **Aucun net 3,3 V** sur cette carte (hors carte).
+3. **Aucun net 3,3 V** sur cette carte : la liaison série vers le Pi est en 3,3 V des deux côtés (GPIO ESP32 ↔ GPIO Pi), donc directe, sans adaptateur de niveau ni rail dédié.
 
 ## Sécurité — RJ-12 broche 3 (+12 V)
 

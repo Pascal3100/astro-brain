@@ -452,7 +452,16 @@ def build_combined() -> str:
            "D18", "D19", "D21", "RX0", "TX0", "D22", "D23"]
     b.esp32(1, 3, 12, TOP, BOT, {
         ("t", 0): "pwr", ("t", 1): "gnd", ("t", 9): "sig",   # VIN · GND · D32
+        ("t", 6): "out", ("t", 7): "sig",                    # D26 → Pi RX · D25 ← Pi TX
         ("b", 1): "gnd", ("b", 5): "out", ("b", 6): "sig"})  # GND · RX2 · TX2
+
+    # --- lien série vers le Pi : 3 fils volants, aucune piste en plus ---
+    # J3 du netlist = ce toron. Les trois fils se soudent dans les trous
+    # libres des colonnes GND / D26 / D25 de la barrette haute (mêmes nets
+    # que les pattes du module, qui est enfiché par-dessus).
+    b.stub(2, 3, "gnd", "Pi GND", (0, -1))
+    b.stub(7, 3, "out", "Pi RX", (0, -1))                        # D26 → Pi GPIO15
+    b.stub(8, 3, "sig", "Pi TX", (0, -1))                        # D25 ← Pi GPIO14
 
     # --- les 2 CI ; pattes haut r4 / bas r7 ----------------------------
     b.dip(18, 4, 7, 7, "LM2902",

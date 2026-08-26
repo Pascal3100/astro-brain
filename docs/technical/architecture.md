@@ -4,9 +4,9 @@
 
 ```
 App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[pyindi-client]─▶  indiserver
-                                                       │                               │ indi_celestron_aux (mode Network)
+                                                       │                               │ indi_celestron_aux (mode Serial)
                                                        │                               ▼
-                                                       │                       WiFi/TCP :2000 ─▶ pont ESP32
+                                                       │                    /dev/ttyAMA0 (3 fils) ─▶ pont ESP32
                                                        │                                           │ RX LM2902 / TX 74AHCT125
                                                        │                                           ▼
                                                        │                                  bus AUX (HC RJ12) ─▶ Monture Celestron
@@ -17,7 +17,7 @@ App Flutter (téléphone)  ─[Wi-Fi / REST + SSE]─▶  FastAPI (Pi)  ─[pyin
 
 - **Backend** : FastAPI (Python 3.13) sur Raspberry Pi 3 B+.
 - **Frontend** : app Flutter native (pas une PWA), pattern BLoC.
-- **Communication Pi ↔ Monture** : stack INDI — `indiserver` + driver `indi_celestron_aux` côté Pi, client Python `pyindi-client` dans le backend FastAPI. Liaison physique : port HAND CONTROL (RJ-12) sur le **bus AUX** single-wire half-duplex (19200 8N2) → interface RX LM2902 / TX 74AHCT125 → **pont ESP32** exposant le bus en **TCP :2000** (WiFi), driver en **mode Network** (`192.168.1.200:2000`). Détails : [`indi-reference.md`](indi-reference.md) + [`hardware.md`](hardware.md). ADRs : [2026-05-01 — INDI (drop nexstarpy)](../project/decisions.md) + [2026-07-05 — pont ESP32](../project/decisions.md).
+- **Communication Pi ↔ Monture** : stack INDI — `indiserver` + driver `indi_celestron_aux` côté Pi, client Python `pyindi-client` dans le backend FastAPI. Liaison physique : port HAND CONTROL (RJ-12) sur le **bus AUX** single-wire half-duplex (19200 8N2) → interface RX LM2902 / TX 74AHCT125 → **pont ESP32** relayant le bus vers le Pi sur une **liaison série 3 fils** (UART0, `/dev/ttyAMA0`), driver en **mode Serial**. Détails : [`indi-reference.md`](indi-reference.md) + [`hardware.md`](hardware.md). ADRs : [2026-05-01 — INDI (drop nexstarpy)](../project/decisions.md) + [2026-07-05 — pont ESP32](../project/decisions.md) + [2026-08-26 — pont filaire](../project/decisions.md).
 - **Plate solving (Macro 5+)** : Astrometry.net local sur le Pi.
 
 ## Décisions structurantes

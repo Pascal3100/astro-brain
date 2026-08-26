@@ -13,7 +13,8 @@ Usage :
 
 ⚠️ ESP32 (A1) : empreinte laissée VIDE (placeholder). Aucune empreinte DevKitC
    n'existe dans les libs stock — elle sera générée à tes cotes mesurées, avec des
-   pads nommés VIN/GND/IO16/IO17/IO32. Le chevelu se résoudra alors par nom de pad.
+   pads nommés VIN/GND/IO16/IO17/IO25/IO26/IO32. Le chevelu se résoudra alors par
+   nom de pad.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ FP_C_DISC  = "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm"
 FP_C_ELEC  = "Capacitor_THT:CP_Radial_D5.0mm_P2.50mm"
 FP_RJ12    = "Connector_RJ:RJ12_Amphenol_54601-x06_Horizontal"
 FP_TERM    = "TerminalBlock_Phoenix:TerminalBlock_Phoenix_MKDS-1,5-2_1x02_P5.00mm_Horizontal"
+FP_HDR3    = "Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical"
 FP_ESP32   = ""  # placeholder — à créer/assigner (voir README)
 
 # --- Composants : ref -> (value, footprint, lib, part) ----------------------
@@ -46,12 +48,15 @@ COMPONENTS: dict[str, tuple[str, str, str, str]] = {
     "C3": ("10u",          FP_C_ELEC, "Device",                "CP"),
     "J1": ("AUX_RJ12",     FP_RJ12,   "Connector",             "Conn_6P6C"),
     "J2": ("5V_IN",        FP_TERM,   "Connector",             "Screw_Terminal_01x02"),
+    "J3": ("PI_SERIAL",    FP_HDR3,   "Connector",             "Conn_01x03_Pin"),
     "A1": ("ESP32-DevKitC", FP_ESP32, "MCU_Module",            "ESP32-DEVKITC-V4"),
 }
 
 # --- Nets : nom -> [(ref, pad), ...] ----------------------------------------
 # Convention pads : R/C = 1,2 · DIP-14 = 1..14 · RJ12 = 1..6 · bornier = 1,2
-# ESP32 pads nommés par fonction (VIN/GND/IO16/IO17/IO32).
+# ESP32 pads nommés par fonction (VIN/GND/IO16/IO17/IO25/IO26/IO32).
+# J3 = lien série vers le Pi : 1 = TX du Pi (GPIO14), 2 = RX du Pi (GPIO15),
+# 3 = masse commune. Le croisement TX/RX est porté par le nommage des nets.
 NETS: dict[str, list[tuple[str, str]]] = {
     "+5V": [
         ("J2", "1"), ("U1", "4"), ("U2", "14"),
@@ -63,7 +68,7 @@ NETS: dict[str, list[tuple[str, str]]] = {
         ("J2", "2"), ("J1", "5"), ("U1", "11"),
         ("U1", "5"), ("U1", "10"), ("U1", "12"),   # IN+ des amplis inutilisés → GND
         ("U2", "7"), ("U2", "5"), ("U2", "9"), ("U2", "12"),  # A des gates inutilisés → GND
-        ("A1", "GND"), ("R2", "2"), ("R4", "2"), ("R6", "2"),
+        ("A1", "GND"), ("J3", "3"), ("R2", "2"), ("R4", "2"), ("R6", "2"),
         ("C1", "2"), ("C2", "2"), ("C3", "2"),
     ],
     "DATA": [("J1", "4"), ("R1", "1"), ("R7", "2")],
@@ -74,6 +79,9 @@ NETS: dict[str, list[tuple[str, str]]] = {
     "TX_1Y": [("U2", "3"), ("R7", "1")],           # 1Y avant le 470 Ω
     "TX_DATA": [("A1", "IO17"), ("U2", "2")],      # GPIO17 → 1A
     "TX_OE":   [("A1", "IO32"), ("U2", "1")],      # GPIO32 → 1/OE
+    # --- lien série filaire vers le Pi (3,3 V des deux côtés, liaison directe) ---
+    "PI_TX": [("J3", "1"), ("A1", "IO25")],        # Pi GPIO14/TXD0 → RX du pont
+    "PI_RX": [("J3", "2"), ("A1", "IO26")],        # TX du pont → Pi GPIO15/RXD0
     # amplis LM2902 inutilisés câblés en suiveurs (OUT ↔ IN−), IN+ déjà à GND
     "U1_FLW_B": [("U1", "6"), ("U1", "7")],
     "U1_FLW_C": [("U1", "8"), ("U1", "9")],

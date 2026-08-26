@@ -56,7 +56,6 @@
   .swatch { width:18px; height:4px; border-radius:2px; display:inline-block; flex:0 0 auto; }
   .s-sig { background:var(--sig); } .s-out { background:var(--out); }
   .s-pwr { background:var(--power); } .s-gnd { background:var(--gnd); }
-  .s-wifi { background:var(--sig); height:0; border-top:2px dashed var(--sig); }
 
   .schwrap { display:flex; justify-content:center; overflow-x:auto; }
   svg text { font-family:inherit; }
@@ -68,7 +67,6 @@
   .w-out { stroke:var(--out);   stroke-width:2.5; fill:none; }
   .w-pwr { stroke:var(--power); stroke-width:2.5; fill:none; }
   .w-gnd { stroke:var(--gnd);   stroke-width:2.5; fill:none; }
-  .w-wifi{ stroke:var(--sig);   stroke-width:2; fill:none; stroke-dasharray:6 4; }
   .w-warn{ stroke:var(--warn);  stroke-width:2.5; fill:none; stroke-dasharray:4 4; }
   .t-sig { fill:var(--sig); font-size:11px; } .t-pwr { fill:var(--power); font-size:11px; }
   .t-gnd { fill:var(--gnd); font-size:11px; } .t-dim { fill:var(--txt-dim); font-size:10.5px; }
@@ -199,7 +197,7 @@
         <rect class="blk" x="700" y="205" width="200" height="180" rx="10"/>
         <text x="800" y="233" text-anchor="middle" class="blk-title">ESP32 DevKit</text>
         <text x="800" y="250" text-anchor="middle" class="blk-sub">enfiché · barrettes femelles</text>
-        <text x="800" y="266" text-anchor="middle" class="blk-sub">Serial2 19200 8N2 · WiFi STA</text>
+        <text x="800" y="266" text-anchor="middle" class="blk-sub">Serial2 (bus) + Serial1 (Pi) · 19200 8N2</text>
         <text x="716" y="292" class="t-out">GPIO16 ← RX</text>
         <text x="716" y="330" class="t-sig">GPIO17 → TX</text>
         <text x="716" y="360" class="t-out">GPIO32 → /OE</text>
@@ -230,7 +228,7 @@
       </tr>
       <tr class="net-gnd">
         <td><code>GND</code></td>
-        <td><code>J2.2</code> · <code>J1.5</code> · <code>U1.11</code> · <code>U2.7</code> · <code>U2.5/9/12</code> (A gates inutilisés) · <code>ESP32.GND</code> · <code>R2 R4 R6</code> (bas) · <code>C1– C2– C3–</code> · réf. amplis inutilisés (voir + bas)</td>
+        <td><code>J2.2</code> · <code>J1.5</code> · <code>U1.11</code> · <code>U2.7</code> · <code>U2.5/9/12</code> (A gates inutilisés) · <code>ESP32.GND</code> · <code>J3.3</code> (masse Pi) · <code>R2 R4 R6</code> (bas) · <code>C1– C2– C3–</code> · réf. amplis inutilisés (voir + bas)</td>
         <td>masse commune — <b>à câbler explicitement</b> (cause suspecte S28)</td>
       </tr>
       <tr>
@@ -263,6 +261,16 @@
         <td><code>ESP32.GPIO32</code> · <code>U2.1</code> (1/OE)</td>
         <td>output-enable actif bas (LOW = émet, HIGH = Hi-Z)</td>
       </tr>
+      <tr>
+        <td><code>PI_TX</code></td>
+        <td><code>J3.1</code> (← Pi GPIO14/TXD0, broche 8) · <code>ESP32.GPIO25</code> (RX de <code>Serial1</code>)</td>
+        <td>Pi → pont — 3,3 V des deux côtés, liaison directe</td>
+      </tr>
+      <tr>
+        <td><code>PI_RX</code></td>
+        <td><code>ESP32.GPIO26</code> (TX de <code>Serial1</code>) · <code>J3.2</code> (→ Pi GPIO15/RXD0, broche 10)</td>
+        <td>pont → Pi — 3,3 V des deux côtés, liaison directe</td>
+      </tr>
     </table>
     <p class="muted" style="margin:12px 0 0">Rappel LM2902 (DIP-14) : <code>1</code>=OUT1, <code>2</code>=IN1−, <code>3</code>=IN1+, <code>4</code>=V+, <code>11</code>=GND. On n'utilise que l'ampli A.</p>
   </div>
@@ -281,9 +289,10 @@
       <tr><td><code>R6</code></td><td>4,7 kΩ</td><td>THT 1/4 W</td><td>bas du diviseur de sortie RX</td></tr>
       <tr><td><code>R7</code></td><td>470 Ω</td><td>THT 1/4 W</td><td>série 1Y → DATA (limite courant TX)</td></tr>
       <tr><td><code>C1, C2</code></td><td>100 nF céramique</td><td>THT / X7R</td><td>découplage — 1 au ras de chaque CI</td></tr>
-      <tr><td><code>C3</code></td><td>10 µF</td><td>céram. / tantale</td><td>réservoir près de VIN ESP32 (pics WiFi)</td></tr>
+      <tr><td><code>C3</code></td><td>10 µF</td><td>céram. / tantale</td><td>réservoir près de VIN ESP32 (pics de conso)</td></tr>
       <tr><td><code>J1</code></td><td>RJ-12 6P6C</td><td>jack PCB traversant</td><td>vers HAND CONTROL monture</td></tr>
       <tr><td><code>J2</code></td><td>bornier 2 pts</td><td>screw / KF2510</td><td>entrée 5 V (+ / GND)</td></tr>
+      <tr><td><code>J3</code></td><td>barrette 3 pts</td><td>1×03 pas 2,54 (ou toron soudé)</td><td>liaison série vers le Pi (TX / RX / GND)</td></tr>
     </table>
     <p class="muted" style="margin:12px 0 0">
       DIP + traversant = soudure main facile pour un tirage à l'unité (cohérent KiCad + JLCPCB PCB nu).
@@ -302,12 +311,28 @@
       <tr><td><code>6</code></td><td>BUSY</td><td>non connectée (mono-maître)</td></tr>
       <tr><td><code>1, 2</code></td><td>—</td><td>non connectées</td></tr>
     </table>
+    <h3 style="margin-top:18px">J3 — liaison série vers le Pi (3 fils)</h3>
+    <table class="netlist">
+      <tr><th>Broche</th><th>Pi</th><th>Net</th></tr>
+      <tr><td><code>1</code></td><td>GPIO14 / TXD0 — broche 8</td><td><code>PI_TX</code> → GPIO25</td></tr>
+      <tr><td><code>2</code></td><td>GPIO15 / RXD0 — broche 10</td><td><code>PI_RX</code> ← GPIO26</td></tr>
+      <tr><td><code>3</code></td><td>GND — broche 6 (ou 9, 14…)</td><td><code>GND</code></td></tr>
+    </table>
+    <p class="muted" style="margin:10px 0 0">
+      Croisé (TX d'un côté → RX de l'autre), 3,3 V des deux côtés donc <b>liaison directe, sans adaptateur
+      de niveau</b>. La masse commune n'est pas optionnelle : sans elle les niveaux n'ont pas de référence.
+      Sur la perfboard, J3 se réduit à trois fils soudés dans les trous libres des colonnes
+      <code>GND</code> / <code>D26</code> / <code>D25</code> de la barrette haute.
+    </p>
+
     <h3 style="margin-top:18px">ESP32 — broches utilisées (le reste : barrette non nettée)</h3>
     <table class="netlist">
       <tr><th>Pin</th><th>Net</th><th>Rôle</th></tr>
       <tr><td><code>GPIO16</code></td><td><code>RX</code></td><td>← sortie LM2902 (~2,9 V)</td></tr>
       <tr><td><code>GPIO17</code></td><td><code>TX_DATA</code></td><td>→ 1A du 74AHCT125</td></tr>
       <tr><td><code>GPIO32</code></td><td><code>TX_OE</code></td><td>→ 1/OE (actif bas)</td></tr>
+      <tr><td><code>GPIO25</code></td><td><code>PI_TX</code></td><td>← TXD0 du Pi (broche 8) — RX de <code>Serial1</code></td></tr>
+      <tr><td><code>GPIO26</code></td><td><code>PI_RX</code></td><td>→ RXD0 du Pi (broche 10) — TX de <code>Serial1</code></td></tr>
       <tr><td><code>VIN</code></td><td><code>+5V</code></td><td>alim (PAS l'USB en exploitation)</td></tr>
       <tr><td><code>GND</code></td><td><code>GND</code></td><td>masse commune</td></tr>
     </table>
@@ -318,7 +343,7 @@
     <ul>
       <li><b>Amplis LM2902 inutilisés (B, C, D) — à ne PAS laisser flottants.</b> Câbler chacun en <b>suiveur</b> : <code>IN+ → GND</code> et <code>OUT ↔ IN−</code>. Soit B : <code>5→GND</code>, <code>7↔6</code> · C : <code>10→GND</code>, <code>8↔9</code> · D : <code>12→GND</code>, <code>14↔13</code>. Évite oscillation parasite et conso. <span class="muted">(absent des schémas breadboard — vrai ajout PCB)</span></li>
       <li><b>Gates 74AHCT125 inutilisés (2·3·4)</b> : <code>/OE (4·10·13) → VCC</code>, <code>A (5·9·12) → GND</code>, sorties <code>Y (6·8·11)</code> en l'air. Jamais flottantes.</li>
-      <li><b>Réservoir 10 µF (C3)</b> près du VIN ESP32 : absorbe les pics de courant WiFi qui, sinon, bruitent le rail 5 V lu par le comparateur.</li>
+      <li><b>Réservoir 10 µF (C3)</b> près du VIN ESP32 : absorbe les pics de courant du module qui, sinon, bruitent le rail 5 V lu par le comparateur.</li>
       <li><b>Masse : un seul plan/point commun</b>, RJ-12 p5 dessus. La séparation de masse était un suspect du blocage S28.</li>
       <li><b>Étage RX à l'écart du switching/antenne ESP32</b> ; nœud DATA le plus court possible.</li>
     </ul>

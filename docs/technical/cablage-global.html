@@ -54,7 +54,6 @@
   .swatch { width:18px; height:4px; border-radius:2px; display:inline-block; flex:0 0 auto; }
   .s-sig { background:var(--sig); } .s-out { background:var(--out); }
   .s-pwr { background:var(--power); } .s-gnd { background:var(--gnd); }
-  .s-wifi { background:var(--sig); height:0; border-top:2px dashed var(--sig); }
 
   .schwrap { display:flex; justify-content:center; overflow-x:auto; }
   svg text { font-family:inherit; }
@@ -67,7 +66,6 @@
   .w-out { stroke:var(--out);   stroke-width:2.5; fill:none; }
   .w-pwr { stroke:var(--power); stroke-width:2.5; fill:none; }
   .w-gnd { stroke:var(--gnd);   stroke-width:2.5; fill:none; }
-  .w-wifi{ stroke:var(--sig);   stroke-width:2; fill:none; stroke-dasharray:6 4; }
   .t-sig { fill:var(--sig); font-size:11px; } .t-pwr { fill:var(--power); font-size:11px; }
   .t-gnd { fill:var(--gnd); font-size:11px; } .t-dim { fill:var(--txt-dim); font-size:10.5px; }
   .arrow { fill:var(--txt-dim); }
@@ -101,7 +99,6 @@
   <div class="legend">
     <span><i class="swatch s-pwr"></i> 5 V / alim</span>
     <span><i class="swatch s-sig"></i> signal / data</span>
-    <span><i class="swatch s-wifi"></i> liaison WiFi</span>
     <span><i class="swatch s-gnd"></i> masse commune</span>
   </div>
 
@@ -147,7 +144,7 @@
     <!-- ===== RASPBERRY PI (centre haut) ===== -->
     <rect x="250" y="92" width="190" height="92" class="blk"/>
     <text x="345" y="120" text-anchor="middle" class="blk-title">Raspberry Pi 3 B+</text>
-    <text x="345" y="138" text-anchor="middle" class="blk-sub">backend FastAPI · WiFi</text>
+    <text x="345" y="138" text-anchor="middle" class="blk-sub">backend FastAPI · WiFi (app)</text>
     <text x="345" y="156" text-anchor="middle" class="blk-sub">GPIO : UART0 (réservé pont)</text>
     <text x="345" y="173" text-anchor="middle" class="blk-tag" fill="var(--sig)">fournit le 3,3 V</text>
     <!-- Alim Pi -> Pi -->
@@ -159,14 +156,14 @@
     <a href="cablage-pont-esp32.html">
       <rect x="520" y="92" width="170" height="92" class="blk"/>
       <text x="605" y="118" text-anchor="middle" class="blk-title">Pont ESP32</text>
-      <text x="605" y="136" text-anchor="middle" class="blk-sub">WiFi STA · TCP :2000</text>
+      <text x="605" y="136" text-anchor="middle" class="blk-sub">Serial1 ↔ Serial2 · 19200 8N2</text>
       <text x="605" y="152" text-anchor="middle" class="blk-sub">Serial2 G16/17 · OE G32</text>
       <text x="605" y="170" text-anchor="middle" class="blk-tag" fill="var(--ok)">✓ pont · <tspan fill="var(--wip)">🔬 OE</tspan></text>
     </a>
-    <!-- Pi <-> ESP32 WiFi -->
-    <path d="M440 124 L520 124" class="w-wifi" marker-end="url(#ah)"/>
-    <path d="M520 138 L440 138" class="w-wifi" marker-end="url(#ah)"/>
-    <text x="448" y="112" class="t-sig">WiFi 192.168.1.200:2000</text>
+    <!-- Pi <-> ESP32 : liaison série filaire 3 fils -->
+    <path d="M440 124 L520 124" class="w-sig" marker-end="url(#ah)"/>
+    <path d="M520 138 L440 138" class="w-sig" marker-end="url(#ah)"/>
+    <text x="448" y="112" class="t-sig">série 3 fils · /dev/ttyAMA0</text>
     <!-- Rail 5V -> ESP32 VCC -->
     <path d="M160 301 L210 301 L210 200 L605 200 L605 184" class="w-pwr" marker-end="url(#ah)"/>
     <text x="300" y="215" class="t-pwr">rail 5 V → ESP32 (VIN)</text>
@@ -224,7 +221,7 @@
     </a>
     <a class="card" href="cablage-pont-esp32.html">
       <div class="ct">② Pont ESP32 <span class="badge mix">◆ mixte</span></div>
-      <div class="cd">STA WiFi / TCP:2000, Serial2 GPIO16/17 + GPIO32 (/OE), rôles firmware (relais, écho, turnaround).</div>
+      <div class="cd">liaison série 3 fils vers le Pi (GPIO25/26), Serial2 GPIO16/17 + GPIO32 (/OE), rôles firmware (relais, écho, turnaround).</div>
     </a>
     <a class="card" href="cablage-interface-aux.html">
       <div class="ct">③ Interface bus AUX <span class="badge mix">◆ mixte</span></div>
