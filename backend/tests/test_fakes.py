@@ -6,7 +6,6 @@ import pytest
 
 from astro_brain.bus import StateBus
 from astro_brain.services.fakes import (
-    FakeGps,
     FakeMount,
     FakeNetwork,
     FakeSystemInfo,
@@ -54,18 +53,6 @@ async def test_fake_tracking_publishes_state() -> None:
     assert bus.get_full_state().subsystems["tracking"].state == "sidereal"
     await tracking.set_tracking(False)
     assert bus.get_full_state().subsystems["tracking"].state == "off"
-
-
-async def test_fake_gps_produces_fix_on_start() -> None:
-    bus = StateBus()
-    gps = FakeGps(bus, initial_state="fix_3d", lat=48.85, lon=2.35, sats=8)
-    await gps.start()
-    s = bus.get_full_state().subsystems["gps"]
-    assert s.state == "fix_3d"
-    assert s.details["lat"] == 48.85
-    assert s.details["lon"] == 2.35
-    assert s.details["satellites"] == 8
-    await gps.stop()
 
 
 async def test_fake_network_publishes_client_by_default() -> None:

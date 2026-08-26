@@ -227,7 +227,7 @@ async def get_visible_stars(
 ) -> dict[str, Any]:
     """Étoiles d'alignement actuellement pointables, groupées par constellation.
 
-    Requiert une position connue (GPS ou client) — 409 sinon.
+    Requiert un site d'observation réglé — 409 sinon.
     """
     obs = position.observer()
     if obs is None:

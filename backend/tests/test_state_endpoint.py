@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from astro_brain.bus import StateBus
 from astro_brain.routes.state import router
-from astro_brain.services.fakes import FakeGps, FakeMount
+from astro_brain.services.fakes import FakeMount, FakeNetwork
 
 
 @dataclass
@@ -42,12 +42,12 @@ def test_state_empty_bus(harness: Harness) -> None:
 
 async def test_state_after_publishes(harness: Harness) -> None:
     mount = FakeMount(harness.bus)
-    gps = FakeGps(harness.bus)
+    network = FakeNetwork(harness.bus)
     await mount.start()
-    await gps.start()
+    await network.start()
     r = harness.client.get("/state")
     body = r.json()
     assert body["overall"] == "green"
     assert body["subsystems"]["mount"]["state"] == "ready"
-    assert body["subsystems"]["gps"]["state"] == "fix_3d"
+    assert body["subsystems"]["network"]["state"] == "client"
     assert body["seq"] == 2

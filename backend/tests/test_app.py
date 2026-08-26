@@ -21,7 +21,7 @@ def test_app_starts_with_fakes_and_state_endpoint_responds() -> None:
         assert response.status_code == 200
         body = response.json()
         assert body["subsystems"]["mount"]["state"] == "ready"
-        assert body["subsystems"]["gps"]["state"] == "fix_3d"
+        assert body["subsystems"]["network"]["state"] == "client"
 
 
 def test_app_slew_and_stop_flow_end_to_end() -> None:

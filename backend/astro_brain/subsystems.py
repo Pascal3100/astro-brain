@@ -18,16 +18,6 @@ class MountState(StrEnum):
     ERROR = "error"
 
 
-class GpsState(StrEnum):
-    """GPS receiver state."""
-
-    OFF = "off"
-    NO_FIX = "no_fix"
-    SEARCHING = "searching"
-    FIX_2D = "fix_2d"
-    FIX_3D = "fix_3d"
-
-
 class TrackingState(StrEnum):
     """Sidereal tracking state."""
 

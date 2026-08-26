@@ -13,7 +13,6 @@ In v0.1 the only critical subsystem is ``mount``.
 from __future__ import annotations
 
 from astro_brain.subsystems import (
-    GpsState,
     MountState,
     NetworkState,
     SubsystemState,
@@ -27,13 +26,9 @@ CRITICAL_SUBSYSTEMS: frozenset[str] = frozenset({"mount"})
 FATAL_STATES: frozenset[str] = frozenset(
     {MountState.DISCONNECTED.value, MountState.ERROR.value}
 )
-TRANSIENT_STATES: frozenset[str] = frozenset(
-    {MountState.CONNECTING.value, GpsState.SEARCHING.value}
-)
+TRANSIENT_STATES: frozenset[str] = frozenset({MountState.CONNECTING.value})
 DEGRADED_STATES: frozenset[str] = frozenset(
     {
-        GpsState.NO_FIX.value,
-        GpsState.OFF.value,
         SystemInfoState.WARNING.value,
         SystemInfoState.CRITICAL.value,
         NetworkState.OFFLINE.value,

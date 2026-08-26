@@ -18,7 +18,6 @@ from astro_brain.bus import StateBus
 from astro_brain.services.interfaces import (
     Axis,
     Direction,
-    GpsFix,
     SensorUnavailableError,
 )
 from astro_brain.subsystems import SubsystemState
@@ -201,56 +200,6 @@ class FakeTracking:
     async def set_tracking(self, enabled: bool) -> None:
         value = "sidereal" if enabled else "off"
         self._bus.publish("tracking", SubsystemState(state=value, since=_now()))
-
-
-class FakeGps:
-    """Programmable GPS — publishes a synthetic fix on :meth:`start`."""
-
-    def __init__(
-        self,
-        bus: StateBus,
-        *,
-        initial_state: str = "fix_3d",
-        lat: float = 48.8566,
-        lon: float = 2.3522,
-        altitude_m: float = 45.0,
-        sats: int = 8,
-        hdop: float = 0.9,
-    ) -> None:
-        self._bus = bus
-        self._initial_state = initial_state
-        self._details: dict[str, Any] = {
-            "lat": lat,
-            "lon": lon,
-            "altitude_m": altitude_m,
-            "satellites": sats,
-            "satellites_visible": sats,
-            "hdop": hdop,
-        }
-
-    async def start(self) -> None:
-        self._bus.publish(
-            "gps",
-            SubsystemState(
-                state=self._initial_state,
-                details=dict(self._details),
-                since=_now(),
-            ),
-        )
-
-    async def stop(self) -> None:
-        self._bus.publish("gps", SubsystemState(state="off", since=_now()))
-
-    def latest_fix(self) -> GpsFix | None:
-        """Return the constructor-injected fix, honoring ``initial_state``."""
-        if self._initial_state not in ("fix_2d", "fix_3d"):
-            return None
-        return GpsFix(
-            lat=self._details["lat"],
-            lon=self._details["lon"],
-            timestamp=_now(),
-            is_3d=self._initial_state == "fix_3d",
-        )
 
 
 class FakeNetwork:

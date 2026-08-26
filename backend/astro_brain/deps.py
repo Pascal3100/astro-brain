@@ -22,7 +22,6 @@ from astro_brain.bus import StateBus
 from astro_brain.services.interfaces import (
     AlignmentService,
     CalibrationService,
-    GpsService,
     MountService,
     NetworkService,
     SystemInfoService,
@@ -40,10 +39,6 @@ def get_mount(request: Request) -> MountService:
 
 def get_tracking(request: Request) -> TrackingService:
     return request.app.state.tracking
-
-
-def get_gps(request: Request) -> GpsService:
-    return request.app.state.gps
 
 
 def get_network(request: Request) -> NetworkService:
@@ -75,7 +70,7 @@ def get_alignment_service(request: Request) -> AlignmentService:
 
 
 def get_position_provider(request: Request) -> Any:
-    """Fournit le provider de position (fix Pi → téléphone → None)."""
+    """Fournit le provider de position (site d'observation persisté → None)."""
     return request.app.state.position_provider
 
 

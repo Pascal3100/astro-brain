@@ -27,7 +27,7 @@ import aiosqlite
 from fastapi import FastAPI
 
 from astro_brain.alignment_invalidator import AlignmentInvalidator
-from astro_brain.bus import StateBus, iter_state_snapshots
+from astro_brain.bus import StateBus
 from astro_brain.mount_connection_supervisor import MountConnectionSupervisor
 from astro_brain.orchestrator import Orchestrator
 from astro_brain.repository import alignment_repo, site_repo
@@ -64,16 +64,14 @@ from astro_brain.services.catalog.providers import (
 from astro_brain.services.catalog.reference_catalog import ReferenceCatalog
 from astro_brain.services.catalog.resolver import TargetResolver
 from astro_brain.services.fakes import (
-    FakeGps,
     FakeMount,
     FakeNetwork,
     FakeSystemInfo,
     FakeTracking,
     make_fake_calibration_adapters,
 )
-from astro_brain.services.interfaces import GpsSource
 from astro_brain.services.reference.sync import ReferenceSync
-from astro_brain.subsystems import GpsState, SubsystemState
+from astro_brain.subsystems import SubsystemState
 
 logger = logging.getLogger(__name__)
 
@@ -93,17 +91,15 @@ async def _boot_reference_sync(reference_sync: ReferenceSync) -> None:
 
 
 class _AlignmentSensorsBridge:
-    """Adapts the typed GPS source + observer position to the duck-typed
-    `sensors` interface AlignmentServiceImpl expects (`gps_fix`,
-    `sky_az_alt_for`).
+    """Expose la position d'observation sous l'interface duck-typée
+    (`position`, `sky_az_alt_for`) qu'attend AlignmentServiceImpl.
 
-    Chaîne de position : fix GPS Pi → site d'observation persisté → None.
-    Le site est semé au boot depuis ``observing_site`` et réécrit à chaud par
-    ``PUT /site``. Plus de fallback codé en dur.
+    Chaîne de position : site d'observation persisté → None. Le site est semé
+    au boot depuis ``observing_site`` et réécrit à chaud par ``PUT /site``.
+    Plus de fix GPS local, plus de fallback codé en dur.
     """
 
-    def __init__(self, gps: GpsSource) -> None:
-        self._gps = gps
+    def __init__(self) -> None:
         self._site: tuple[float, float] | None = None
 
     def set_site(self, lat: float, lon: float) -> None:
@@ -118,15 +114,9 @@ class _AlignmentSensorsBridge:
         """Return the in-memory copy of the persisted observing site."""
         return self._site
 
-    def gps_fix(self) -> tuple[float, float] | None:
-        fix = self._gps.latest_fix()
-        if fix is None or not fix.is_3d:
-            return None
-        return (fix.lat, fix.lon)
-
     def position(self) -> tuple[float, float] | None:
-        """Return the best available position: Pi GPS fix, then site, then None."""
-        return self.gps_fix() or self._site
+        """Return the observing site position, or ``None`` if never set."""
+        return self._site
 
     def observer(self) -> Observer | None:
         pos = self.position()
@@ -143,36 +133,9 @@ class _AlignmentSensorsBridge:
         )
 
 
-async def _rehydrate_alignment_once(
-    bus: StateBus, alignment: AlignmentServiceImpl
-) -> None:
-    """Re-sème ``is_aligned`` depuis le modèle persisté au 1er fix GPS (one-shot).
-
-    ``alignment_repo.load`` (via ``alignment.rehydrate``) exige un fix GPS
-    courant pour sa garde ΔGPS ; on attend donc le premier fix sur le bus avant
-    de tenter une réhydratation unique. Si un modèle valide est restauré, on
-    republie le sous-système ``alignment`` pour que les clients SSE voient
-    ``is_aligned=True``. La coroutine se termine d'elle-même après le 1er fix.
-    """
-    async for subsystems in iter_state_snapshots(bus):
-        gps = subsystems.get("gps")
-        if gps is not None and gps.state == GpsState.FIX_3D.value:
-            if await alignment.rehydrate():
-                bus.publish(
-                    "alignment",
-                    SubsystemState(
-                        state="idle",
-                        details={"is_aligned": True},
-                        since=datetime.now(UTC),
-                    ),
-                )
-            return
-
-
 def _select_services(bus: StateBus, *, use_hardware: bool) -> dict[str, Any]:
-    """Return the five services plus the LIS3MDL adapter, either fakes or real hardware."""
+    """Return the four services plus the LIS3MDL adapter, either fakes or real hardware."""
     if use_hardware:
-        from astro_brain.adapters.gpsd_adapter import GpsdAdapter
         from astro_brain.adapters.lis3mdl_adapter import Lis3mdlAdapter
         from astro_brain.adapters.mount_indi_adapter import MountIndiAdapter
         from astro_brain.adapters.network_info import NetworkInfoAdapter
@@ -183,7 +146,6 @@ def _select_services(bus: StateBus, *, use_hardware: bool) -> dict[str, Any]:
         # as the tracking service so ``/tracking`` drives real hardware.
         return {
             "mount": mount,
-            "gps": GpsdAdapter(bus),
             "network": NetworkInfoAdapter(bus),
             "system": SystemInfoAdapter(bus),
             "tracking": mount,
@@ -192,7 +154,6 @@ def _select_services(bus: StateBus, *, use_hardware: bool) -> dict[str, Any]:
     fake_lis3mdl = make_fake_calibration_adapters()
     return {
         "mount": FakeMount(bus),
-        "gps": FakeGps(bus),
         "network": FakeNetwork(bus),
         "system": FakeSystemInfo(bus),
         "tracking": FakeTracking(bus),
@@ -286,7 +247,7 @@ def build_app(
 
         _app.state.lazy_lis3mdl = _LazySensor(services["lis3mdl"])
 
-        sensors_bridge = _AlignmentSensorsBridge(services["gps"])
+        sensors_bridge = _AlignmentSensorsBridge()
         stored_site = await site_repo.get_site(db_conn)
         if stored_site is not None:
             sensors_bridge.set_site(stored_site.lat, stored_site.lon)
@@ -319,15 +280,20 @@ def build_app(
         background_tasks.append(
             asyncio.create_task(invalidator.run(), name="alignment-invalidator")
         )
-        background_tasks.append(
-            asyncio.create_task(
-                _rehydrate_alignment_once(bus, _app.state.alignment),
-                name="alignment-rehydrate",
+        # Le site étant déjà semé depuis SQLite, la garde ΔGPS de
+        # ``alignment_repo.load`` est évaluable dès le boot : plus besoin
+        # d'attendre un fix, on réhydrate directement.
+        if await _app.state.alignment.rehydrate():
+            bus.publish(
+                "alignment",
+                SubsystemState(
+                    state="idle",
+                    details={"is_aligned": True},
+                    since=datetime.now(UTC),
+                ),
             )
-        )
 
         await services["mount"].start()
-        await services["gps"].start()
         await services["network"].start()
         await services["system"].start()
 
@@ -352,7 +318,6 @@ def build_app(
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
             await services["mount"].stop()
-            await services["gps"].stop()
             await services["network"].stop()
             await services["system"].stop()
             await reference_db.close()
@@ -362,7 +327,6 @@ def build_app(
     app.state.bus = bus
     app.state.mount = services["mount"]
     app.state.tracking = services["tracking"]
-    app.state.gps = services["gps"]
     app.state.network = services["network"]
     app.state.system_info = services["system"]
     app.include_router(about_router)

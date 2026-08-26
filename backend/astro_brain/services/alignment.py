@@ -60,17 +60,17 @@ class AlignmentServiceImpl:
         encore valide.
 
         Source de vérité = ``alignment_repo.load`` avec ses garde-fous de
-        fraîcheur (Δt > 12 h / déplacement GPS > 20 m). Best-effort et
+        fraîcheur (Δt > 12 h / déplacement du site > 20 m). Best-effort et
         idempotent : ne met ``is_aligned`` qu'à ``True``. L'invalidation reste
-        le rôle de :class:`AlignmentInvalidator`. Sans fix GPS courant,
-        ``load()`` renvoie ``None`` → pas de restauration. Ne touche jamais une
-        session wizard en cours.
+        le rôle de :class:`AlignmentInvalidator`. Sans site d'observation
+        réglé, ``load()`` renvoie ``None`` → pas de restauration. Ne touche
+        jamais une session wizard en cours.
 
         Renvoie ``True`` si un modèle valide a été restauré.
         """
         if self._session is not None:
             return False
-        current_gps = self._sensors.gps_fix() if self._sensors else None
+        current_gps = self._sensors.position() if self._sensors else None
         model = await self._repo_load(
             self._db, now_utc=self._now(), current_gps=current_gps
         )
@@ -148,12 +148,13 @@ class AlignmentServiceImpl:
 
         model = compute_alignment(sess.recorded_stars)
 
-        gps = self._sensors.gps_fix() if self._sensors else None
+        # Clés `gps_*` : noms de colonnes historiques, la valeur est le site.
+        site = self._sensors.position() if self._sensors else None
         model = model.model_copy(
             update={
                 "validated_at_utc": self._now(),
-                "gps_lat": gps[0] if gps else None,
-                "gps_lon": gps[1] if gps else None,
+                "gps_lat": site[0] if site else None,
+                "gps_lon": site[1] if site else None,
             }
         )
         await self._repo_save(self._db, model)

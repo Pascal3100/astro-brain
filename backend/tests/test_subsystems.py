@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from astro_brain.subsystems import (
-    GpsState,
     MountState,
     NetworkState,
     SubsystemState,
@@ -21,16 +20,6 @@ def test_mount_states_exist() -> None:
     assert MountState.READY.value == "ready"
     assert MountState.MOVING.value == "moving"
     assert MountState.ERROR.value == "error"
-
-
-def test_gps_states_exist() -> None:
-    assert {s.value for s in GpsState} == {
-        "off",
-        "no_fix",
-        "searching",
-        "fix_2d",
-        "fix_3d",
-    }
 
 
 def test_tracking_states_exist() -> None:
@@ -69,13 +58,12 @@ def test_subsystem_state_serializable_to_dict() -> None:
     assert d["message"] is None
 
 
-def test_system_state_holds_five_subsystems_and_overall() -> None:
+def test_system_state_holds_four_subsystems_and_overall() -> None:
     now = datetime(2026, 4, 17, 20, 30, 0, tzinfo=UTC)
     state = SystemState(
         overall="green",
         subsystems={
             "mount": SubsystemState(state="ready", since=now),
-            "gps": SubsystemState(state="fix_3d", since=now),
             "tracking": SubsystemState(state="off", since=now),
             "network": SubsystemState(state="client", since=now),
             "system": SubsystemState(state="ok", since=now),
@@ -84,7 +72,7 @@ def test_system_state_holds_five_subsystems_and_overall() -> None:
         ts=now,
     )
     assert state.overall == "green"
-    assert set(state.subsystems) == {"mount", "gps", "tracking", "network", "system"}
+    assert set(state.subsystems) == {"mount", "tracking", "network", "system"}
 
 
 def test_system_state_to_dict_includes_all_fields() -> None:

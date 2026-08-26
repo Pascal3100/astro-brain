@@ -32,7 +32,7 @@ def _build_service(
     mount = MagicMock(spec=MountService)
     mount.current_position.return_value = (100.0, 50.0)
     sensors = MagicMock()
-    sensors.gps_fix = MagicMock(return_value=(48.8, 2.3))
+    sensors.position = MagicMock(return_value=(48.8, 2.3))
     sensors.sky_az_alt_for = MagicMock(side_effect=lambda s: (s.ra_deg % 360, s.dec_deg))
     repo_save = AsyncMock()
     return AlignmentServiceImpl(
