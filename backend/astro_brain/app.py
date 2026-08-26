@@ -228,7 +228,6 @@ def build_app(
 
     bus = StateBus()
     services = _select_services(bus, use_hardware=use_hardware)
-    orchestrator = Orchestrator(bus=bus, mount=services["mount"], gps=services["gps"])
     reconnect_supervisor = MountConnectionSupervisor(
         bus=bus, mount=services["mount"]
     )
@@ -332,6 +331,11 @@ def build_app(
         await services["network"].start()
         await services["system"].start()
 
+        # Construit ici et non dans `build_app` : l'orchestrateur consomme le
+        # provider de position, lui-même bâti dans ce lifespan.
+        orchestrator = Orchestrator(
+            bus=bus, mount=services["mount"], position=sensors_bridge
+        )
         orch_task = asyncio.create_task(orchestrator.run(), name="orchestrator")
         background_tasks.append(orch_task)
         background_tasks.append(

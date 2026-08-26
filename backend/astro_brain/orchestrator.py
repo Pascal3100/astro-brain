@@ -1,39 +1,60 @@
-"""Boot orchestrator: syncs the mount with GPS + time when both are ready.
+"""Boot orchestrator: pousse le site d'observation et l'heure à la monture.
 
-Listens on the :class:`StateBus` and, when the mount reports ``ready`` AND
-the GPS reports a fix (``fix_2d`` or ``fix_3d``), calls
-:meth:`MountService.set_time` + :meth:`MountService.set_location` exactly
-once. If either dependency transitions away from the ready state, the
-orchestrator rearms so the next co-occurrence triggers a fresh sync
-(edge-triggered, not level-triggered).
+Écoute la :class:`StateBus` et, dès que la monture rapporte ``ready``, appelle
+:meth:`MountService.set_location` (si un site est connu) et
+:meth:`MountService.set_time` (si l'horloge est fiable) une seule fois. Si la
+monture quitte l'état ``ready``, l'orchestrateur se réarme pour que la
+prochaine occurrence déclenche une nouvelle sync (edge-triggered).
 
-The sync *trigger* still watches the bus's ``gps`` health state (a
-legitimate health event), but the lat/lon it applies come from the typed
-:class:`~astro_brain.services.interfaces.GpsSource` rather than the bus
-``details`` dict — the bus stays dedicated to health/display.
+Deux gardes, chacune indépendante :
+
+* **position** — elle vient du provider de position (site d'observation
+  persisté), plus d'un fix GPS. Pas de site connu ⇒ pas de ``set_location``.
+* **heure** — elle a toujours été l'heure NTP du Pi, jamais celle du GPS. Elle
+  n'est poussée que si :func:`is_clock_synced` le confirme : sans réseau,
+  ``fake-hwclock`` restitue l'heure du dernier arrêt (cf. ADR 2026-08-26).
+
+Tant qu'aucune des deux poussées n'a eu lieu, l'orchestrateur reste armé : une
+horloge qui se synchronise après le boot déclenche la sync au prochain
+événement de bus.
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Protocol
 
+from astro_brain.adapters.clock_sync import is_clock_synced
 from astro_brain.bus import StateBus, iter_state_snapshots
-from astro_brain.services.interfaces import GpsSource, MountService
-from astro_brain.subsystems import GpsState, MountState, SubsystemState
+from astro_brain.services.interfaces import MountService
+from astro_brain.subsystems import MountState, SubsystemState
 
 logger = logging.getLogger(__name__)
 
-GPS_FIX_STATES = frozenset({GpsState.FIX_2D.value, GpsState.FIX_3D.value})
+
+class PositionProvider(Protocol):
+    """Source de la position d'observation (site persisté)."""
+
+    def position(self) -> tuple[float, float] | None: ...
 
 
 class Orchestrator:
-    """Watches the bus and syncs the mount on the first mount+gps co-occurrence."""
+    """Watches the bus and syncs the mount the first time it reports ready."""
 
-    def __init__(self, *, bus: StateBus, mount: MountService, gps: GpsSource) -> None:
+    def __init__(
+        self,
+        *,
+        bus: StateBus,
+        mount: MountService,
+        position: PositionProvider,
+        clock_synced: Callable[[], bool] = is_clock_synced,
+    ) -> None:
         self._bus = bus
         self._mount = mount
-        self._gps = gps
+        self._position = position
+        self._clock_synced = clock_synced
         self._synced = False
 
     async def run(self) -> None:
@@ -43,34 +64,41 @@ class Orchestrator:
 
     async def _maybe_sync(self, subsystems: dict[str, SubsystemState]) -> None:
         mount_s = subsystems.get("mount")
-        gps_s = subsystems.get("gps")
-        if mount_s is None or gps_s is None:
+        if mount_s is None:
             return
 
-        conditions_met = (
-            mount_s.state == MountState.READY.value
-            and gps_s.state in GPS_FIX_STATES
-        )
-        if not conditions_met:
+        if mount_s.state != MountState.READY.value:
             if self._synced:
-                logger.info("orchestrator: sync conditions lost, rearmed")
+                logger.info("orchestrator: monture non prête, réarmé")
             self._synced = False
             return
         if self._synced:
             return
 
-        fix = self._gps.latest_fix()
-        if fix is None:
-            return
-        lat, lon = fix.lat, fix.lon
+        pushed = False
 
-        now_iso = datetime.now(UTC).isoformat()
-        logger.info(
-            "orchestrator: syncing mount (time=%s, lat=%s, lon=%s)",
-            now_iso,
-            lat,
-            lon,
-        )
-        await self._mount.set_time(now_iso)
-        await self._mount.set_location(lat, lon)
-        self._synced = True
+        pos = self._position.position()
+        if pos is None:
+            logger.info(
+                "orchestrator: aucun site d'observation connu — position NON poussée"
+            )
+        else:
+            lat, lon = pos
+            logger.info("orchestrator: syncing location (lat=%s, lon=%s)", lat, lon)
+            await self._mount.set_location(lat, lon)
+            pushed = True
+
+        if self._clock_synced():
+            now_iso = datetime.now(UTC).isoformat()
+            logger.info("orchestrator: syncing time (time=%s)", now_iso)
+            await self._mount.set_time(now_iso)
+            pushed = True
+        else:
+            logger.warning(
+                "orchestrator: horloge non synchronisée — heure NON poussée "
+                "vers la monture"
+            )
+
+        # Rester armé tant que rien n'est passé : l'horloge peut se
+        # synchroniser, ou un site être réglé, après le passage en ready.
+        self._synced = pushed

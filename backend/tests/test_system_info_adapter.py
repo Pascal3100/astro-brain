@@ -34,3 +34,25 @@ def test_compute_state_critical_above_crit_temp() -> None:
 def test_compute_state_critical_trumps_load() -> None:
     # critical temp wins even when load is high
     assert compute_state(cpu_temp_c=CRIT_TEMP_C + 5, cpu_load=10.0) == "critical"
+
+
+def test_publish_includes_clock_synced(monkeypatch) -> None:
+    """`clock_synced` sort dans les détails, sans peser sur l'état système.
+
+    Une horloge non synchronisée est légitime hors réseau : elle informe
+    l'app et bloque la poussée d'heure, elle ne dégrade pas `system`.
+    """
+    from astro_brain.adapters import system_info
+    from astro_brain.bus import StateBus
+
+    monkeypatch.setattr(system_info, "_read_temp_c", lambda: 45.0)
+    monkeypatch.setattr(system_info, "_read_loadavg_1min", lambda: 0.2)
+    monkeypatch.setattr(system_info, "_read_uptime_s", lambda: 1234)
+    monkeypatch.setattr(system_info, "is_clock_synced", lambda: False)
+
+    bus = StateBus()
+    system_info.SystemInfoAdapter(bus)._publish_current()
+
+    published = bus.get_full_state().subsystems["system"]
+    assert published.details["clock_synced"] is False
+    assert published.state == "ok"

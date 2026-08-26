@@ -7,6 +7,11 @@ Designed for a Raspberry Pi running Pi OS. On boot and every
     /proc/uptime                           (seconds since boot, float)
     /proc/loadavg                          (1-minute load avg, first field)
 
+Il expose aussi ``clock_synced`` (cf. :mod:`astro_brain.adapters.clock_sync`),
+qui ne pèse **pas** sur ``compute_state`` : une horloge non synchronisée est
+légitime hors réseau, ce n'est pas une alerte système. C'est une information
+que l'app affiche, et sur laquelle l'orchestrateur refuse de pousser l'heure.
+
 It then publishes a ``"system"`` :class:`~astro_brain.subsystems.SubsystemState`
 on the :class:`~astro_brain.bus.StateBus`. The state enum follows the
 thresholds defined below (``ok`` → ``warning`` → ``critical``).
@@ -20,6 +25,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from astro_brain.adapters.clock_sync import is_clock_synced
 from astro_brain.bus import StateBus
 from astro_brain.subsystems import SubsystemState
 
@@ -92,6 +98,7 @@ class SystemInfoAdapter:
             "cpu_temp_c": temp,
             "cpu_load": load,
             "uptime_s": uptime,
+            "clock_synced": is_clock_synced(),
         }
         self._last_details = details
         self._bus.publish(
