@@ -1,9 +1,9 @@
-// esp32-aux-bridge — pont WiFi (station) <-> UART single-wire pour bus Celestron AUX
+// esp32-aux-bridge — relais série (Pi) <-> UART single-wire du bus Celestron AUX
 //
-// Le driver indi_celestron_aux parle le protocole AUX binaire à travers une
-// socket TCP (mode "Celestron WiFi", port 2000). Ce pont transporte les octets
-// dans les deux sens entre TCP et le bus AUX (Serial2), avec DEUX rôles actifs
-// que la version transparente n'avait pas (cf. journal S29->S35) :
+// Le driver indi_celestron_aux parle le protocole AUX binaire sur un port série
+// (mode "Serial", PORT_TYPE = AUX_PC). Ce pont transporte les octets dans les
+// deux sens entre le Pi (Serial1) et le bus AUX (Serial2), avec DEUX rôles
+// actifs que la version transparente n'avait pas (cf. journal S29->S36) :
 //
 //   1. TURNAROUND HALF-DUPLEX PILOTÉ (/OE) — le bus est single-wire : on ne peut
 //      pas piloter et écouter en même temps. Le buffer tri-state 74AHCT125 est
@@ -18,21 +18,30 @@
 //      de façon synchrone et bornée : le driver ne voit QUE la vraie réponse.
 //      (Sinon : GET_VER "écho seul", la monture semble muette — blocage S27->S31.)
 //
-//   3. ROBUSTESSE WiFi — reconnexion événementielle + watchdog reboot (sort de
-//      l'état "zombie jusqu'au power-cycle" observé S29/S30) + fermeture des
-//      sockets morts pour que le driver puisse toujours se reconnecter.
+// 🔴 NE PAS "SIMPLIFIER" LA SÉQUENCE /OE NI LE DRAIN D'ÉCHO. En particulier :
+//    aucune garde après Serial2.flush() (le moteur répond dès la fin du flush —
+//    fix S36, obtenu en quatre sessions), et le drain lit EXACTEMENT N octets,
+//    borné par ECHO_DRAIN_MS. Toute retouche ici est une régression jusqu'à
+//    preuve du contraire sur le banc.
 //
-// Câblage (cf. docs/technical/cablage-interface-aux.html) :
-//   TX — buffer tri-state 74AHCT125 @5V, drive push-pull :
-//     GPIO17 -> 1A (pin 2, entrée gate)   |   GPIO32 -> /OE (pin 1, actif bas)
-//     1Y (pin 3) -> 470 Ω -> DATA (RJ-12 br.4)
-//   RX — comparateur LM2902 @5V (haute-Z, renifle DATA sans le charger) :
-//     sortie ramenée à ~2,9 V -> GPIO16
-//   GND -> br.5   |   +12V (br.3) : NE JAMAIS connecter
-
-#include <WiFi.h>
-#include <ArduinoOTA.h>   // flash par WiFi (OTA) : plus besoin de débrancher pour reflasher
-#include "secrets.h"   // WIFI_SSID, WIFI_PASS — fichier hors repo (gitignore)
+// Le WiFi/TCP a été retiré le 2026-08-26 (ADR « Pont ESP32 relié au Pi en série
+// filaire ») : il reliait deux cartes distantes de 10 cm en passant par la box,
+// et son tcpReadResponse() côté driver renvoyait TOUJOURS true — une absence de
+// réponse passait pour un succès. Le lien série restaure la détection d'erreur.
+// Point de retour : tag git `firmware-wifi-final`.
+//
+// Câblage :
+//   Pi (cf. docs/technical/hardware.md) — 3 fils, masse commune OBLIGATOIRE :
+//     Pi GPIO14/TXD0 (br.8)  -> GPIO25 (RX de Serial1)
+//     GPIO26 (TX de Serial1) -> Pi GPIO15/RXD0 (br.10)
+//     GND <-> GND   |   19200 8N2 des deux côtés
+//   Bus AUX (cf. docs/technical/cablage-interface-aux.html) :
+//     TX — buffer tri-state 74AHCT125 @5V, drive push-pull :
+//       GPIO17 -> 1A (pin 2, entrée gate)   |   GPIO32 -> /OE (pin 1, actif bas)
+//       1Y (pin 3) -> 470 Ω -> DATA (RJ-12 br.4)
+//     RX — comparateur LM2902 @5V (haute-Z, renifle DATA sans le charger) :
+//       sortie ramenée à ~2,9 V -> GPIO16
+//     GND -> br.5   |   +12V (br.3) : NE JAMAIS connecter
 
 // ---- Drapeau diagnostic (cf. S33) ----
 // 1 = normal : suppression d'écho half-duplex (drain de N octets après émission).
@@ -48,71 +57,31 @@ constexpr int      AUX_TX_PIN = 17;     // attaque 1A du 74AHCT125
 constexpr int      AUX_OE_PIN = 32;     // /OE du 74AHCT125 (actif bas)
 constexpr uint32_t AUX_BAUD   = 19200;  // bus Celestron : 19200 8N2
 
+// ---- Lien série vers le Pi (Serial1) ----
+// GPIO25/26 : libres dans la netlist (hardware/aux-bridge/aux-bridge.net),
+// ni broches de strapping (0, 2, 12, 15) ni entrées seules (34-39), adjacentes
+// sur le connecteur. La vitesse est imposée par le driver INDI, qui configure
+// son port aux paramètres du bus (setDefaultBaudRate(B_19200)) : le pont relaie
+// à la même cadence des deux côtés, aucun tampon d'adaptation de débit.
+constexpr int      PI_RX_PIN = 25;      // <- TX du Pi (GPIO14)
+constexpr int      PI_TX_PIN = 26;      // -> RX du Pi (GPIO15)
+constexpr uint32_t PI_BAUD   = 19200;   // 8N2, comme le bus
+
 // /OE est actif bas : LOW = le buffer pilote le bus (TX) ; HIGH = Hi-Z (RX).
 constexpr int OE_DRIVE = LOW;
 constexpr int OE_HIZ   = HIGH;
 
 constexpr uint32_t ECHO_DRAIN_MS = 5;   // garde : au-delà, on cesse d'attendre l'écho
 constexpr uint32_t RX_FRAME_MS   = 20;  // réponse incomplète au-delà -> on abandonne la trame
-constexpr uint32_t TCP_WRITE_MS  = 20;  // pousse le reste d'une écriture courte, borné
-
-// ---- Réseau (station, IP fixe hors plage DHCP) ----
-constexpr uint16_t TCP_PORT = 2000;     // port attendu par le mode "Celestron WiFi"
-IPAddress staIP  (192, 168, 1, 200);
-IPAddress staGW  (192, 168, 1, 254);
-IPAddress staMask(255, 255, 255, 0);
-IPAddress staDNS (192, 168, 1, 254);
-
-// ---- Repli AP si la station échoue (jamais verrouillé / toujours joignable) ----
-const char* AP_SSID = "AstroBrain-AUX";
-const char* AP_PASS = "astrobrain";     // WPA2 : 8 caractères mini
-
-// ---- OTA (flash par WiFi, port 3232) ----
-const char* OTA_HOSTNAME = "astro-brain-aux";
-const char* OTA_PASS     = "astrobrain";   // mot de passe du flash OTA
-
-// ---- Garde-temps ----
-constexpr uint32_t STA_JOIN_MS         = 10000;  // délai d'attente STA au boot avant repli AP
-constexpr uint32_t WIFI_DOWN_REBOOT_MS = 30000;  // STA down > 30s -> ESP.restart() (tue le zombie)
-constexpr uint32_t CLIENT_IDLE_MS      = 60000;  // socket muet > 60s -> close (libère le port)
-
-WiFiServer server(TCP_PORT);
-WiFiClient client;
+constexpr uint32_t WRITE_MS      = 20;  // pousse le reste d'une écriture courte, borné
 
 uint8_t  txFrame[32];         // réassemblage d'une trame AUX avant émission contiguë
 uint8_t  txLen         = 0;   // octets accumulés dans txFrame
 uint16_t txNeed        = 0;   // longueur totale attendue de la trame courante
-uint8_t  rxFrame[32];         // réassemblage d'une trame de réponse avant relais TCP
+uint8_t  rxFrame[32];         // réassemblage d'une trame de réponse avant relais vers le Pi
 uint8_t  rxLen         = 0;   // octets accumulés dans rxFrame
 uint16_t rxNeed        = 0;   // longueur totale attendue de la réponse courante
 uint32_t rxLastByteMs  = 0;   // date du dernier octet reçu (garde RX_FRAME_MS)
-uint32_t lastClientMs  = 0;   // dernière activité du client TCP
-uint32_t wifiDownSince = 0;   // 0 = connecté ; sinon date du décrochage
-bool     apFallback    = false;
-
-void onWiFiEvent(WiFiEvent_t event) {
-  switch (event) {
-    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-      Serial.printf("[wifi] STA up ip=%s\n", WiFi.localIP().toString().c_str());
-      wifiDownSince = 0;
-      break;
-    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
-      Serial.println("[wifi] STA down -> reconnect");
-      WiFi.reconnect();
-      break;
-    default:
-      break;
-  }
-}
-
-void startSTA() {
-  WiFi.mode(WIFI_STA);
-  WiFi.onEvent(onWiFiEvent);
-  WiFi.setAutoReconnect(true);
-  WiFi.setSleep(false);                          // latence : pas de modem sleep
-  WiFi.config(staIP, staGW, staMask, staDNS);    // IP fixe -> pas d'aléa de bail DHCP
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-}
 
 // Émission d'une trame AUX complète avec turnaround half-duplex piloté par /OE.
 // On pilote le bus le temps STRICT de l'émission, on repasse en Hi-Z dès que le
@@ -142,84 +111,29 @@ void busSend(const uint8_t* buf, uint8_t n) {
 }
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(115200);   // USB : traces de debug UNIQUEMENT, jamais le chemin de données
   delay(200);
 
   pinMode(AUX_OE_PIN, OUTPUT);
   digitalWrite(AUX_OE_PIN, OE_HIZ);              // au repos : Hi-Z, on écoute le bus
   Serial2.begin(AUX_BAUD, SERIAL_8N2, AUX_RX_PIN, AUX_TX_PIN);
+  Serial1.begin(PI_BAUD, SERIAL_8N2, PI_RX_PIN, PI_TX_PIN);
 
-  startSTA();
-  uint32_t t0 = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t0 < STA_JOIN_MS) delay(100);
-
-  if (WiFi.status() != WL_CONNECTED) {
-    // station injoignable au boot -> repli AP pour rester accessible (debug / SSID changé)
-    apFallback = true;
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP(AP_SSID, AP_PASS);
-    Serial.printf("[wifi] repli AP=%s ip=%s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
-  }
-
-  // --- OTA : flash par WiFi (port 3232), plus besoin de débrancher pour reflasher ---
-  ArduinoOTA.setHostname(OTA_HOSTNAME);
-  ArduinoOTA.setPassword(OTA_PASS);
-  ArduinoOTA.onStart([]() { Serial.println("[ota] début maj"); });
-  ArduinoOTA.onEnd([]()   { Serial.println("[ota] fin -> reboot"); });
-  ArduinoOTA.onError([](ota_error_t e) { Serial.printf("[ota] erreur %u\n", e); });
-  ArduinoOTA.begin();
-  Serial.printf("[ota] prêt host=%s.local port=3232\n", OTA_HOSTNAME);
-
-  server.begin();
-  server.setNoDelay(true);
-  Serial.printf("[bridge] tcp=%u baud=%lu 8N2 — prêt\n", TCP_PORT, (unsigned long)AUX_BAUD);
+  Serial.printf("[bridge] série Pi rx=%d tx=%d baud=%lu 8N2 — prêt\n",
+                PI_RX_PIN, PI_TX_PIN, (unsigned long)PI_BAUD);
 }
 
 void loop() {
   uint32_t now = millis();
 
-  ArduinoOTA.handle();   // écoute une éventuelle maj WiFi (quasi gratuit hors flash)
-
-  // --- watchdog connectivité (station uniquement) : sort du zombie en rebootant ---
-  if (!apFallback) {
-    if (WiFi.status() == WL_CONNECTED) {
-      wifiDownSince = 0;
-    } else if (wifiDownSince == 0) {
-      wifiDownSince = now;
-    } else if (now - wifiDownSince > WIFI_DOWN_REBOOT_MS) {
-      Serial.println("[wifi] down >30s -> restart");
-      delay(50);
-      ESP.restart();
-    }
-  }
-
-  // --- accueil d'un client TCP (un seul suffit au driver) ---
-  if (!client || !client.connected()) {
-    WiFiClient c = server.available();
-    if (c) {
-      client = c;
-      client.setNoDelay(true);     // trames AUX minuscules : envoi immédiat (pas de Nagle)
-      lastClientMs = now;
-      txLen = 0; txNeed = 0;        // nouveau dialogue -> on repart propre
-      rxLen = 0; rxNeed = 0;
-      Serial.println("[tcp] client connecté");
-    }
-  }
-
-  // socket zombie (Pi qui décroche) : muet trop longtemps -> on ferme pour libérer le port
-  if (client && client.connected() && now - lastClientMs > CLIENT_IDLE_MS) {
-    Serial.println("[tcp] client inactif -> close");
-    client.stop();
-  }
-
-  // --- TCP -> bus AUX : on RÉASSEMBLE la trame AUX complète puis on l'émet via
+  // --- Pi -> bus AUX : on RÉASSEMBLE la trame AUX complète puis on l'émet via
   //     busSend() (émission contiguë + turnaround /OE + drain d'écho).
-  //     La fragmentation TCP/WiFi créait des trous inter-octets -> le moteur
-  //     jetait la trame (timeout), alors qu'un UART lit quand même -> écho
-  //     parfait mais réponse absente (blocage tranché S33). ---
-  while (client && client.available()) {
-    uint8_t b = client.read();
-    lastClientMs = now;
+  //     Le lien est fiable mais reste orienté octets, et le retournement /OE
+  //     exige d'écrire une trame ENTIÈRE en une seule prise de bus : des trous
+  //     inter-octets font jeter la trame par le moteur (timeout), alors qu'un
+  //     UART lit quand même -> écho parfait mais réponse absente (S33). ---
+  while (Serial1.available()) {
+    uint8_t b = Serial1.read();
     if (txLen == 0 && b != 0x3b) continue;             // attend le préambule 0x3b
     txFrame[txLen++] = b;
     if (txLen == 2) txNeed = (uint16_t)txFrame[1] + 3; // 0x3b + len + (len octets) + cksum
@@ -231,15 +145,15 @@ void loop() {
     }
   }
 
-  // --- bus AUX -> TCP : après le turnaround, l'écho est déjà avalé par busSend()
+  // --- bus AUX -> Pi : après le turnaround, l'écho est déjà avalé par busSend()
   //     -> tout ce qui arrive ici est la vraie réponse moteur. On la
-  //     RÉASSEMBLE avant de la relayer, symétriquement au sens TCP -> bus.
-  //     Relayée octet par octet (setNoDelay), une réponse de 9 octets
-  //     partait en 9 segments TCP étalés sur ~5 ms (1 octet / 573 us à
-  //     19200) : le driver lisait une trame tronquée et la jetait
-  //     ("Partial message recv. dropping (i=0 9/8)"), donc la position
-  //     ALT restait figée sur un cache — 0/25 trames acceptées en 30 s
-  //     alors que l'AZM passait à 28/28 (diagnostic S54).
+  //     RÉASSEMBLE avant de la relayer, symétriquement au sens Pi -> bus.
+  //     Relayée octet par octet, une réponse de 9 octets partait autrefois en
+  //     9 segments étalés sur ~5 ms (1 octet / 573 us à 19200) : le driver
+  //     lisait une trame tronquée et la jetait ("Partial message recv.
+  //     dropping (i=0 9/8)"), donc la position ALT restait figée sur un
+  //     cache — 0/25 trames acceptées en 30 s alors que l'AZM passait à
+  //     28/28 (diagnostic S54).
   //
   //     EFFET DE BORD ASSUMÉ : avant, un octet d'écho qui échappait au
   //     drain de busSend() partait brut et la chasse au 0x3b du driver
@@ -255,26 +169,24 @@ void loop() {
 
   while (Serial2.available()) {
     uint8_t b = Serial2.read();
-    lastClientMs = now;
     rxLastByteMs = now;
     if (rxLen == 0 && b != 0x3b) continue;           // attend le préambule 0x3b
     rxFrame[rxLen++] = b;
     if (rxLen == 2) rxNeed = (uint16_t)rxFrame[1] + 3;
-    if (rxLen >= 2 && rxLen == rxNeed) {             // complète -> TCP en un bloc
+    if (rxLen >= 2 && rxLen == rxNeed) {             // complète -> Pi en un bloc
       // Une écriture courte retronquerait la trame — le défaut même
-      // qu'on corrige. On pousse le reste, borné dans le temps.
-      if (client && client.connected()) {
-        size_t   sent     = 0;
-        uint32_t deadline = millis() + TCP_WRITE_MS;
-        while (sent < rxLen && (int32_t)(millis() - deadline) < 0) {
-          size_t n = client.write(rxFrame + sent, rxLen - sent);
-          if (n == 0) { delay(1); continue; }
-          sent += n;
-        }
-        if (sent < rxLen) {
-          Serial.printf("[tcp] trame tronquée %u/%u\n",
-                        (unsigned)sent, (unsigned)rxLen);
-        }
+      // qu'on corrige. Serial1.write peut écrire court quand le tampon
+      // TX est plein : on pousse le reste, borné dans le temps.
+      size_t   sent     = 0;
+      uint32_t deadline = millis() + WRITE_MS;
+      while (sent < rxLen && (int32_t)(millis() - deadline) < 0) {
+        size_t n = Serial1.write(rxFrame + sent, rxLen - sent);
+        if (n == 0) { delay(1); continue; }
+        sent += n;
+      }
+      if (sent < rxLen) {
+        Serial.printf("[pi] trame tronquée %u/%u\n",
+                      (unsigned)sent, (unsigned)rxLen);
       }
       rxLen = 0; rxNeed = 0;
     } else if (rxLen >= sizeof(rxFrame)) {           // garde-fou (len corrompue)
