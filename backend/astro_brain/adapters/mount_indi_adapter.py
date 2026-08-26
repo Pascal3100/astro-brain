@@ -8,6 +8,20 @@ The PyIndi client is **injected** at construction time, so tests pass a
 ``FakeIndiClient``. In production, ``app.py`` constructs the real
 ``MountIndiAdapter`` which builds an ``AstroBrainIndiClient`` (subclass
 of ``PyIndi.BaseClient``) under the hood.
+
+**Link layer — mode Serial on ``/dev/ttyAMA0``.** The ESP32 bridge sits on
+the AUX bus and relays it to the Pi over three wires on UART0 (19200 8N2,
+the rate ``indi_celestron_aux`` imposes: ``setDefaultBaudRate(B_19200)``).
+:meth:`MountIndiAdapter._configure_serial_link` pushes ``CONNECTION_MODE``,
+``DEVICE_PORT`` and ``PORT_TYPE`` from code before connecting, so the link
+no longer depends on the unversioned ``~/.indi/Celestron AUX_config.xml``.
+
+Why serial rather than the bridge's old WiFi/TCP mode: in Network mode the
+driver's ``tcpReadResponse()`` returns ``true`` unconditionally as soon as
+the socket is open — a mount that answers nothing looks like a success, a
+false positive that cost half a session (journal S51). ``serialReadResponse()``
+blocks with a timeout and returns ``false``, so a dead bus reads as a
+failure. See ADR 2026-08-26.
 """
 
 from __future__ import annotations
@@ -41,7 +55,7 @@ INDI_PORT_ENV = "ASTRO_BRAIN_INDI_PORT"
 INDI_PORT_DEFAULT = 7624
 INDI_DEVICE_NAME = "Celestron AUX"
 SERIAL_DEVICE_ENV = "ASTRO_BRAIN_SERIAL_DEVICE"
-SERIAL_DEVICE_DEFAULT = "/dev/ttyUSB0"
+SERIAL_DEVICE_DEFAULT = "/dev/ttyAMA0"  # UART0 GPIO — pont ESP32 filaire
 DEVICE_DISCOVERY_TIMEOUT_S = 5.0
 DEVICE_DISCOVERY_POLL_S = 0.1
 CONNECT_CONFIRM_TIMEOUT_S = 8.0
@@ -330,6 +344,87 @@ class MountIndiAdapter:
                 )
             await asyncio.sleep(DEVICE_DISCOVERY_POLL_S)
 
+    async def _configure_serial_link(self) -> None:
+        """Pin the link layer to Serial on :attr:`_serial_device`.
+
+        Pushed **before** ``CONNECTION.CONNECT`` — the driver reads the link
+        settings when it opens the link, and refuses to change them while
+        connected. Order matters: ``CONNECTION_MODE`` first, because
+        ``indi_celestron_aux`` only (re)defines ``DEVICE_PORT`` once it is in
+        Serial mode; then the port; then ``PORT_TYPE``, which tells the driver
+        the far end is the raw **AUX bus** (the ESP32 bridge) and not a hand
+        controller's USB pass-through.
+
+        Doing this from code rather than from ``~/.indi/Celestron AUX_config.xml``
+        keeps the link reproducible: the config file is unversioned, lives only
+        on the Pi, and silently resurrects the old TCP settings on a fresh
+        install.
+
+        A driver that advertises no ``CONNECTION_MODE`` (never the real one;
+        only bare fakes) is left with whatever it loaded from its own config.
+        """
+        mode = await self._await_optional_switch(
+            "CONNECTION_MODE", widget="CONNECTION_SERIAL"
+        )
+        if mode is None:
+            logger.warning(
+                "indi: no CONNECTION_MODE property; leaving the driver's own "
+                "link configuration untouched"
+            )
+            return
+        set_switch_one_of_many(mode, "CONNECTION_SERIAL")
+        await asyncio.to_thread(self._client.sendNewProperty, mode)
+        logger.info("indi: CONNECTION_MODE=CONNECTION_SERIAL")
+
+        # From here the driver is in Serial mode, so both vectors are due:
+        # a miss is a real fault, and _await_widgets raises rather than
+        # letting us connect on a stale port.
+        port = await self._await_widgets(
+            lambda dev: dev.getText("DEVICE_PORT"),
+            widgets=("PORT",),
+            context="DEVICE_PORT",
+        )
+        find_widget(port, "PORT").setText(self._serial_device)
+        await asyncio.to_thread(self._client.sendNewProperty, port)
+        logger.info("indi: DEVICE_PORT=%s", self._serial_device)
+
+        port_type = await self._await_widgets(
+            lambda dev: dev.getSwitch("PORT_TYPE"),
+            widgets=("PORT_AUX_PC",),
+            context="PORT_TYPE",
+        )
+        set_switch_one_of_many(port_type, "PORT_AUX_PC")
+        await asyncio.to_thread(self._client.sendNewProperty, port_type)
+        logger.info("indi: PORT_TYPE=PORT_AUX_PC")
+
+    async def _await_optional_switch(
+        self, name: str, *, widget: str
+    ) -> Any | None:
+        """Poll for a switch vector, returning ``None`` if never advertised.
+
+        Same shape as :meth:`_await_connection_switch`, for a property whose
+        absence is tolerable: a device that has not advertised ``name`` on the
+        very first look is a bare fake, since the real driver defines all of
+        its ``initProperties`` vectors in the same burst as ``CONNECTION``
+        (already awaited by the caller). Once seen, we still wait for the
+        named widget — the vector can land as a nameless placeholder.
+        """
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + PROPERTY_READY_TIMEOUT_S
+        seen = False
+        while loop.time() < deadline:
+            dev = self._client.getDevice(self._device_name)
+            vector = dev.getSwitch(name) if dev is not None else None
+            if vector is not None:
+                seen = True
+                if vector.findWidgetByName(widget) is not None:
+                    return vector
+            elif not seen:
+                return None
+            await asyncio.sleep(DEVICE_DISCOVERY_POLL_S)
+        logger.warning("indi: %s.%s never became readable", name, widget)
+        return None
+
     async def _ensure_connected(self) -> None:
         """Push ``CONNECTION.CONNECT=On`` and wait for the driver to confirm.
 
@@ -343,7 +438,9 @@ class MountIndiAdapter:
         usable straight after :meth:`start` without manual intervention.
 
         A driver that exposes no ``CONNECTION`` property (never the real
-        one; only bare fakes) is left as-is.
+        one; only bare fakes) is left as-is. On a driver that *is* about to
+        connect, :meth:`_configure_serial_link` runs first: the link settings
+        only take effect if they are pushed before ``CONNECT``.
         """
         conn = await self._await_connection_switch()
         if conn is None:
@@ -351,6 +448,7 @@ class MountIndiAdapter:
             return
         if find_widget(conn, "CONNECT").getState() == SWITCH_ON:
             return  # already connected
+        await self._configure_serial_link()
         set_switch_one_of_many(conn, "CONNECT")
         await asyncio.to_thread(self._client.sendNewProperty, conn)
 

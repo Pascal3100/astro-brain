@@ -7,6 +7,7 @@ import asyncio
 import pytest
 
 from astro_brain.adapters import mount_indi_adapter
+from astro_brain.adapters._indi_property_helpers import SWITCH_OFF, SWITCH_ON
 from astro_brain.adapters.mount_indi_adapter import (
     INDI_DEVICE_NAME,
     MountIndiAdapter,
@@ -25,6 +26,9 @@ def _seed_mount_device(client: FakeIndiClient) -> None:
     dev.add_text("DEVICE_PORT", {"PORT": ""})
     dev.add_switch(
         "CONNECTION_MODE", {"CONNECTION_SERIAL": "ON", "CONNECTION_TCP": "OFF"}
+    )
+    dev.add_switch(
+        "PORT_TYPE", {"PORT_AUX_PC": "OFF", "PORT_HC": "ON"}
     )
 
 
@@ -740,3 +744,76 @@ async def test_set_backlash_when_property_absent_publishes_error() -> None:
     await adapter.set_backlash("alt", "+", 5)
 
     assert bus.get_full_state().subsystems["mount"].state == "error"
+
+
+# ---------------------------------------------------------------------------
+# Configuration du lien série (pont ESP32 filaire sur /dev/ttyAMA0)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_start_configures_serial_link_before_connecting() -> None:
+    """Le lien est épinglé en Serial, dans l'ordre, avant CONNECT.
+
+    L'ordre n'est pas cosmétique : le driver ne (re)définit ``DEVICE_PORT``
+    qu'une fois en mode Serial, et ne relit ses réglages de lien qu'à
+    l'ouverture — donc avant ``CONNECTION.CONNECT``.
+    """
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    adapter = MountIndiAdapter(bus, client=client)
+
+    await adapter.start()
+
+    pushed = [p.getName() for p in client.sent_properties]
+    assert pushed[:4] == [
+        "CONNECTION_MODE",
+        "DEVICE_PORT",
+        "PORT_TYPE",
+        "CONNECTION",
+    ]
+
+    dev = client.getDevice(INDI_DEVICE_NAME)
+    mode = dev.getSwitch("CONNECTION_MODE")
+    assert mode.findWidgetByName("CONNECTION_SERIAL").getState() == SWITCH_ON
+    assert mode.findWidgetByName("CONNECTION_TCP").getState() == SWITCH_OFF
+    assert dev.getText("DEVICE_PORT").findWidgetByName("PORT").getText() == (
+        "/dev/ttyAMA0"
+    )
+    port_type = dev.getSwitch("PORT_TYPE")
+    assert port_type.findWidgetByName("PORT_AUX_PC").getState() == SWITCH_ON
+
+
+@pytest.mark.asyncio
+async def test_serial_device_can_be_overridden_by_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``ASTRO_BRAIN_SERIAL_DEVICE`` remplace /dev/ttyAMA0 (bench USB)."""
+    monkeypatch.setenv("ASTRO_BRAIN_SERIAL_DEVICE", "/dev/ttyUSB0")
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    adapter = MountIndiAdapter(bus, client=client)
+
+    await adapter.start()
+
+    dev = client.getDevice(INDI_DEVICE_NAME)
+    assert dev.getText("DEVICE_PORT").findWidgetByName("PORT").getText() == (
+        "/dev/ttyUSB0"
+    )
+
+
+@pytest.mark.asyncio
+async def test_start_tolerates_a_device_without_connection_mode() -> None:
+    """Un fake nu (aucune propriété de lien) connecte quand même."""
+    bus = StateBus()
+    client = FakeIndiClient()
+    dev = client.add_device(INDI_DEVICE_NAME)
+    dev.add_switch("CONNECTION", {"CONNECT": "OFF", "DISCONNECT": "ON"})
+    adapter = MountIndiAdapter(bus, client=client)
+
+    await adapter.start()
+
+    assert [p.getName() for p in client.sent_properties] == ["CONNECTION"]
+    assert bus.get_full_state().subsystems["mount"].state == "ready"
