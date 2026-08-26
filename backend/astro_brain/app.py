@@ -40,13 +40,10 @@ from astro_brain.repository.state_db import db_path as _default_db_path
 from astro_brain.repository.state_db import run_migrations
 from astro_brain.routes.about import router as about_router
 from astro_brain.routes.alignment import router as alignment_router
-from astro_brain.routes.calibration import router as calibration_router
 from astro_brain.routes.commands import router as commands_router
 from astro_brain.routes.events import router as events_router
 from astro_brain.routes.goto import router as goto_router
 from astro_brain.routes.reference import router as reference_router
-from astro_brain.routes.sensors import _LazySensor
-from astro_brain.routes.sensors import router as sensors_router
 from astro_brain.routes.site import router as site_router
 from astro_brain.routes.state import router as state_router
 from astro_brain.services._alignment_catalog import (
@@ -56,7 +53,6 @@ from astro_brain.services._alignment_catalog import (
     sky_az_alt_from_ra_dec,
 )
 from astro_brain.services.alignment import AlignmentServiceImpl
-from astro_brain.services.calibration import CalibrationServiceImpl
 from astro_brain.services.catalog.providers import (
     EphemerisProvider,
     FixedObjectProvider,
@@ -68,7 +64,6 @@ from astro_brain.services.fakes import (
     FakeNetwork,
     FakeSystemInfo,
     FakeTracking,
-    make_fake_calibration_adapters,
 )
 from astro_brain.services.reference.sync import ReferenceSync
 from astro_brain.subsystems import SubsystemState
@@ -134,9 +129,8 @@ class _AlignmentSensorsBridge:
 
 
 def _select_services(bus: StateBus, *, use_hardware: bool) -> dict[str, Any]:
-    """Return the four services plus the LIS3MDL adapter, either fakes or real hardware."""
+    """Return the four services, either fakes or real hardware adapters."""
     if use_hardware:
-        from astro_brain.adapters.lis3mdl_adapter import Lis3mdlAdapter
         from astro_brain.adapters.mount_indi_adapter import MountIndiAdapter
         from astro_brain.adapters.network_info import NetworkInfoAdapter
         from astro_brain.adapters.system_info import SystemInfoAdapter
@@ -149,15 +143,12 @@ def _select_services(bus: StateBus, *, use_hardware: bool) -> dict[str, Any]:
             "network": NetworkInfoAdapter(bus),
             "system": SystemInfoAdapter(bus),
             "tracking": mount,
-            "lis3mdl": Lis3mdlAdapter(),
         }
-    fake_lis3mdl = make_fake_calibration_adapters()
     return {
         "mount": FakeMount(bus),
         "network": FakeNetwork(bus),
         "system": FakeSystemInfo(bus),
         "tracking": FakeTracking(bus),
-        "lis3mdl": fake_lis3mdl,
     }
 
 
@@ -236,16 +227,6 @@ def build_app(
             )
 
         _app.state.started_at = datetime.now(UTC)
-
-        calibration_service = CalibrationServiceImpl(
-            db=db_conn,
-            lis3mdl=services["lis3mdl"],
-        )
-        _app.state.calibration_service = calibration_service
-
-        _app.state.lis3mdl = services["lis3mdl"]
-
-        _app.state.lazy_lis3mdl = _LazySensor(services["lis3mdl"])
 
         sensors_bridge = _AlignmentSensorsBridge()
         stored_site = await site_repo.get_site(db_conn)
@@ -333,8 +314,6 @@ def build_app(
     app.include_router(commands_router)
     app.include_router(state_router)
     app.include_router(events_router)
-    app.include_router(calibration_router)
-    app.include_router(sensors_router)
     app.include_router(site_router)
     app.include_router(alignment_router)
     app.include_router(goto_router)

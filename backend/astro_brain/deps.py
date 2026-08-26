@@ -21,7 +21,6 @@ from fastapi import Request
 from astro_brain.bus import StateBus
 from astro_brain.services.interfaces import (
     AlignmentService,
-    CalibrationService,
     MountService,
     NetworkService,
     SystemInfoService,
@@ -51,18 +50,6 @@ def get_system_info(request: Request) -> SystemInfoService:
 
 def get_db(request: Request) -> aiosqlite.Connection:
     return request.app.state.db
-
-
-def get_calibration_service(request: Request) -> CalibrationService:
-    return request.app.state.calibration_service
-
-
-def get_lis3mdl(request: Request) -> Any:
-    return request.app.state.lis3mdl
-
-
-def get_lazy_lis3mdl(request: Request) -> Any:
-    return request.app.state.lazy_lis3mdl
 
 
 def get_alignment_service(request: Request) -> AlignmentService:

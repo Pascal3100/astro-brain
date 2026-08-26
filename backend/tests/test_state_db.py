@@ -36,42 +36,42 @@ async def _table_names(db: aiosqlite.Connection) -> set[str]:
 
 async def test_run_migrations_creates_schema(db: aiosqlite.Connection) -> None:
     version = await run_migrations(db)
-    assert version == 7
+    assert version == 8
 
     tables = await _table_names(db)
     assert {
         "schema_version",
-        "calibration_sensor",
         "alignment_model",
         "observing_site",
     }.issubset(tables)
     assert "catalog_objects" not in tables
     assert "mount_limits" not in tables
+    assert "calibration_sensor" not in tables
 
     cursor = await db.execute("SELECT MAX(version) FROM schema_version")
     row = await cursor.fetchone()
     await cursor.close()
     assert row is not None
-    assert row[0] == 7
+    assert row[0] == 8
 
 
 async def test_run_migrations_is_idempotent(db: aiosqlite.Connection) -> None:
     first = await run_migrations(db)
     second = await run_migrations(db)
-    assert first == 7
-    assert second == 7
+    assert first == 8
+    assert second == 8
 
     tables = await _table_names(db)
     assert {
         "schema_version",
-        "calibration_sensor",
         "alignment_model",
         "observing_site",
     }.issubset(tables)
     assert "catalog_objects" not in tables
     assert "mount_limits" not in tables
+    assert "calibration_sensor" not in tables
 
-    cursor = await db.execute("SELECT COUNT(*) FROM schema_version WHERE version = 7")
+    cursor = await db.execute("SELECT COUNT(*) FROM schema_version WHERE version = 8")
     row = await cursor.fetchone()
     await cursor.close()
     assert row is not None
@@ -130,34 +130,12 @@ async def test_migration_007_creates_observing_site_singleton(
         await db.commit()
 
 
-async def _sensor_ids(db: aiosqlite.Connection) -> set[str]:
-    cursor = await db.execute("SELECT sensor_id FROM calibration_sensor")
-    rows = await cursor.fetchall()
-    await cursor.close()
-    return {row[0] for row in rows}
-
-
-async def test_migration_006_purges_retired_sensor_calibrations(
+async def test_migration_008_drops_calibration(
     db: aiosqlite.Connection,
 ) -> None:
-    """Rows for retired sensors go; the live `lis3mdl` calibration stays.
-
-    Reproduces the state found on the Pi on 2026-08-12: an `adxl345_mount`
-    row left over from before the 2026-07-17 sensor retirement.
-    """
-    await _seed_schema_at_version_4(db)
-    for sensor_id in ("adxl345_mount", "adxl345_tube", "lis3mdl"):
-        await db.execute(
-            "INSERT INTO calibration_sensor (sensor_id, payload_json, calibrated_at)"
-            " VALUES (?, '{}', '2026-05-07T19:38:21Z')",
-            (sensor_id,),
-        )
-    await db.commit()
-
-    version = await run_migrations(db)
-
-    assert version == 7
-    assert await _sensor_ids(db) == {"lis3mdl"}
+    """Plus de compass LIS3MDL (ADR 2026-08-26) → plus rien à calibrer."""
+    await run_migrations(db)
+    assert "calibration_sensor" not in await _table_names(db)
 
 
 async def _seed_schema_at_version_4(db: aiosqlite.Connection) -> None:
@@ -196,16 +174,40 @@ async def test_migration_005_is_forward_only_from_version_4(
     assert "catalog_objects" not in tables_before
 
     version = await run_migrations(db)
-    assert version == 7
+    assert version == 8
 
     cursor = await db.execute("SELECT MAX(version) FROM schema_version")
     row = await cursor.fetchone()
     await cursor.close()
     assert row is not None
-    assert row[0] == 7
+    assert row[0] == 8
 
     tables_after = await _table_names(db)
     assert "mount_limits" not in tables_after
+
+
+async def test_migration_008_drops_calibration_from_version_4(
+    db: aiosqlite.Connection,
+) -> None:
+    """Une base réelle en version 4 monte jusqu'à 8 et perd sa calibration.
+
+    La purge des capteurs retirés de _006 est devenue sans objet — la table
+    entière part en _008 — mais la migration reste appliquée telle quelle
+    (forward-only, les migrations posées sont immuables).
+    """
+    await _seed_schema_at_version_4(db)
+    for sensor_id in ("adxl345_mount", "adxl345_tube", "lis3mdl"):
+        await db.execute(
+            "INSERT INTO calibration_sensor (sensor_id, payload_json, calibrated_at)"
+            " VALUES (?, '{}', '2026-05-07T19:38:21Z')",
+            (sensor_id,),
+        )
+    await db.commit()
+
+    version = await run_migrations(db)
+
+    assert version == 8
+    assert "calibration_sensor" not in await _table_names(db)
 
 
 def test_db_path_honors_env(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:

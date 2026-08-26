@@ -15,7 +15,6 @@ dependencies = [
 [project.optional-dependencies]
 hardware = [
     "pyindi-client>=2.0",
-    "smbus2>=0.4",
 ]
 
 [dependency-groups]

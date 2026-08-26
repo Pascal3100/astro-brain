@@ -12,11 +12,9 @@ without inheriting from it.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from typing import Literal, Protocol
 
 from astro_brain.models.alignment import AlignmentModel, AlignmentSession, Star
-from astro_brain.models.calibration import CalibrationProgress, CalibrationStatus
 
 Axis = Literal["alt", "az"]
 Direction = Literal["+", "-"]
@@ -117,7 +115,11 @@ class SystemInfoService(Protocol):
 
 
 class ConflictError(Exception):
-    """A calibration session is already active for another sensor."""
+    """The requested transition conflicts with the current session state.
+
+    Levée par le wizard d'alignement : pas de session en cours, index qui ne
+    correspond pas, finalisation avant trois étoiles.
+    """
 
 
 class SensorUnavailableError(Exception):
@@ -128,26 +130,6 @@ class SensorUnavailableError(Exception):
     it to ``503`` so the caller gets a legible refusal instead of a ``500``
     (and, on SSE routes, instead of a truncated body).
     """
-
-
-class CalibrationService(Protocol):
-    """Orchestrates per-sensor calibration sessions.
-
-    A single session is active at a time across all sensors. Trying to
-    ``start`` a second session raises :class:`ConflictError` until the
-    current one is ``finalize``'d or ``abort``'ed.
-
-    SSE clients disconnecting mid-stream do **not** terminate the session —
-    explicit ``abort`` is required. The router stops yielding SSE events
-    when the client disconnects, but the sampling loop on the backend
-    continues until ``abort`` or ``finalize`` is called.
-    """
-
-    async def start(self, sensor_id: str) -> str: ...
-    async def progress(self, session_id: str) -> AsyncIterator[CalibrationProgress]: ...
-    async def finalize(self, session_id: str) -> CalibrationStatus: ...
-    async def abort(self, session_id: str) -> None: ...
-    async def current_session(self) -> tuple[str, str] | None: ...
 
 
 class AlignmentService(Protocol):
