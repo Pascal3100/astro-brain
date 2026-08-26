@@ -37,11 +37,38 @@ Ces réglages OS ne sont pas gérés par `install.sh` — à faire manuellement 
 - [x] `gpspipe -w -n 5` affiche un paquet `DEVICES` non-vide (`driver:"u-blox"`) suivi d'au moins un `TPV` avec `mode:3` et un `SKY` avec `uSat>0`
 - [x] `i2cdetect -y 1` → adresse du compass détectée (typ. `0x1e` ou `0x0d`)
 
-### Monture USB-série
+> ⚠️ **Les lignes GPS / I2C ci-dessus sont historiques** : le module DroTek a été
+> retiré le 2026-08-26 ([ADR](../../docs/project/decisions.md)). `enable_uart=1`,
+> `dtoverlay=disable-bt`, le retrait de `console=serial0` et le `serial-getty`
+> désactivé **restent nécessaires** — ils servent désormais le pont ESP32.
+> `gpsd`, `i2c-tools` et `i2c-dev` ne le sont plus.
 
-- [ ] Câble USB-série branché entre Pi et port HC de la monture
-- [ ] `ls -l /dev/ttyUSB0` existe quand la monture est sous tension
+### Monture — lien série vers le pont ESP32
+
+Le driver parle au pont en **mode Serial sur `/dev/ttyAMA0`** (ADR 2026-08-26).
+Plus de WiFi, plus d'IP fixe, plus de port TCP 2000.
+
+- [ ] Les trois fils sont posés, **croisés**, avec masse commune :
+      `Pi GPIO14/TXD0 (br. 8) → ESP32 GPIO25` · `ESP32 GPIO26 → Pi GPIO15/RXD0 (br. 10)` ·
+      `Pi GND (br. 6) ↔ ESP32 GND`. 3,3 V des deux côtés → liaison directe, pas d'adaptateur de niveau.
+- [ ] Masse commune vérifiée au multimètre **avant** de brancher les fils de données.
+- [ ] `ls -l /dev/ttyAMA0` existe
+- [ ] `sudo fuser -v /dev/ttyAMA0` → **aucun processus** (un `serial-getty` mangerait
+      les octets du pont, et le symptôme ressemblerait trait pour trait à un
+      problème de câblage)
+- [ ] `systemctl is-enabled serial-getty@ttyAMA0.service` → `disabled` ou `masked`
 - [ ] `pascal3100` est dans le groupe `dialout` (`groups pascal3100` contient `dialout`, sinon `sudo usermod -aG dialout pascal3100` + re-login)
+- [ ] **19200 8N2** des deux côtés (pas 8N1) — vitesse imposée par le driver
+      (`celestronaux.cpp:489`, `setDefaultBaudRate(B_19200)`)
+- [ ] Boucle sèche **monture éteinte** : une trame envoyée depuis le Pi en
+      `pyserial` n'obtient pas de réponse, mais **aucune erreur d'ouverture de
+      port** — et les traces USB du pont montrent la trame reçue. Ce test isole
+      le lien Pi ↔ pont du bus AUX ; le faire avant d'allumer la monture évite
+      de débugger deux liens à la fois.
+- [ ] **Critère d'acceptation de la bascule** : une commande vers une monture
+      **éteinte** produit une vraie erreur (timeout `serialReadResponse()`), pas
+      un faux « connecté ». C'est précisément ce que le mode Network ne savait
+      pas faire (`tcpReadResponse()` toujours `true`, S51).
 
 ---
 
