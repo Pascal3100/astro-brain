@@ -124,16 +124,19 @@ Procédure casse-pieds à faire manuellement, typiquement en début de session, 
 - "Home position" définie physiquement par capteurs (distincte de l'alignement logique Celestron)
 - Utilité : reprise après coupure, commande "retour à l'origine"
 - À clarifier : peut-on lire directement la position depuis la monture via NexStar (`get_position`) une fois alignée, ou faut-il des encodeurs/capteurs externes indépendants ? Lien avec le plate solving (Macro 5) qui donnera aussi une position absolue.
+- **Cap magnétique** : la piste compass a été retirée le 2026-08-26 (ADR) en même temps que le module DroTek. Reconstituer un cap absolu par capteurs reste écarté pour la même raison que l'IMU ci-dessous : le plate solve donne le pointage précis.
 - **Inclinaison** : la piste 2 × ADXL345 envisagée ici a été retirée le 2026-07-17 (voir ADR) — hors chemin de pointage depuis l'ADR 2026-05-10, jamais enforcée. La piste IMU 9DOF (MPU6050/ICM-20948/BNO055) pour un cap tilt-compensé reste écartée pour la même raison : le plate solve fournira le pointage précis, on n'a pas besoin de reconstituer un cap absolu par capteurs.
 
 ## Reprise / résilience & aide au pré-pointage (post-retrait ADXL, Macro 3+)
 
 Distillation de la discussion de retrait des ADXL345 (ADR 2026-07-17) : le vrai problème à résoudre n'était pas capteur, mais résilience logicielle et pré-pointage. Pistes capturées ici pour arbitrage futur.
 
+> **Arbitré le 2026-08-26** (ADR retrait du DroTek). Les items **2, 3 et 4 sont sans objet** : la pose de parking est abandonnée (elle n'économisait qu'une acquisition manuelle par séance) et le compass est retiré. L'item **1 survit intact** — c'est de la persistance logicielle, jamais un problème de capteur — et reste **la priorité** de cette section. L'item **5 est renforcé** : c'est le plate solve (Macro 5) qui absorbe le besoin auquel la pose de parking prétendait répondre.
+
 1. **⭐ Résilience reboot Pi (priorité)** — persister/restaurer l'alignement à chaud. Contexte : un reboot Pi n'affecte pas la monture (alims séparées Pi ≠ monture) → la monture ne bouge pas, ses encodeurs restent dans le même repère. C'est donc un problème de **persistance logicielle** (le driver perd son modèle en mémoire), **pas** un problème de capteur. Approche : persister le modèle/points de sync (déjà partiellement fait, ADR 2026-05-10) ; au redémarrage, si on détecte que la monture est restée sous tension (cohérence de la position rapportée vs dernière position trackée), restaurer l'alignement sans ré-aligner. **À vérifier d'abord (Macro 3)** : `indi_celestron_aux` stocke-t-il le modèle en mémoire driver (perdu au reboot → restauration nécessaire) ou dans les contrôleurs moteur (survit nativement) ?
-2. **Home = pose de parking motorisée + seed-sync au boot** — fin de séance : GoTo park motorisé (nord + 45°). Boot : **seed-sync** = convertir (alt 45° de la pose de parking + azimut compass + lat/lon/heure GPS) → RA/Dec → `EQUATORIAL_EOD_COORD` avec `ON_COORD_SET=SYNC` (même chemin que le wizard 3 étoiles). Donne un modèle 1-point grossier suffisant pour amener la 1ʳᵉ étoile dans le chercheur. Altitude portable (pose tenue au transport, trépied de niveau) ; azimut au compass (trépied reposé différemment). Prérequis : monture alignée en fin de séance pour parker.
-3. **« Set 0° tube au niveau »** — calibration ponctuelle / bootstrap de la référence d'altitude au niveau à bulle (sync ALT à 0°). Pas un geste par séance : utile la 1ʳᵉ fois ou si la pose de parking est perdue.
-4. **Support compass déporté + correction de déclinaison** — éloigner le magnétomètre (co-localisé GPS) des moteurs/acier (source dominante d'erreur azimut, le vrai goulot du pré-pointage) ; corriger magnétique → vrai nord via la position GPS (modèle WMM) ; calibration soft/hard-iron in situ. Contrainte : longueur de câble I2C (~30-50 cm, sinon soin câblage / horloge réduite).
+2. ~~**Home = pose de parking motorisée + seed-sync au boot**~~ — **sans objet (2026-08-26)** : la 1ʳᵉ étoile est pointée à la main et son `record` appelle `sync_radec`, qui *est* la graine ; la pose n'économisait qu'un pointage manuel par séance, contre un mouvement motorisé, un état persisté, un chemin de récupération, une garde d'amplitude, un écran d'annonce, une carte Setup et une action Hub. Descriptif d'origine conservé pour mémoire : fin de séance : GoTo park motorisé (nord + 45°). Boot : **seed-sync** = convertir (alt 45° de la pose de parking + azimut compass + lat/lon/heure GPS) → RA/Dec → `EQUATORIAL_EOD_COORD` avec `ON_COORD_SET=SYNC` (même chemin que le wizard 3 étoiles). Donne un modèle 1-point grossier suffisant pour amener la 1ʳᵉ étoile dans le chercheur. Altitude portable (pose tenue au transport, trépied de niveau) ; azimut au compass (trépied reposé différemment). Prérequis : monture alignée en fin de séance pour parker.
+3. ~~**« Set 0° tube au niveau »**~~ — **sans objet (2026-08-26)**, c'était le bootstrap de la pose de parking, abandonnée. Descriptif d'origine : calibration ponctuelle / bootstrap de la référence d'altitude au niveau à bulle (sync ALT à 0°). Pas un geste par séance : utile la 1ʳᵉ fois ou si la pose de parking est perdue.
+4. ~~**Support compass déporté + correction de déclinaison**~~ — **sans objet (2026-08-26)** : le compass LIS3MDL est retiré (aucun consommateur — `naive_heading()` n'alimentait qu'un flux d'affichage). Descriptif d'origine : éloigner le magnétomètre (co-localisé GPS) des moteurs/acier (source dominante d'erreur azimut, le vrai goulot du pré-pointage) ; corriger magnétique → vrai nord via la position GPS (modèle WMM) ; calibration soft/hard-iron in situ. Contrainte : longueur de câble I2C (~30-50 cm, sinon soin câblage / horloge réduite).
 5. **Coupure totale (Pi + monture) = non gérée** — décision assumée. Recovery : re-home manuel vers une pose connue (maintenant) → plate-solve (Macro 5), qui résout ce cas mieux qu'un capteur (position exacte depuis l'image, sans re-home).
 
 ## Safety & robustesse (Macro 2+, continu)
@@ -260,6 +263,12 @@ l'adaptateur pousse — ou au minimum vérifie et signale — à la connexion. �
 du chantier « config du driver » (le `MOUNT_TYPE` de S51/S52 est de la même famille : des réglages
 structurants du pointage vivent dans un fichier que personne ne relit).
 
+**Mise à jour 2026-08-26** (ADR pont filaire) : l'item **change de nature sans disparaître**.
+`DEVICE_PORT` (`/dev/ttyAMA0`) remplace `DEVICE_ADDRESS`/`CONNECTION_MODE` dans le **même** fichier
+non versionné. Le mode de défaillance de S52 se rejoue à l'identique avec un port erroné, à ceci
+près qu'il devient au moins détectable : `serialReadResponse()` renvoie `false` en timeout, là où
+`tcpReadResponse()` renvoyait toujours `true`.
+
 ## `current_position()` n'a aucune garantie de fraîcheur (S54)
 
 `MountIndiAdapter.current_position()` attend via `_await_widgets` que le vecteur
@@ -280,3 +289,46 @@ d'un seuil ; ou exiger que la valeur ait bougé sur un déplacement connu avant 
 première est la moins intrusive — reste à vérifier que `pyindi-client` expose bien le timestamp de
 dernière mise à jour du vecteur, et que le driver l'actualise seulement sur trame acceptée (sinon
 le timestamp ne vaut pas mieux que la valeur).
+
+## Pré-pointage auto des étoiles #2/#3 du wizard : conçu, jamais câblé (2026-08-26)
+
+Le wizard est spécifié comme « 1ʳᵉ étoile pointée à la main, #2 et #3 pré-pointées automatiquement
+par le modèle 1 étoile puis 2 étoiles ». **Ce n'est pas implémenté** : aucun appel `goto`/`slew`
+dans `app/lib/features/alignment/` (`per_star_screen.dart` affiche le D-pad et le bouton « centré »
+pour les trois étoiles à l'identique), et `routes/goto.py:41` refuserait de toute façon la demande
+par `409 not_aligned` — la garde exige `alignment.is_aligned`, vrai seulement après `finalize()`.
+
+Devenu porteur depuis le **retrait du DroTek** (ADR 2026-08-26) : le modèle est désormais la seule
+aide au pointage avant Macro 5.
+
+**Question de conception à trancher avant tout code** : relâcher la garde en « au moins un point de
+sync enregistré » ouvre le goto sur un modèle 1 point, dont l'erreur peut être de plusieurs degrés
+— avec un tube qui peut aller taper la fourche ou le trépied. Options à peser : un chemin de
+pré-pointage **distinct** de `/goto` (borné en amplitude, réservé au wizard, sans tracking) plutôt
+qu'un assouplissement de la garde du goto public ; et la question de l'anti-collision ALT, repoussée
+en Macro 3 par l'ADR 2026-07-17 et jamais reprise depuis. Mérite une spec + un plan dédiés, pas une
+tâche greffée sur un autre chantier.
+
+## Observer hors WiFi domestique : le sujet se réduit au Pi (2026-08-26)
+
+Avec le retrait du WiFi du pont (ADR 2026-08-26), plus rien à provisionner côté ESP32 — la monture
+répond sans aucun réseau. Reste à donner du réseau au **Pi** sur un site distant, pour deux besoins
+seulement : que le téléphone atteigne le backend, et que NTP tienne l'horloge.
+
+Pistes : partage de connexion du téléphone (le Pi rejoint le hotspot — nécessite de saisir un SSID
+au chevet, donc une UI ou un fichier de conf) ; ou le Pi en point d'accès et le téléphone qui s'y
+connecte (pas d'Internet, donc pas de NTP → renvoie à l'item RTC ci-dessous). À traiter quand une
+sortie réelle hors domicile sera programmée, pas avant.
+
+## Horloge sans réseau : RTC DS3231 (2026-08-26)
+
+Le Pi 3 B+ n'a pas d'horloge temps réel ; l'heure poussée à la monture est `datetime.now(UTC)`,
+tenue par NTP. Le retrait du GPS ne change rien à ça (le GPS n'était qu'un *déclencheur* de sync,
+jamais une source de temps disciplinée — ni chrony ni gpsd n'ont jamais été configurés pour ça).
+
+Un DS3231 (`dtoverlay=i2c-rtc,ds3231`, zéro code applicatif) ne devient nécessaire que sur un site
+**sans couverture cellulaire** : pas de partage de connexion, donc pas de NTP, donc `fake-hwclock`
+restaure l'heure du dernier arrêt. **À trancher sur constat terrain, pas par anticipation** — et
+l'I2C1 est libre depuis le retrait du DroTek. Note : la garde « horloge non synchronisée → refus de
+sync monture » (livrée avec le retrait) rend ce cas **visible** au lieu de silencieux, ce qui suffit
+tant qu'on n'a pas rencontré le site en question.
