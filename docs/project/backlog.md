@@ -269,6 +269,12 @@ non versionné. Le mode de défaillance de S52 se rejoue à l'identique avec un 
 près qu'il devient au moins détectable : `serialReadResponse()` renvoie `false` en timeout, là où
 `tcpReadResponse()` renvoyait toujours `true`.
 
+**Résolu le 2026-08-26** (Task 3 du plan pont série) : `MountIndiAdapter._configure_serial_link()`
+pousse `CONNECTION_MODE` → `DEVICE_PORT` → `PORT_TYPE` **depuis le code**, avant `CONNECT`, et
+logue chaque poussée. Le fichier `~/.indi/Celestron AUX_config.xml` n'est plus la source du lien :
+un port erroné qui y traînerait est écrasé au démarrage. Reste ouvert, de la même famille mais
+distinct : le `MOUNT_TYPE` de S51/S52, toujours non poussé (cosmétique, cf. `indi-reference.md`).
+
 ## `current_position()` n'a aucune garantie de fraîcheur (S54)
 
 `MountIndiAdapter.current_position()` attend via `_await_widgets` que le vecteur

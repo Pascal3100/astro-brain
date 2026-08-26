@@ -92,7 +92,18 @@ Deux candidats :
 - **`indi_celestron_aux`** (3rdparty, BETA) : parle directement au bus AUX (PC/AUX port ou HC en pass-through). Cordwrap natif. **Recommandé pour SLT.**
 - **`indi_celestron_gps`** (in-tree) : driver historique HC-only. Backup. Pas de cordwrap, pas de backlash mount-axis.
 
-Config minimale AUX (à pousser dans `CONNECTION` + `DEVICE_PORT` + `PORT_TYPE`) : port `/dev/ttyUSB0` ou `/dev/ttyAMA0`, **baud 19200 par défaut** (cf. `celestronaux.cpp:489`, `serialConnection->setDefaultBaudRate(B_19200)`), `PORT_TYPE=PORT_AUX_PC` si câble droit DB-9 sur PC port AUX, `PORT_TYPE=PORT_HC_USB` si pass-through par le HC en USB. Le SLT est explicitement reconnu (`MountVersion::SLT_Nexstar = 0x0783` à `celestronaux.h:102`). Capabilities advertised : `TELESCOPE_CAN_PARK | CAN_SYNC | CAN_GOTO | CAN_ABORT | HAS_TIME | HAS_LOCATION | CAN_CONTROL_TRACK | HAS_TRACK_MODE | HAS_TRACK_RATE`, `nSlewRate=8` (`celestronaux.cpp:72-81`).
+**Config nominale du projet** (poussée par le code depuis l'[ADR 2026-08-26](../project/decisions.md), plus par `~/.indi/Celestron AUX_config.xml`) — `CONNECTION_MODE` → `DEVICE_PORT` → `PORT_TYPE`, **dans cet ordre**, puis `CONNECTION` :
+
+| Vecteur | Élément | Valeur | Pourquoi |
+|---|---|---|---|
+| `CONNECTION_MODE` | `CONNECTION_SERIAL` | `On` | le driver ne (re)définit `DEVICE_PORT` qu'une fois en mode Serial → à pousser **en premier** |
+| `DEVICE_PORT` | `PORT` | `/dev/ttyAMA0` | UART0 GPIO du Pi, câblé au pont ESP32 (3 fils) |
+| `PORT_TYPE` | `PORT_AUX_PC` | `On` | l'autre bout est le **bus AUX** brut, pas un pass-through raquette |
+| `CONNECTION` | `CONNECT` | `On` | en **dernier** : le driver ne relit ses réglages de lien qu'à l'ouverture |
+
+Implémentation : `MountIndiAdapter._configure_serial_link()`.
+
+Config minimale AUX : port `/dev/ttyAMA0` (ou `/dev/ttyUSB0` pour un banc en USB), **baud 19200 par défaut** (cf. `celestronaux.cpp:489`, `serialConnection->setDefaultBaudRate(B_19200)`), `PORT_TYPE=PORT_AUX_PC` si câble droit DB-9 sur PC port AUX, `PORT_TYPE=PORT_HC_USB` si pass-through par le HC en USB. Le SLT est explicitement reconnu (`MountVersion::SLT_Nexstar = 0x0783` à `celestronaux.h:102`). Capabilities advertised : `TELESCOPE_CAN_PARK | CAN_SYNC | CAN_GOTO | CAN_ABORT | HAS_TIME | HAS_LOCATION | CAN_CONTROL_TRACK | HAS_TRACK_MODE | HAS_TRACK_RATE`, `nSlewRate=8` (`celestronaux.cpp:72-81`).
 
 ### Properties pertinentes (héritées d'`INDI::Telescope` sauf indication)
 
@@ -127,10 +138,10 @@ Config minimale AUX (à pousser dans `CONNECTION` + `DEVICE_PORT` + `PORT_TYPE`)
 
 - Driver AUX status **BETA** (`indi-celestronaux/README.md`, et `ISSUES.md`).
 - ⚠️ **`indi_getprop "Device.*"` est une spec invalide** — piège d'outillage, pas de driver (S53). Une spec doit avoir **trois** composants (`device.property.element`) ; avec deux, `indi_getprop` n'affiche pas « rien trouvé » mais **son message d'usage complet** sur stdout. Un `| grep -iE "park|track|abort"` derrière ne matche donc rien, ce qui se lit à tort comme « ces propriétés sont absentes du driver » — conclusion fausse tirée en séance, alors que les 158 propriétés étaient bien là. Motif correct pour énumérer un device : `indi_getprop -t 5 "Celestron AUX.*.*"`.
-- ⚠️ **`tcpReadResponse()` retourne toujours `true`** (relu sur les sources, S51). En mode **Network** — le nôtre depuis l'[ADR 2026-07-05](../project/decisions.md) — le driver drain le socket en `MSG_DONTWAIT | MSG_PEEK` puis `return true` inconditionnellement dès que `PortFD > 0` : il ne vérifie **jamais** qu'une réponse est arrivée. Conséquences :
+- ⚠️ **`tcpReadResponse()` retourne toujours `true`** (relu sur les sources, S51). En mode **Network** — le nôtre du 2026-07-05 au 2026-08-26, **abandonné pour cette raison même** ([ADR 2026-08-26](../project/decisions.md)) — le driver drain le socket en `MSG_DONTWAIT | MSG_PEEK` puis `return true` inconditionnellement dès que `PortFD > 0` : il ne vérifie **jamais** qu'une réponse est arrivée. Conséquences :
   - `getVersion(AZM) && getVersion(ALT)` est vrai dès que le socket TCP vers le pont ESP32 est ouvert, donc le log `Got response from target ALT or AZM.` **ne prouve rien sur la monture**. C'est un faux positif qui a coûté une demi-session de diagnostic (S51) ; seul un proxy TCP inséré dans le chemin dit la vérité sur ce qui revient.
   - `connect()` réussit et le driver se déclare prêt même avec le chemin de retour du bus AUX totalement mort. Toutes les propriétés alimentées par des réponses restent alors à leur valeur d'init (`Firmware Info.*` = `Unknown`, `TELESCOPE_ENCODER_*` = 0, `HORIZONTAL_COORD` figée) — c'est **là** qu'on lit la panne, pas dans les logs.
-  - Asymétrie : `serialReadResponse()` (mode Serial) bloque sur `aux_tty_read` avec `READ_TIMEOUT` et renvoie **`false`** au timeout. La détection ne fonctionne donc qu'en série ; en réseau elle est inopérante.
+  - Asymétrie : `serialReadResponse()` (mode Serial) bloque sur `aux_tty_read` avec `READ_TIMEOUT` et renvoie **`false`** au timeout. La détection ne fonctionne donc qu'en série ; en réseau elle est inopérante. **C'est la justification du passage du pont en série filaire** (ADR 2026-08-26) : on préfère un lien qui sait dire non. La note reste ici comme raison du choix, plus comme avertissement à contourner.
 - **Type de monture : jamais déduit de la monture** (corrige une entrée erronée de ce doc, relue sur les sources en S51). `MountTypeSP` est bien rempli et poussé (`celestronaux.cpp:276-303`), en **`IP_RO`** (`setPermission(IP_RO)`) donc non modifiable côté client. Sa valeur vient de, dans l'ordre : (1) défaut `ALT_AZ`, (2) **le fichier de config sauvegardé du driver** (`IUGetConfigOnSwitchIndex(getDeviceName(), "MOUNT_TYPE", …)`), (3) une heuristique sur le **nom du device** (`CGX`/`CGEM`/`Advanced VX`/`Advanced GT` → `EQ_GEM`, `Wedge` → `EQ_FORK`). `MC_GET_MODEL` ne sert qu'à remplir `m_ModelVersion` (affichage Firmware Info), **pas** le type. Enum : `ALT_AZ = 0, EQ_FORK = 1, EQ_GEM = 2` (`celestronaux.h:496`).
   - ⚠️ **Correction S53** : on a bien `TELESCOPE_MOUNT_TYPE.EQ_GEM = On` sur notre SLT — c'est **reproductible** (le journal S52 concluait à tort au non-reproductible), et c'est **cosmétique**. Cette propriété `IP_RO` n'est qu'un **affichage** ; le comportement est piloté par le membre interne `m_MountType`, et deux signaux comportementaux indépendants prouvent qu'il vaut bien `ALT_AZ` :
     - `TELESCOPE_TRACK_MODE` est **absent** de la liste des propriétés — le driver ne l'expose que pour les montures équatoriales ;

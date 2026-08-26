@@ -18,20 +18,21 @@ Specs et plans : `docs/superpowers/specs/` et `docs/superpowers/plans/`.
 
 - **Backend** : FastAPI (Python 3.13) sur Raspberry Pi 3 B+
 - **Frontend** : App Flutter native sur téléphone (pas une PWA), pattern BLoC
-- **Communication Pi <-> Monture** : stack INDI (`indiserver` + driver `indi_celestron_aux`) côté Pi, client Python `pyindi-client` dans le backend FastAPI. Liaison physique : port **HAND CONTROL** (RJ-12 6P6C) de la base SLT — sur le **bus AUX** interne, raquette hors boucle → interface single-wire (RX LM2902 / TX 74AHCT125) → **pont ESP32** exposant le bus en **TCP port 2000** (WiFi), driver en **mode Network** (`192.168.1.200:2000`). Bus AUX **19200 baud 8N2, DATA single-wire half-duplex** (TX/RX sur un seul fil), driver en mode AUX direct (le driver gère le protocole binaire `0x3b…`, pas de pass-through `'P'`). Détails et brochage : [`docs/technical/hardware.md`](docs/technical/hardware.md). Pivot ESP32 : [ADR 2026-07-05](docs/project/decisions.md).
+- **Communication Pi <-> Monture** : stack INDI (`indiserver` + driver `indi_celestron_aux`) côté Pi, client Python `pyindi-client` dans le backend FastAPI. Liaison physique : port **HAND CONTROL** (RJ-12 6P6C) de la base SLT — sur le **bus AUX** interne, raquette hors boucle → interface single-wire (RX LM2902 / TX 74AHCT125) → **pont ESP32** relié au Pi par **trois fils sur UART0** (`GPIO14/TXD0 → GPIO25`, `GPIO26 → GPIO15/RXD0`, masse commune), driver en **mode Serial** sur `/dev/ttyAMA0` à 19200 8N2. Bus AUX **19200 baud 8N2, DATA single-wire half-duplex** (TX/RX sur un seul fil), driver en mode AUX direct (le driver gère le protocole binaire `0x3b…`, pas de pass-through `'P'`). Détails et brochage : [`docs/technical/hardware.md`](docs/technical/hardware.md). Pivot ESP32 : [ADR 2026-07-05](docs/project/decisions.md) ; retrait du WiFi du pont : [ADR 2026-08-26](docs/project/decisions.md).
 - **Position & heure** : **aucun capteur embarqué** sur le Pi depuis le retrait du module DroTek ([ADR 2026-08-26](docs/project/decisions.md)). La position vient du **site d'observation** persisté en base (réglé depuis le GPS du téléphone via `PUT /site`), l'heure vient de **NTP** (poussée vers la monture seulement si `clock_synced`). Détails : [`docs/technical/hardware.md`](docs/technical/hardware.md).
 - **Plate Solving** (Macro 5+) : Astrometry.net local
 
 ## Architecture
 
 ```
-App Flutter (téléphone) --[Wi-Fi / REST + SSE]--> FastAPI (Pi) --[WiFi/TCP → pont ESP32]--> bus AUX → Monture
+App Flutter (téléphone) --[Wi-Fi / REST + SSE]--> FastAPI (Pi) --[série UART0 → pont ESP32]--> bus AUX → Monture
                                                        │
                                                        ▼
                                               state.db (site, alignement)
 ```
 
-- Pont ESP32 sur le bus AUX (interface WiFi + électrique, pas de temps-réel moteur) — déroge à l'ADR original « pas d'Arduino » (cf. ADR 2026-07-05)
+- Pont ESP32 sur le bus AUX (adaptation électrique single-wire + relais série, pas de temps-réel moteur) — déroge à l'ADR original « pas d'Arduino » (cf. ADR 2026-07-05)
+- Lien Pi ↔ pont **filaire** depuis le 2026-08-26 : en mode Network, `tcpReadResponse()` du driver renvoie `true` dès que la socket est ouverte — une monture muette passait pour connectée (cf. ADR 2026-08-26)
 - REST pour les commandes, SSE pour l'état — pas de WebSocket
 - Pi pousse site d'observation + heure NTP vers la monture au boot (plus de fix GPS local)
 - Détails : [`docs/technical/architecture.md`](docs/technical/architecture.md)

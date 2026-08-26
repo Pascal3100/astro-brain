@@ -34,6 +34,26 @@ service : `sudo apt purge -y gpsd gpsd-clients indi-gpsd`.
 
 Sanity check : `indiserver -v indi_celestron_aux` doit démarrer, écouter sur **port 7624**, et énumérer les math plugins SVD + Nearest. Service systemd dédié à câbler dans le plan migration INDI (cf. `docs/superpowers/plans/2026-05-01-mount-indi-migration.md`).
 
+### Vérifier le lien série vers le pont ESP32
+
+Depuis l'[ADR 2026-08-26](../project/decisions.md), le driver parle au pont en
+**mode Serial sur `/dev/ttyAMA0`** (3 fils sur UART0, 19200 8N2) — plus de WiFi
+ni de port TCP 2000. Avant de démarrer le backend :
+
+```bash
+ls -l /dev/ttyAMA0                          # le port existe
+sudo fuser -v /dev/ttyAMA0                  # AUCUN processus (lsof si installé)
+systemctl is-enabled serial-getty@ttyAMA0   # disabled ou masked
+grep -E "enable_uart|disable-bt" /boot/firmware/config.txt
+```
+
+Un `serial-getty` actif mangerait les octets du pont et le symptôme
+ressemblerait trait pour trait à un problème de câblage. Le backend pousse
+lui-même `CONNECTION_MODE`/`DEVICE_PORT`/`PORT_TYPE` au démarrage
+(`ASTRO_BRAIN_SERIAL_DEVICE` pour surcharger le port sur un banc USB) : rien à
+régler dans `~/.indi/`. Brochage des trois fils :
+[hardware.md](hardware.md#câblage-pi--pont-esp32-3-fils).
+
 ## Installation backend
 
 ```bash
