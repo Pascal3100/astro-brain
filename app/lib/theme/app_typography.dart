@@ -16,7 +16,7 @@ TextTheme buildInterTextTheme({required Color color}) {
 /// Styles de texte spécifiques au HUD Astro-Brain, en **JetBrains Mono**.
 ///
 /// Philosophie :
-/// - `hudLabel` : libellés techniques type `MOUNT`, `GPS`, `TRACKING` (uppercase, letter-spacing).
+/// - `hudLabel` : libellés techniques type `MOUNT`, `SITE`, `TRACKING` (uppercase, letter-spacing).
 /// - `hudValue` : valeurs numériques/alphanumériques importantes (`Ready`, `Fix 3D`, `v11.01`).
 /// - `hudCaption` : infos secondaires (`depuis 2 min`, `8 sats`).
 /// - `hudBadge` : texte à l'intérieur d'une pastille/chip.

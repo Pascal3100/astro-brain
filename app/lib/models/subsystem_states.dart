@@ -21,23 +21,6 @@ enum MountState {
       };
 }
 
-enum GpsState {
-  off,
-  noFix,
-  searching,
-  fix2d,
-  fix3d;
-
-  static GpsState fromJson(String v) => switch (v) {
-        'off' => GpsState.off,
-        'no_fix' => GpsState.noFix,
-        'searching' => GpsState.searching,
-        'fix_2d' => GpsState.fix2d,
-        'fix_3d' => GpsState.fix3d,
-        _ => throw FormatException('GpsState inconnu: $v'),
-      };
-}
-
 enum TrackingState {
   off,
   sidereal;

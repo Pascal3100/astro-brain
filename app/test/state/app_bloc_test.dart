@@ -13,7 +13,7 @@ class _MockStream extends Mock implements EventStreamService {}
 SystemState _sample() => SystemState.fromJson(jsonDecode(_snapshotJson));
 
 const _snapshotJson = '''
-{"overall":"green","subsystems":{"mount":{"state":"ready","details":{},"since":"2026-04-17T20:31:12Z","message":null},"gps":{"state":"fix_3d","details":{},"since":"2026-04-17T20:30:00Z","message":null},"tracking":{"state":"off","details":{},"since":"2026-04-17T20:30:00Z","message":null},"network":{"state":"client","details":{},"since":"2026-04-17T20:29:00Z","message":null},"system":{"state":"ok","details":{},"since":"2026-04-17T20:29:00Z","message":null}},"seq":1,"ts":"2026-04-17T20:31:12Z"}
+{"overall":"green","subsystems":{"mount":{"state":"ready","details":{},"since":"2026-04-17T20:31:12Z","message":null},"tracking":{"state":"off","details":{},"since":"2026-04-17T20:30:00Z","message":null},"network":{"state":"client","details":{},"since":"2026-04-17T20:29:00Z","message":null},"system":{"state":"ok","details":{},"since":"2026-04-17T20:29:00Z","message":null}},"seq":1,"ts":"2026-04-17T20:31:12Z"}
 ''';
 
 void main() {

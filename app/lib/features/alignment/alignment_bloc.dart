@@ -8,9 +8,10 @@ import 'phone_location.dart';
 
 /// Orchestrateur du wizard d'alignement 3 étoiles.
 ///
-/// [phoneLocation] est injecté pour permettre le fallback GPS téléphone
-/// quand le backend n'a pas de position Pi. La valeur par défaut utilise
-/// le plugin `geolocator` ; en tests, on passe un fake.
+/// [phoneLocation] est injecté pour permettre l'écriture du site
+/// d'observation depuis le GPS du téléphone quand le backend n'en a pas
+/// encore. La valeur par défaut utilise le plugin `geolocator` ; en tests,
+/// on passe un fake.
 class AlignmentBloc extends Bloc<AlignmentEvent, AlignmentState> {
   AlignmentBloc({
     required this.repo,
@@ -52,7 +53,8 @@ class AlignmentBloc extends Bloc<AlignmentEvent, AlignmentState> {
         emit(AlignmentPrePointing(session: session));
       } on ApiException catch (err) {
         if (err.statusCode == 409) {
-          // Backend exige une position : on tente le GPS du téléphone.
+          // Aucun site d'observation connu : on le règle depuis le
+          // GPS du téléphone, puis on relance.
           final pos = await _phoneLocation.current();
           if (pos == null) {
             // Permission refusée ou capteur indisponible.
@@ -63,7 +65,7 @@ class AlignmentBloc extends Bloc<AlignmentEvent, AlignmentState> {
             );
             return;
           }
-          await repo.postClientLocation(pos.lat, pos.lon);
+          await repo.putSite(pos.lat, pos.lon);
           final session = await repo.start();
           emit(AlignmentPrePointing(session: session));
         } else {

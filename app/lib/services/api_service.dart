@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/about.dart';
-import '../models/calibration.dart';
 import '../models/system_state.dart';
 import 'pi_host.dart';
 
@@ -128,6 +127,24 @@ class ApiService {
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
 
+  /// GET [path] et retourne le JSON décodé, ou `null` si le corps est le
+  /// littéral `null`.
+  ///
+  /// Certaines routes traitent l'absence comme un état nominal (`GET /site`
+  /// tant qu'aucun site n'est réglé) : elles répondent 200 + `null` plutôt
+  /// que 404, ce que [getJson] ne saurait pas décoder.
+  Future<Map<String, dynamic>?> getJsonOrNull(
+    String path, {
+    Map<String, String>? query,
+  }) async {
+    final resp = await _client.get(host.restUri(path, query)).timeout(_timeout);
+    if (resp.statusCode != 200) {
+      throw ApiException('GET $path failed',
+          statusCode: resp.statusCode, detail: _detailOf(resp.body));
+    }
+    return jsonDecode(resp.body) as Map<String, dynamic>?;
+  }
+
   /// POST [path] avec [body] JSON et retourne le JSON décodé.
   Future<Map<String, dynamic>> postJson(
     String path,
@@ -147,86 +164,27 @@ class ApiService {
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
 
+  /// PUT [path] avec [body] JSON. Le backend renvoie 204 No Content sur
+  /// succès (écriture idempotente : pas de corps de réponse à décoder).
+  Future<void> putJson(String path, Map<String, dynamic> body) async {
+    final resp = await _client
+        .put(
+          host.restUri(path),
+          headers: const {'content-type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(_timeout);
+    if (resp.statusCode != 204 && resp.statusCode != 200) {
+      throw ApiException('PUT $path failed',
+          statusCode: resp.statusCode, detail: _detailOf(resp.body));
+    }
+  }
+
   /// DELETE [path]. Le backend renvoie 204 No Content sur succès.
   Future<void> delete(String path) async {
     final resp = await _client.delete(host.restUri(path)).timeout(_timeout);
     if (resp.statusCode != 204 && resp.statusCode != 200) {
       throw ApiException('DELETE $path failed', statusCode: resp.statusCode);
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // Calibration endpoints
-  // -------------------------------------------------------------------------
-
-  /// Retourne le statut persisté de calibration pour [sensorId].
-  ///
-  /// Toujours 200 ; `payload` est `null` si le capteur n'a jamais été calibré.
-  Future<CalibrationStatus> getCalibrationStatus(String sensorId) async {
-    final encoded = Uri.encodeComponent(sensorId);
-    final resp = await _client
-        .get(host.restUri('/calibration/$encoded'))
-        .timeout(_timeout);
-    if (resp.statusCode != 200) {
-      throw ApiException(
-        'GET /calibration/$sensorId failed',
-        statusCode: resp.statusCode,
-      );
-    }
-    return CalibrationStatus.fromJson(
-      jsonDecode(resp.body) as Map<String, dynamic>,
-    );
-  }
-
-  /// Démarre une session de calibration pour [sensorId].
-  ///
-  /// Retourne le `session_id` (hex) fourni par le backend (202 Accepted).
-  Future<String> startCalibration(String sensorId) async {
-    final encoded = Uri.encodeComponent(sensorId);
-    final resp = await _client
-        .post(host.restUri('/calibration/$encoded/start'))
-        .timeout(_timeout);
-    if (resp.statusCode != 202) {
-      throw ApiException(
-        'POST /calibration/$sensorId/start failed',
-        statusCode: resp.statusCode,
-      );
-    }
-    final json = jsonDecode(resp.body) as Map<String, dynamic>;
-    return json['session_id'] as String;
-  }
-
-  /// Finalise la session active pour [sensorId] et retourne le statut
-  /// persisté mis à jour.
-  Future<CalibrationStatus> finalizeCalibration(String sensorId) async {
-    final encoded = Uri.encodeComponent(sensorId);
-    final resp = await _client
-        .post(host.restUri('/calibration/$encoded/finalize'))
-        .timeout(_timeout);
-    if (resp.statusCode != 200) {
-      throw ApiException(
-        'POST /calibration/$sensorId/finalize failed',
-        statusCode: resp.statusCode,
-      );
-    }
-    return CalibrationStatus.fromJson(
-      jsonDecode(resp.body) as Map<String, dynamic>,
-    );
-  }
-
-  /// Annule la session active pour [sensorId] sans persister les données.
-  ///
-  /// Idempotent (le backend retourne toujours `{"ok": true}`).
-  Future<void> abortCalibration(String sensorId) async {
-    final encoded = Uri.encodeComponent(sensorId);
-    final resp = await _client
-        .post(host.restUri('/calibration/$encoded/abort'))
-        .timeout(_timeout);
-    if (resp.statusCode != 200) {
-      throw ApiException(
-        'POST /calibration/$sensorId/abort failed',
-        statusCode: resp.statusCode,
-      );
     }
   }
 

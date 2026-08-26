@@ -35,7 +35,7 @@ class SocketLikeException implements Exception {
 }
 
 const _snapshot = '''
-{"overall":"green","subsystems":{"mount":{"state":"ready","details":{},"since":"2026-04-17T20:31:12Z","message":null},"gps":{"state":"fix_3d","details":{},"since":"2026-04-17T20:30:00Z","message":null},"tracking":{"state":"off","details":{},"since":"2026-04-17T20:30:00Z","message":null},"network":{"state":"client","details":{},"since":"2026-04-17T20:29:00Z","message":null},"system":{"state":"ok","details":{},"since":"2026-04-17T20:29:00Z","message":null}},"seq":1,"ts":"2026-04-17T20:31:12Z"}
+{"overall":"green","subsystems":{"mount":{"state":"ready","details":{},"since":"2026-04-17T20:31:12Z","message":null},"tracking":{"state":"off","details":{},"since":"2026-04-17T20:30:00Z","message":null},"network":{"state":"client","details":{},"since":"2026-04-17T20:29:00Z","message":null},"system":{"state":"ok","details":{},"since":"2026-04-17T20:29:00Z","message":null}},"seq":1,"ts":"2026-04-17T20:31:12Z"}
 ''';
 
 void main() {
@@ -53,7 +53,7 @@ void main() {
 
     final state = await first.timeout(const Duration(seconds: 2));
     expect(state.seq, 1);
-    expect(state.gps.state, GpsState.fix3d);
+    expect(state.mount.state, MountState.ready);
 
     await svc.stop();
     await bytes.close();
@@ -73,11 +73,11 @@ void main() {
 
     bytes.add(utf8.encode('event: snapshot\ndata: $_snapshot\n\n'));
     bytes.add(utf8.encode(
-        'event: update\ndata: {"subsystem":"gps","state":{"state":"searching","details":{},"since":"2026-04-17T20:32:00Z","message":null},"overall":"orange","seq":2,"ts":"2026-04-17T20:32:00Z"}\n\n'));
+        'event: update\ndata: {"subsystem":"tracking","state":{"state":"sidereal","details":{},"since":"2026-04-17T20:32:00Z","message":null},"overall":"orange","seq":2,"ts":"2026-04-17T20:32:00Z"}\n\n'));
 
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(states.length, 2);
-    expect(states[1].gps.state, GpsState.searching);
+    expect(states[1].tracking.state, TrackingState.sidereal);
     expect(states[1].overall, OverallStatus.orange);
 
     await sub.cancel();

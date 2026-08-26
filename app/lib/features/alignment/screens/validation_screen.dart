@@ -312,7 +312,7 @@ class _DiagnosticBlock extends StatelessWidget {
           ...const [
             '• Centrage imprécis dans l\'oculaire',
             '• Mauvaise étoile pointée',
-            '• Dérive capteur depuis la calibration',
+            '• Jeu mécanique de la monture (backlash)',
           ].map(
             (s) => Padding(
               padding: const EdgeInsets.only(left: 4, top: 2),

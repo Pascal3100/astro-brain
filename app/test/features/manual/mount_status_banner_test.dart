@@ -23,7 +23,6 @@ SystemState _systemWithMount(String state, {String? message}) =>
   "overall":"orange",
   "subsystems":{
     "mount":{"state":"$state","details":{},"since":"2026-01-01T00:00:00Z","message":${message == null ? 'null' : '"$message"'}},
-    "gps":{"state":"no_fix","details":{},"since":"2026-01-01T00:00:00Z","message":null},
     "tracking":{"state":"off","details":{},"since":"2026-01-01T00:00:00Z","message":null},
     "network":{"state":"client","details":{},"since":"2026-01-01T00:00:00Z","message":null},
     "system":{"state":"ok","details":{},"since":"2026-01-01T00:00:00Z","message":null}

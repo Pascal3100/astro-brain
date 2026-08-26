@@ -10,7 +10,6 @@ const _snapshot = '''
   "overall": "green",
   "subsystems": {
     "mount": {"state": "ready", "details": {"firmware_version": "11.01"}, "since": "2026-04-17T20:31:12Z", "message": null},
-    "gps": {"state": "fix_3d", "details": {"lat": 48.8566, "lon": 2.3522, "altitude_m": 45, "satellites": 8, "hdop": 0.9}, "since": "2026-04-17T20:30:00Z", "message": null},
     "tracking": {"state": "sidereal", "details": {}, "since": "2026-04-17T20:30:00Z", "message": null},
     "network": {"state": "client", "details": {"ssid": "BoxWifi", "ip": "192.168.1.42"}, "since": "2026-04-17T20:29:00Z", "message": null},
     "system": {"state": "ok", "details": {"cpu_temp_c": 58.2, "cpu_load": 0.42, "uptime_s": 8120}, "since": "2026-04-17T20:29:00Z", "message": null}
@@ -47,8 +46,6 @@ void main() {
       expect(state.seq, 142);
       expect(state.mount.state, MountState.ready);
       expect(state.mount.details['firmware_version'], '11.01');
-      expect(state.gps.state, GpsState.fix3d);
-      expect(state.gps.details['satellites'], 8);
       expect(state.tracking.state, TrackingState.sidereal);
       expect(state.network.state, NetworkState.client);
       expect(state.system.state, SystemInfoState.ok);
@@ -57,10 +54,10 @@ void main() {
     test('applyUpdate remplace un sous-système et incrémente seq', () {
       final initial = _initial();
       final updatedJson = {
-        'subsystem': 'gps',
+        'subsystem': 'network',
         'state': {
-          'state': 'searching',
-          'details': {'satellites': 3},
+          'state': 'offline',
+          'details': {'ssid': null},
           'since': '2026-04-17T20:32:00Z',
           'message': null,
         },
@@ -69,8 +66,8 @@ void main() {
         'ts': '2026-04-17T20:32:00Z',
       };
       final next = initial.applyUpdate(updatedJson);
-      expect(next.gps.state, GpsState.searching);
-      expect(next.gps.details['satellites'], 3);
+      expect(next.network.state, NetworkState.offline);
+      expect(next.network.details['ssid'], isNull);
       expect(next.overall, OverallStatus.orange);
       expect(next.seq, 143);
       expect(next.mount.state, MountState.ready);
@@ -78,7 +75,7 @@ void main() {
   });
 
   group('SystemState.applyUpdate (multi-subsystems)', () {
-    test('update mount → MountState.moving, gps intact', () {
+    test('update mount → MountState.moving, network intact', () {
       final initial = _initial();
       final next = initial.applyUpdate(_update(
         kind: 'mount',
@@ -90,7 +87,7 @@ void main() {
         },
       ));
       expect(next.mount.state, MountState.moving);
-      expect(next.gps, initial.gps);
+      expect(next.network, initial.network);
       expect(next.system, initial.system);
     });
 
@@ -110,7 +107,7 @@ void main() {
       expect(next.network, initial.network);
     });
 
-    test('update network → NetworkState.hotspot, gps intact', () {
+    test('update network → NetworkState.hotspot, mount intact', () {
       final initial = _initial();
       final next = initial.applyUpdate(_update(
         kind: 'network',
@@ -122,7 +119,7 @@ void main() {
         },
       ));
       expect(next.network.state, NetworkState.hotspot);
-      expect(next.gps, initial.gps);
+      expect(next.mount, initial.mount);
       expect(next.tracking, initial.tracking);
     });
 
@@ -164,11 +161,6 @@ void main() {
     Map<String, dynamic> baseSubsystems() => {
           'mount': {
             'state': 'ready',
-            'details': {},
-            'since': '2026-05-31T20:00:00Z'
-          },
-          'gps': {
-            'state': 'fix_3d',
             'details': {},
             'since': '2026-05-31T20:00:00Z'
           },

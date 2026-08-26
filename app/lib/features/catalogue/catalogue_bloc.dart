@@ -27,8 +27,8 @@ String messageForGotoDetail(String? detail) => switch (detail) {
     };
 
 /// Bloc de la page Catalogue : liste/recherche/filtres + déclenchement GoTo.
-/// Les statuts transverses (is_aligned, goto_in_progress, fix GPS) viennent
-/// de l'AppBloc/SSE — pas d'ici.
+/// Les statuts transverses (is_aligned, goto_in_progress) viennent de
+/// l'AppBloc/SSE — pas d'ici.
 class CatalogueBloc extends Bloc<CatalogueEvent, CatalogueState> {
   CatalogueBloc({required this.repo})
       : super(const CatalogueLoading(CatalogueFilters())) {

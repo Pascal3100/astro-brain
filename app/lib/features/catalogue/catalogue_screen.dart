@@ -158,10 +158,6 @@ class _FiltersState extends State<_Filters> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final gpsFixed = context.select<AppBloc, bool>((b) {
-      final g = b.state.system?.gps.state.name;
-      return g == 'fix2d' || g == 'fix3d';
-    });
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: DesignTokens.spaceMD),
       child: Column(
@@ -193,14 +189,15 @@ class _FiltersState extends State<_Filters> {
                   Wrap(
                     spacing: DesignTokens.spaceSM,
                     children: [
+                      // Pas de garde sur un fix : la visibilité est calculée
+                      // dans l'app depuis la position du téléphone, et sans
+                      // position le filtre s'ignore de lui-même (Visibility).
                       FilterChip(
                         label: const Text('VISIBLE MAINTENANT'),
-                        selected: filters.visibleNow && gpsFixed,
-                        onSelected: gpsFixed
-                            ? (v) => ctx
-                                .read<CatalogueBloc>()
-                                .add(VisibleNowToggled(v))
-                            : null,
+                        selected: filters.visibleNow,
+                        onSelected: (v) => ctx
+                            .read<CatalogueBloc>()
+                            .add(VisibleNowToggled(v)),
                       ),
                     ],
                   ),

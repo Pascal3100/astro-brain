@@ -16,20 +16,6 @@ void main() {
     });
   });
 
-  group('GpsState.fromJson', () {
-    test('parse les 5 valeurs valides', () {
-      expect(GpsState.fromJson('off'), GpsState.off);
-      expect(GpsState.fromJson('no_fix'), GpsState.noFix);
-      expect(GpsState.fromJson('searching'), GpsState.searching);
-      expect(GpsState.fromJson('fix_2d'), GpsState.fix2d);
-      expect(GpsState.fromJson('fix_3d'), GpsState.fix3d);
-    });
-
-    test('throws sur une valeur inconnue', () {
-      expect(() => GpsState.fromJson('bogus'), throwsFormatException);
-    });
-  });
-
   group('TrackingState.fromJson', () {
     test('parse off / sidereal', () {
       expect(TrackingState.fromJson('off'), TrackingState.off);

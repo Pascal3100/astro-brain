@@ -249,18 +249,16 @@ void main() {
     });
   });
 
-  group('AlignmentRepository.postClientLocation', () {
-    test('posts lat/lon to /align/location/client', () async {
-      when(
-        () => api.postJson(any(), any()),
-      ).thenAnswer((_) async => {'ok': true});
+  group('AlignmentRepository.putSite', () {
+    test('puts lat/lon to /site', () async {
+      when(() => api.putJson(any(), any())).thenAnswer((_) async {});
 
-      await repo.postClientLocation(43.6, 1.44);
+      await repo.putSite(43.6, 1.44);
 
       final captured = verify(
-        () => api.postJson(captureAny(), captureAny()),
+        () => api.putJson(captureAny(), captureAny()),
       ).captured;
-      expect(captured[0], '/align/location/client');
+      expect(captured[0], '/site');
       final body = captured[1] as Map<String, dynamic>;
       expect(body['lat'], closeTo(43.6, 0.001));
       expect(body['lon'], closeTo(1.44, 0.001));

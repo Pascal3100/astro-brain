@@ -202,7 +202,7 @@ void main() {
   // ---------------------------------------------------------------------------
 
   blocTest<AlignmentBloc, AlignmentState>(
-    'WizardStarted — 409 puis GPS téléphone disponible → postClientLocation + start → PrePointing',
+    'WizardStarted — 409 puis GPS téléphone disponible → putSite + start → PrePointing',
     build: () {
       when(() => repo.getSession()).thenAnswer((_) async => null);
 
@@ -217,7 +217,7 @@ void main() {
       });
 
       when(
-        () => repo.postClientLocation(43.6, 1.44),
+        () => repo.putSite(43.6, 1.44),
       ).thenAnswer((_) async {});
 
       return AlignmentBloc(
@@ -231,7 +231,7 @@ void main() {
       isA<AlignmentPrePointing>().having((s) => s.session.currentIdx, 'idx', 0),
     ],
     verify: (_) {
-      verify(() => repo.postClientLocation(43.6, 1.44)).called(1);
+      verify(() => repo.putSite(43.6, 1.44)).called(1);
       verify(() => repo.start()).called(2);
     },
   );
@@ -259,7 +259,7 @@ void main() {
       ),
     ],
     verify: (_) {
-      verifyNever(() => repo.postClientLocation(any(), any()));
+      verifyNever(() => repo.putSite(any(), any()));
     },
   );
 
@@ -286,7 +286,7 @@ void main() {
       ],
       // _MockPhoneLocation.current() n'a pas été appelé.
       verify: (_) {
-        verifyNever(() => repo.postClientLocation(any(), any()));
+        verifyNever(() => repo.putSite(any(), any()));
         verifyNever(() => phoneLoc.current());
       },
     );

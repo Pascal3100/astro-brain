@@ -1,7 +1,6 @@
 /// Identifiant stable d'un sous-système dans l'état agrégé.
 enum SubsystemKind {
   mount,
-  gps,
   tracking,
   network,
   system,

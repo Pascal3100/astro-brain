@@ -56,16 +56,6 @@ class SystemScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: DesignTokens.spaceLG),
                         SubsystemCard(
-                          label: 'GPS',
-                          icon: PhosphorIconsBold.gpsFix,
-                          stateLabel: sys.gps.state.name.toUpperCase(),
-                          detailsText: _gpsDetails(sys.gps),
-                          since: sys.gps.since,
-                          dotStatus: _gpsDot(sys.gps.state),
-                          message: sys.gps.message,
-                        ),
-                        const SizedBox(height: DesignTokens.spaceLG),
-                        SubsystemCard(
                           label: 'TRACKING',
                           icon: PhosphorIconsBold.crosshairSimple,
                           stateLabel: sys.tracking.state.name.toUpperCase(),
@@ -118,14 +108,6 @@ class SystemScreen extends StatelessWidget {
     return fw == null ? '' : 'firmware $fw';
   }
 
-  String _gpsDetails(SubsystemState<GpsState> s) {
-    final lat = s.details['lat'];
-    final lon = s.details['lon'];
-    final sats = s.details['satellites'];
-    if (lat == null || lon == null) return 'sats=${sats ?? 0}';
-    return '${(lat as num).toStringAsFixed(4)} / ${(lon as num).toStringAsFixed(4)} · $sats sats';
-  }
-
   String _networkDetails(SubsystemState<NetworkState> s) {
     final ssid = s.details['ssid'];
     final ip = s.details['ip'];
@@ -143,11 +125,5 @@ class SystemScreen extends StatelessWidget {
         MountState.ready || MountState.moving => OverallStatus.green,
         MountState.connecting => OverallStatus.blue,
         MountState.disconnected || MountState.error => OverallStatus.red,
-      };
-
-  OverallStatus _gpsDot(GpsState s) => switch (s) {
-        GpsState.fix3d || GpsState.fix2d => OverallStatus.green,
-        GpsState.searching => OverallStatus.blue,
-        GpsState.off || GpsState.noFix => OverallStatus.orange,
       };
 }

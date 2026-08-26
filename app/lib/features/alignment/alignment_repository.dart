@@ -87,8 +87,10 @@ class AlignmentRepository {
     );
   }
 
-  /// POST /align/location/client {lat, lon} — transmet la position GPS du
-  /// téléphone au backend (utilisé quand le GPS du Pi est indisponible).
-  Future<void> postClientLocation(double lat, double lon) =>
-      api.postJson('/align/location/client', {'lat': lat, 'lon': lon});
+  /// PUT /site {lat, lon} — règle le site d'observation du backend.
+  ///
+  /// Rattrapage du 409 « aucun site connu » au démarrage du wizard : le Pi
+  /// n'a plus de GPS (ADR 2026-08-26), la position vient du téléphone.
+  Future<void> putSite(double lat, double lon) =>
+      api.putJson('/site', {'lat': lat, 'lon': lon});
 }

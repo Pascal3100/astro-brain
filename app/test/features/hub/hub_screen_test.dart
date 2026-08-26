@@ -1,5 +1,3 @@
-import 'dart:async';
-import 'dart:convert';
 
 import 'package:astro_brain/features/about/about_screen.dart';
 import 'package:astro_brain/features/alignment/alignment_bloc.dart';
@@ -35,22 +33,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 // ---------------------------------------------------------------------------
 // Helpers JSON pour construire des SystemState de test
 // ---------------------------------------------------------------------------
-
-SystemState _systemWithGps(String gpsState) => SystemState.fromJson(
-      jsonDecode('''
-{
-  "overall":"green",
-  "subsystems":{
-    "mount":{"state":"ready","details":{},"since":"2026-01-01T00:00:00Z","message":null},
-    "gps":{"state":"$gpsState","details":{},"since":"2026-01-01T00:00:00Z","message":null},
-    "tracking":{"state":"off","details":{},"since":"2026-01-01T00:00:00Z","message":null},
-    "network":{"state":"client","details":{},"since":"2026-01-01T00:00:00Z","message":null},
-    "system":{"state":"ok","details":{},"since":"2026-01-01T00:00:00Z","message":null}
-  },
-  "seq":1,"ts":"2026-01-01T00:00:00Z"
-}
-''') as Map<String, dynamic>,
-    );
 
 class _MockStream extends Mock implements EventStreamService {}
 
@@ -203,8 +185,7 @@ void main() {
 
   testWidgets('Tapping SETUP pushes SetupScreen', (tester) async {
     final apiMock = _MockApi();
-    when(() => apiMock.getCalibrationStatus(any()))
-        .thenAnswer((_) async => throw Exception('not under test'));
+    when(() => apiMock.getJsonOrNull(any())).thenAnswer((_) async => null);
 
     await tester.pumpWidget(
       _wrap(const HubScreen(), bloc, theme, host, api: apiMock),
@@ -269,65 +250,4 @@ void main() {
 
     expect(find.byType(CatalogueScreen), findsOneWidget);
   });
-
-  // ---------------------------------------------------------------------------
-  // Précondition GPS Hub — bandeau « Position GPS requise »
-  // ---------------------------------------------------------------------------
-
-  testWidgets(
-    'ALIGNER — aucun bandeau GPS quand le GPS Pi a un fix3d',
-    (tester) async {
-      // Crée un bloc dont le stream émet immédiatement un état avec fix3d.
-      final controller = StreamController<SystemState>.broadcast();
-      final localStream = _MockStream();
-      when(() => localStream.stream).thenAnswer((_) => controller.stream);
-      when(() => localStream.start()).thenAnswer((_) {
-        controller.add(_systemWithGps('fix_3d'));
-      });
-      when(() => localStream.stop()).thenAnswer((_) async {});
-      when(() => localStream.dispose()).thenAnswer((_) async {});
-
-      final localBloc = AppBloc(eventStream: localStream)
-        ..add(const AppStarted());
-
-      addTearDown(() async {
-        await localBloc.close();
-        await controller.close();
-      });
-
-      await tester.pumpWidget(_wrap(const HubScreen(), localBloc, theme, host));
-      await tester.pump(); // process AppStarted → state with gps
-      await tester.pump(); // rebuild HubScreen with new state
-
-      expect(find.text('Position GPS requise'), findsNothing);
-    },
-  );
-
-  testWidgets(
-    'ALIGNER — bandeau GPS affiché quand le GPS Pi est en no_fix',
-    (tester) async {
-      final controller = StreamController<SystemState>.broadcast();
-      final localStream = _MockStream();
-      when(() => localStream.stream).thenAnswer((_) => controller.stream);
-      when(() => localStream.start()).thenAnswer((_) {
-        controller.add(_systemWithGps('no_fix'));
-      });
-      when(() => localStream.stop()).thenAnswer((_) async {});
-      when(() => localStream.dispose()).thenAnswer((_) async {});
-
-      final localBloc = AppBloc(eventStream: localStream)
-        ..add(const AppStarted());
-
-      addTearDown(() async {
-        await localBloc.close();
-        await controller.close();
-      });
-
-      await tester.pumpWidget(_wrap(const HubScreen(), localBloc, theme, host));
-      await tester.pump(); // process AppStarted → state with gps
-      await tester.pump(); // rebuild HubScreen with new state
-
-      expect(find.textContaining('Position GPS requise'), findsOneWidget);
-    },
-  );
 }

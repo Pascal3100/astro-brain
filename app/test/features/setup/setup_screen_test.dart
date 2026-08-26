@@ -2,7 +2,6 @@ import 'package:astro_brain/features/setup/reference/reference_models.dart';
 import 'package:astro_brain/features/setup/reference/reference_repository.dart';
 import 'package:astro_brain/features/setup/setup_screen.dart';
 import 'package:astro_brain/features/setup/widgets/setup_card.dart';
-import 'package:astro_brain/models/calibration.dart';
 import 'package:astro_brain/models/system_state.dart';
 import 'package:astro_brain/services/api_service.dart';
 import 'package:astro_brain/services/event_stream_service.dart';
@@ -77,14 +76,9 @@ void main() {
     when(() => mockStream.dispose()).thenAnswer((_) async {});
 
     mockApi = _MockApi();
-    // Par défaut, capteur jamais calibré (FutureBuilder card #1).
-    when(() => mockApi.getCalibrationStatus(any())).thenAnswer(
-      (_) async => const CalibrationStatus(
-        sensorId: 'lis3mdl',
-        calibratedAt: null,
-        payload: null,
-      ),
-    );
+    // Par défaut, aucun site d'observation réglé (FutureBuilder card #1) :
+    // `GET /site` répond 200 + `null`, d'où `getJsonOrNull`.
+    when(() => mockApi.getJsonOrNull(any())).thenAnswer((_) async => null);
 
     refRepo = _MockRefRepo();
     // Par défaut, almanach prêt (FutureBuilder card #6).
@@ -126,7 +120,7 @@ void main() {
   });
 
   testWidgets(
-      'card #1 (COMPASS), #5 (RÉSEAU) and #6 (ALMANACH) have onTap',
+      'card #1 (SITE), #5 (RÉSEAU) and #6 (ALMANACH) have onTap',
       (tester) async {
     tester.view.physicalSize = const Size(1080, 4000);
     tester.view.devicePixelRatio = 1.0;
@@ -150,11 +144,11 @@ void main() {
         reason: 'card #${i + 1} onTap mismatch',
       );
     }
-    // Sanity : le mock a bien été appelé pour le capteur câblé.
-    verify(() => mockApi.getCalibrationStatus('lis3mdl')).called(1);
+    // Sanity : la tuile a bien interrogé le backend pour le site.
+    verify(() => mockApi.getJsonOrNull('/site')).called(1);
   });
 
-  testWidgets('card #1 sublabel reads "Non calibré" when never calibrated', (
+  testWidgets('card #1 sublabel reads "Non défini" when no site is set', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1080, 4000);
@@ -168,7 +162,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('Non calibré'), findsOneWidget);
+    expect(find.text('Non défini'), findsOneWidget);
   });
 
   testWidgets('tuile ALMANACH affiche la fenêtre couverte quand prête', (
@@ -207,13 +201,27 @@ void main() {
     expect(find.textContaining('resynchroniser'), findsOneWidget);
   });
 
-  test('formatRelativeAge formats durations correctly', () {
-    expect(formatRelativeAge(const Duration(seconds: 5)), 'Calibré il y a 5s');
-    expect(
-      formatRelativeAge(const Duration(minutes: 2)),
-      'Calibré il y a 2min',
+  testWidgets('card #1 sublabel affiche les coordonnées du site connu', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1080, 4000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    when(() => mockApi.getJsonOrNull(any())).thenAnswer(
+      (_) async => {
+        'lat': 43.6045,
+        'lon': 1.4442,
+        'set_at': '2026-08-26T20:00:00+00:00',
+      },
     );
-    expect(formatRelativeAge(const Duration(hours: 3)), 'Calibré il y a 3h');
-    expect(formatRelativeAge(const Duration(days: 4)), 'Calibré il y a 4j');
+
+    await tester.pumpWidget(
+      _wrap(const SetupScreen(), bloc, theme, api: mockApi, refRepo: refRepo),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('43.60450°, 1.44420°'), findsOneWidget);
   });
 }

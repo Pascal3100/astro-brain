@@ -28,13 +28,13 @@ void main() {
       HubCard(
         heroIcon: HugeIcons.strokeRoundedTelescope01,
         label: 'SETUP',
-        hint: 'Calibration · niveau · réseau',
+        hint: 'Site · réseau · almanach',
         onTap: () {},
       ),
     ));
 
     expect(find.text('SETUP'), findsOneWidget);
-    expect(find.text('Calibration · niveau · réseau'), findsOneWidget);
+    expect(find.text('Site · réseau · almanach'), findsOneWidget);
     expect(
       find.byWidgetPredicate(
         (w) =>

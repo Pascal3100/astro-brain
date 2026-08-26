@@ -11,7 +11,6 @@ class SystemState extends Equatable {
   const SystemState({
     required this.overall,
     required this.mount,
-    required this.gps,
     required this.tracking,
     required this.network,
     required this.system,
@@ -22,7 +21,6 @@ class SystemState extends Equatable {
 
   final OverallStatus overall;
   final SubsystemState<MountState> mount;
-  final SubsystemState<GpsState> gps;
   final SubsystemState<TrackingState> tracking;
   final SubsystemState<NetworkState> network;
   final SubsystemState<SystemInfoState> system;
@@ -47,8 +45,6 @@ class SystemState extends Equatable {
       overall: OverallStatus.fromJson(json['overall'] as String),
       mount: SubsystemState.fromJson(
           subs['mount'] as Map<String, dynamic>, MountState.fromJson),
-      gps: SubsystemState.fromJson(
-          subs['gps'] as Map<String, dynamic>, GpsState.fromJson),
       tracking: SubsystemState.fromJson(
           subs['tracking'] as Map<String, dynamic>, TrackingState.fromJson),
       network: SubsystemState.fromJson(
@@ -79,9 +75,6 @@ class SystemState extends Equatable {
       mount: kind == SubsystemKind.mount
           ? SubsystemState.fromJson(stateJson, MountState.fromJson)
           : mount,
-      gps: kind == SubsystemKind.gps
-          ? SubsystemState.fromJson(stateJson, GpsState.fromJson)
-          : gps,
       tracking: kind == SubsystemKind.tracking
           ? SubsystemState.fromJson(stateJson, TrackingState.fromJson)
           : tracking,
@@ -101,5 +94,5 @@ class SystemState extends Equatable {
 
   @override
   List<Object?> get props =>
-      [overall, mount, gps, tracking, network, system, alignment, seq, ts];
+      [overall, mount, tracking, network, system, alignment, seq, ts];
 }
