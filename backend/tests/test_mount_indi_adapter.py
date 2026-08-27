@@ -649,6 +649,72 @@ async def test_set_tracking_false_pushes_track_off_and_publishes_off() -> None:
     assert bus.get_full_state().subsystems["tracking"].state == "off"
 
 
+@pytest.mark.asyncio
+async def test_driver_side_tracking_is_mirrored_on_the_bus() -> None:
+    """Le suivi réarmé par le driver doit remonter sur le bus.
+
+    ``INDI::Telescope`` réarme le suivi quand un mouvement manuel s'arrête
+    (c'est le comportement voulu : sans suivi le champ défile à l'oculaire).
+    On ne publiait ``tracking`` que depuis nos propres commandes, donc
+    l'app affichait ``off`` pendant que la monture suivait (journal S57).
+    """
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_tracking_property(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    await adapter.set_tracking(False)
+    assert bus.get_full_state().subsystems["tracking"].state == "off"
+
+    # Le driver réarme le suivi de lui-même, sans goto en cours.
+    track = client.getDevice(INDI_DEVICE_NAME).getSwitch("TELESCOPE_TRACK_STATE")
+    track.findWidgetByName("TRACK_ON").setState(1)
+    track.findWidgetByName("TRACK_OFF").setState(0)
+    adapter.handle_property_update(track)
+
+    assert bus.get_full_state().subsystems["tracking"].state == "sidereal"
+    assert adapter._goto_in_progress is False
+
+
+@pytest.mark.asyncio
+async def test_driver_side_tracking_off_is_mirrored_on_the_bus() -> None:
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_tracking_property(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    await adapter.set_tracking(True)
+
+    track = client.getDevice(INDI_DEVICE_NAME).getSwitch("TELESCOPE_TRACK_STATE")
+    track.findWidgetByName("TRACK_ON").setState(0)
+    track.findWidgetByName("TRACK_OFF").setState(1)
+    adapter.handle_property_update(track)
+
+    assert bus.get_full_state().subsystems["tracking"].state == "off"
+
+
+@pytest.mark.asyncio
+async def test_identical_track_state_echo_does_not_republish() -> None:
+    """Le driver réémet la propriété : pas de churn SSE pour un état égal."""
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_tracking_property(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    await adapter.set_tracking(True)
+    seq = bus.get_full_state().seq
+
+    track = client.getDevice(INDI_DEVICE_NAME).getSwitch("TELESCOPE_TRACK_STATE")
+    adapter.handle_property_update(track)  # écho identique
+    adapter.handle_property_update(track)
+
+    assert bus.get_full_state().seq == seq
+    assert bus.get_full_state().subsystems["tracking"].state == "sidereal"
+
+
 def _seed_cordwrap_properties(client: FakeIndiClient) -> None:
     dev = client.getDevice(INDI_DEVICE_NAME)
     assert dev is not None

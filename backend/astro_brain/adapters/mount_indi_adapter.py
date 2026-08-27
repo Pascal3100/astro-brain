@@ -93,6 +93,9 @@ class MountIndiAdapter:
         self._active_slews: list[dict[str, Any]] = []
         self._goto_in_progress: bool = False
         self._goto_target: dict[str, Any] | None = None
+        #: Dernier état de suivi publié, pour ne pas rejouer les échos
+        #: identiques du driver sur le bus (cf. _publish_track_state).
+        self._last_track_state: str | None = None
         self._reconnect_lock = asyncio.Lock()
         self._pending_reconnects: set[asyncio.Task[None]] = set()
 
@@ -775,16 +778,24 @@ class MountIndiAdapter:
     def handle_property_update(self, prop: Any) -> None:
         """Réagit aux mises à jour de propriétés INDI (thread C++ → loop).
 
-        Détecte la fin d'un GoTo : quand ``EQUATORIAL_EOD_COORD`` repasse à
-        ``Ok``/``Idle`` alors qu'un goto était en cours, publie ``ready`` +
-        ``tracking=sidereal`` et désarme le goto. Sync method : sûre à
-        appeler depuis un callback (aucun await).
+        Deux propriétés nous intéressent :
+
+        * ``TELESCOPE_TRACK_STATE`` — miroir du suivi réel, à tout moment
+          (cf. :meth:`_publish_track_state`) ;
+        * ``EQUATORIAL_EOD_COORD`` — fin d'un GoTo : quand elle repasse à
+          ``Ok``/``Idle`` alors qu'un goto était en cours, on publie
+          ``ready`` + ``tracking=sidereal`` et on désarme le goto.
+
+        Sync method : sûre à appeler depuis un callback (aucun await).
         """
-        if not self._goto_in_progress:
-            return
         try:
             name = prop.getName()
         except Exception:
+            return
+        if name == "TELESCOPE_TRACK_STATE":
+            self._publish_track_state(prop)
+            return
+        if not self._goto_in_progress:
             return
         if name != "EQUATORIAL_EOD_COORD":
             return
@@ -800,10 +811,33 @@ class MountIndiAdapter:
                 since=_now(),
             ),
         )
-        self._bus.publish(
-            "tracking",
-            SubsystemState(state="sidereal", since=_now()),
-        )
+        self._publish_tracking("sidereal")
+
+    def _publish_track_state(self, prop: Any) -> None:
+        """Reflète sur le bus le suivi **réel** de la monture.
+
+        La monture suit d'elle-même : ``INDI::Telescope`` réarme le suivi
+        quand un mouvement manuel s'arrête, et c'est le comportement qu'on
+        veut à l'oculaire — sans suivi, le champ d'étoiles défile et
+        centrer une étoile devient impossible. Mais l'état ``tracking``
+        n'était publié que depuis **nos** commandes : après un ``/stop``,
+        l'app affichait ``off`` pendant que la monture suivait (journal
+        S57). Un sous-système doit rapporter ce que fait la monture, pas ce
+        qu'on lui a demandé en dernier — même principe que le garde-fou
+        ``ready`` : un état de switch qu'on a poussé n'est pas une preuve.
+        """
+        try:
+            enabled = find_widget(prop, "TRACK_ON").getState() == SWITCH_ON
+        except (KeyError, AttributeError):
+            return
+        self._publish_tracking("sidereal" if enabled else "off")
+
+    def _publish_tracking(self, state: str) -> None:
+        """Publie ``tracking`` en filtrant les échos identiques du driver."""
+        if state == self._last_track_state:
+            return
+        self._last_track_state = state
+        self._bus.publish("tracking", SubsystemState(state=state, since=_now()))
 
     # --- tracking (TrackingService surface) -------------------------------
 
@@ -818,12 +852,9 @@ class MountIndiAdapter:
                 track, "TRACK_ON" if enabled else "TRACK_OFF"
             )
             await asyncio.to_thread(self._client.sendNewProperty, track)
-            self._bus.publish(
-                "tracking",
-                SubsystemState(
-                    state="sidereal" if enabled else "off", since=_now()
-                ),
-            )
+            # Retour immédiat, sans attendre l'écho du driver ; celui-ci
+            # passera ensuite par _publish_track_state et sera dédupliqué.
+            self._publish_tracking("sidereal" if enabled else "off")
         except Exception as exc:
             self._publish_error(exc, context="set_tracking")
 
