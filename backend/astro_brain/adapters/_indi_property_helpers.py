@@ -54,3 +54,28 @@ def set_switch_one_of_many(vector: Any, on_name: str) -> None:
             element.setState(SWITCH_OFF)
     if not found:
         raise KeyError(on_name)
+
+
+def as_switch_vector(prop: Any) -> Any:
+    """Return ``prop`` as a vector whose widgets are reachable.
+
+    ``BaseClient.updateProperty()`` hands a **bare** ``INDI::Property``:
+    it carries ``getName()`` and ``getStateAsString()`` but *not*
+    ``findWidgetByName`` — the typed view has to be built explicitly with
+    ``PyIndi.PropertySwitch(prop)``. Verified on-device (journal S57):
+    ``hasattr(prop, "findWidgetByName")`` is ``False`` in the callback,
+    ``True`` on the vector returned by ``device.getSwitch()``.
+
+    Missing that cast is invisible — the ``AttributeError`` looks like
+    "property absent" and a mirror wired on it never fires. Hence this
+    helper, and hence callers that log rather than swallow.
+
+    Vectors that already expose widgets (``getSwitch()`` results, and the
+    test fakes) are returned untouched, so the import of PyIndi stays lazy
+    and the workstation test suite never needs libindi.
+    """
+    if hasattr(prop, "findWidgetByName"):
+        return prop
+    import PyIndi  # local: absent on the workstation, present on the Pi
+
+    return PyIndi.PropertySwitch(prop)

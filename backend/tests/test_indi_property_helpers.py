@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import pytest
 
 from astro_brain.adapters._indi_property_helpers import (
+    as_switch_vector,
     set_switch_one_of_many,
 )
 
@@ -62,3 +63,40 @@ def test_set_switch_one_of_many_raises_on_unknown_element() -> None:
     vec = _FakeSwitchVector([_FakeSwitchElement("SLEW")])
     with pytest.raises(KeyError):
         set_switch_one_of_many(vec, "NOPE")
+
+
+# --- as_switch_vector ----------------------------------------------------
+
+
+class _BareProperty:
+    """Ce que ``updateProperty()`` livre réellement : pas de widgets.
+
+    Le ``INDI::Property`` du callback expose le nom et l'état mais pas
+    ``findWidgetByName`` — vérifié sur le Pi (journal S57).
+    """
+
+    def getName(self) -> str:  # noqa: N802
+        return "TELESCOPE_TRACK_STATE"
+
+
+def test_as_switch_vector_leaves_a_typed_vector_untouched() -> None:
+    vec = _FakeSwitchVector(
+        [_FakeSwitchElement("TRACK_ON", 1), _FakeSwitchElement("TRACK_OFF", 0)]
+    )
+    assert as_switch_vector(vec) is vec
+
+
+def test_as_switch_vector_casts_a_bare_callback_property(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sans le cast, le miroir de suivi ne se déclenche jamais."""
+    import sys
+    import types
+
+    bare = _BareProperty()
+    typed = _FakeSwitchVector([_FakeSwitchElement("TRACK_ON", 1)])
+    fake_pyindi = types.ModuleType("PyIndi")
+    fake_pyindi.PropertySwitch = lambda prop: typed  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "PyIndi", fake_pyindi)
+
+    assert as_switch_vector(bare) is typed

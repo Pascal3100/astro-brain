@@ -36,6 +36,7 @@ from typing import Any
 from astro_brain.adapters._indi_property_helpers import (
     SWITCH_OFF,
     SWITCH_ON,
+    as_switch_vector,
     find_widget,
     set_switch_one_of_many,
 )
@@ -827,8 +828,13 @@ class MountIndiAdapter:
         ``ready`` : un état de switch qu'on a poussé n'est pas une preuve.
         """
         try:
-            enabled = find_widget(prop, "TRACK_ON").getState() == SWITCH_ON
-        except (KeyError, AttributeError):
+            track = as_switch_vector(prop)
+            enabled = find_widget(track, "TRACK_ON").getState() == SWITCH_ON
+        except Exception as exc:
+            # Ne jamais avaler : c'est un AttributeError silencieux sur le
+            # Property nu du callback qui a fait passer ce miroir pour
+            # câblé alors qu'il ne se déclenchait pas (journal S57).
+            logger.warning("tracking: TELESCOPE_TRACK_STATE illisible: %s", exc)
             return
         self._publish_tracking("sidereal" if enabled else "off")
 
