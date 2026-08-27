@@ -12,12 +12,18 @@ Responsibilities:
 * ``updateProperty`` forwards property updates to the adapter via
   ``call_soon_threadsafe`` so goto completion can be detected from the
   C++ PyIndi thread without blocking.
+* ``newMessage`` re-emits the driver's own log lines through :mod:`logging`.
+  They carry the only explanation the driver ever gives for a refused
+  connection, and dropping them cost a session of blind diagnosis (S57:
+  the reason the serial link was rejected was reachable only from a
+  throwaway client that happened to implement this callback).
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import UTC, datetime
 
 import PyIndi  # type: ignore[import-not-found]
@@ -30,6 +36,17 @@ logger = logging.getLogger(__name__)
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+# INDI prefixes every message with an ISO timestamp and a bracketed severity:
+# ``2026-08-27T10:12:33: [ERROR] Got no response from target ALT or AZM.``
+_MESSAGE_RE = re.compile(r"^\s*\S+:\s*\[(?P<level>[A-Z]+)\]\s*(?P<text>.*)$")
+_LEVELS = {
+    "ERROR": logging.ERROR,
+    "WARNING": logging.WARNING,
+    "INFO": logging.INFO,
+    "DEBUG": logging.DEBUG,
+}
 
 
 class AstroBrainIndiClient(PyIndi.BaseClient):
@@ -79,4 +96,22 @@ class AstroBrainIndiClient(PyIndi.BaseClient):
             self._loop.call_soon_threadsafe(self._on_update, prop)
 
     def newMessage(self, dev: PyIndi.BaseDevice, msg_id: int) -> None:  # noqa: N802
-        pass
+        # Fires from PyIndi's C++ thread; :mod:`logging` is thread-safe, so we
+        # log straight through instead of hopping to the loop -- a message
+        # explaining a failed connect must not queue behind the very coroutine
+        # that is waiting on that connect.
+        try:
+            raw = dev.messageQueue(msg_id)
+        except Exception:  # pragma: no cover - defensive, PyIndi is C++
+            logger.exception("indi: could not read message %s", msg_id)
+            return
+        match = _MESSAGE_RE.match(raw or "")
+        if match is None:
+            logger.info("indi[%s]: %s", dev.getDeviceName(), raw)
+            return
+        logger.log(
+            _LEVELS.get(match["level"], logging.DEBUG),
+            "indi[%s]: %s",
+            dev.getDeviceName(),
+            match["text"],
+        )
