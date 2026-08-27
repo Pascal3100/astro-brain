@@ -577,8 +577,25 @@ class MountIndiAdapter:
     async def stop_slew(self, axis: Axis | None) -> None:
         """Stop slew on a single ``axis``, or abort all motion when ``None``.
 
-        When ``axis`` is ``None`` uses ``TELESCOPE_ABORT_MOTION`` as a
-        belt-and-braces stop covering anything still moving.
+        **Règle produit : hors arrêt d'urgence, le suivi reste actif.** Un
+        recadrage ne doit jamais laisser l'étoile filer à 15"/s dans
+        l'oculaire (ADR 2026-08-27).
+
+        Les deux chemins l'obtiennent différemment :
+
+        * ``axis`` donné — on relâche le switch de mouvement, et le driver
+          relance le suivi tout seul : ``ReadScopeStatus()`` voit les axes
+          arrêtés et, si ``isTrackingRequested()``, repasse en
+          ``SCOPE_TRACKING`` en recalant la cible sur la position courante.
+          Mesuré sur la monture : reprise 1,3 s après le relâchement.
+        * ``axis`` à ``None`` — ``TELESCOPE_ABORT_MOTION`` est le seul moyen
+          d'interrompre un GoTo, mais ``CelestronAUX::Abort()`` force
+          ``TrackState = SCOPE_IDLE`` et **rien ne le restaure** (le base
+          class ne restaure que depuis ``SCOPE_SLEWING``/``SCOPE_PARKING``).
+          On réengage donc le suivi explicitement derrière.
+
+        Le jour où un vrai arrêt d'urgence existera, ce sera *lui* qui
+        n'aura pas ce réengagement — pas ce chemin-ci.
         """
         if self._device is None:
             return
@@ -594,6 +611,7 @@ class MountIndiAdapter:
                 self._active_slews = []
                 self._goto_in_progress = False
                 self._goto_target = None
+                await self._reengage_tracking()
             else:
                 motion_name = self._AXIS_TO_MOTION_VECTOR[axis]
                 motion_vec = self._device.getSwitch(motion_name)
@@ -712,6 +730,14 @@ class MountIndiAdapter:
         Pattern: arm ``ON_COORD_SET=SYNC`` (1-of-many switch) then write
         ``EQUATORIAL_EOD_COORD`` (RA in hours, DEC in degrees, JNow). The
         driver consumes the sync and updates its internal alignment table.
+
+        ``ON_COORD_SET`` est **reposé sur TRACK** ensuite : c'est le drapeau
+        que le driver lit pour décider de relancer le suivi après un
+        mouvement (``isTrackingRequested()`` renvoie
+        ``CoordSP.isSwitchOn("TRACK")``). Le laisser sur ``SYNC`` tuait le
+        suivi pour de bon dès la première étoile du wizard — chaque
+        recadrage suivant laissait la monture à l'arrêt sous un ciel qui
+        tourne (mesuré : 14,5"/s). ADR 2026-08-27.
         """
         if self._device is None:
             return
@@ -728,6 +754,10 @@ class MountIndiAdapter:
             find_widget(coord, "RA").setValue(float(ra_deg) / 15.0)
             find_widget(coord, "DEC").setValue(float(dec_deg))
             await asyncio.to_thread(self._client.sendNewProperty, coord)
+
+            # Le sync est consommé : on rend au driver son drapeau « suivre ».
+            set_switch_one_of_many(mode, "TRACK")
+            await asyncio.to_thread(self._client.sendNewProperty, mode)
         except Exception as exc:
             self._publish_error(exc, context="sync_radec")
 
@@ -846,6 +876,21 @@ class MountIndiAdapter:
         self._bus.publish("tracking", SubsystemState(state=state, since=_now()))
 
     # --- tracking (TrackingService surface) -------------------------------
+
+    async def _reengage_tracking(self) -> None:
+        """Réarme ``TRACK_ON`` après un abort, qui laisse la monture figée.
+
+        Silencieux en cas d'échec : l'arrêt lui-même a réussi, et le miroir
+        de :meth:`_publish_track_state` dira la vérité de toute façon.
+        """
+        try:
+            track = self._device.getSwitch("TELESCOPE_TRACK_STATE")
+            if track is None:
+                return
+            set_switch_one_of_many(track, "TRACK_ON")
+            await asyncio.to_thread(self._client.sendNewProperty, track)
+        except Exception as exc:
+            logger.warning("stop_slew: réengagement du suivi impossible: %s", exc)
 
     async def set_tracking(self, enabled: bool) -> None:
         if self._device is None:

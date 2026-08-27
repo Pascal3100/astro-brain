@@ -313,6 +313,47 @@ async def test_stop_slew_no_axis_uses_abort_motion() -> None:
     assert bus.get_full_state().subsystems["mount"].state == "ready"
 
 
+@pytest.mark.asyncio
+async def test_stop_slew_no_axis_reengages_tracking() -> None:
+    """Hors arrêt d'urgence, le suivi reste actif (ADR 2026-08-27).
+
+    ``CelestronAUX::Abort()`` force ``TrackState = SCOPE_IDLE`` et rien ne
+    le restaure — le base class ne restaure que depuis ``SCOPE_SLEWING`` /
+    ``SCOPE_PARKING``. Sans ce réengagement, l'étoile file à 15"/s dans
+    l'oculaire après chaque abandon.
+    """
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_motion_properties(client)
+    _seed_tracking_property(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    await adapter.slew("az", "-", 4)
+
+    await adapter.stop_slew(None)
+
+    track = client.getDevice(INDI_DEVICE_NAME).getSwitch("TELESCOPE_TRACK_STATE")
+    assert track.findWidgetByName("TRACK_ON").getStateAsString() == "On"
+    assert track.findWidgetByName("TRACK_OFF").getStateAsString() == "Off"
+
+
+@pytest.mark.asyncio
+async def test_stop_slew_no_axis_survives_a_mount_without_track_state() -> None:
+    """L'arrêt a réussi : un réengagement impossible ne doit pas le casser."""
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_motion_properties(client)  # pas de TELESCOPE_TRACK_STATE
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+    await adapter.slew("az", "-", 4)
+
+    await adapter.stop_slew(None)
+
+    assert bus.get_full_state().subsystems["mount"].state == "ready"
+
+
 class _StaleDeviceClient(FakeIndiClient):
     """First ``getDevice`` returns an empty device (properties not yet
     defined), later calls return the populated one — mirrors the real
@@ -571,14 +612,41 @@ async def test_sync_radec_arms_sync_then_pushes_eod_coord_in_hours() -> None:
     await adapter.sync_radec(101.287, -16.716)
 
     dev = client.getDevice(INDI_DEVICE_NAME)
-    mode = dev.getSwitch("ON_COORD_SET")
-    assert mode.findWidgetByName("SYNC").getStateAsString() == "On"
-    assert mode.findWidgetByName("SLEW").getStateAsString() == "Off"
-    assert mode.findWidgetByName("TRACK").getStateAsString() == "Off"
-
     coord = dev.getNumber("EQUATORIAL_EOD_COORD")
     assert coord.findWidgetByName("RA").getValue() == pytest.approx(101.287 / 15.0)
     assert coord.findWidgetByName("DEC").getValue() == pytest.approx(-16.716)
+
+    # SYNC armé, coordonnées poussées, puis ON_COORD_SET reposé.
+    assert [p.getName() for p in client.sent_properties[-3:]] == [
+        "ON_COORD_SET",
+        "EQUATORIAL_EOD_COORD",
+        "ON_COORD_SET",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sync_radec_restores_on_coord_set_to_track() -> None:
+    """Laisser ``ON_COORD_SET`` sur SYNC tue le suivi pour de bon.
+
+    C'est le drapeau que le driver lit pour décider de relancer le suivi
+    après un mouvement (``isTrackingRequested()`` →
+    ``CoordSP.isSwitchOn("TRACK")``). Resté sur SYNC, chaque recadrage du
+    wizard laissait la monture à l'arrêt sous un ciel qui tourne — mesuré
+    à 14,5"/s sur la monture (journal S57).
+    """
+    bus = StateBus()
+    client = FakeIndiClient()
+    _seed_mount_device(client)
+    _seed_sync_properties(client)
+    adapter = MountIndiAdapter(bus, client=client)
+    await adapter.start()
+
+    await adapter.sync_radec(101.287, -16.716)
+
+    mode = client.getDevice(INDI_DEVICE_NAME).getSwitch("ON_COORD_SET")
+    assert mode.findWidgetByName("TRACK").getStateAsString() == "On"
+    assert mode.findWidgetByName("SYNC").getStateAsString() == "Off"
+    assert mode.findWidgetByName("SLEW").getStateAsString() == "Off"
 
 
 @pytest.mark.asyncio

@@ -4,6 +4,38 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 
 ---
 
+## 2026-08-27 — Hors arrêt d'urgence, le suivi reste actif
+
+**Contexte** : sur la monture réelle, un recadrage manuel laissait le suivi mort. Mesuré sur `EQUATORIAL_EOD_COORD` (si la monture suit, la position équatoriale reste figée) : après un slew au D-pad suivi d'un `/stop`, RA dérivait à **+15,5"/s, DEC à exactement 0,0"** — le rythme sidéral, signature d'une monture immobile sous un ciel qui tourne. Sur le Mak 1900 mm avec un 25 mm (~0,6° de champ vrai), l'étoile traverse le champ en deux minutes et quitte un centrage propre en quelques dizaines de secondes. C'est rédhibitoire pour le wizard 3 étoiles, où l'on centre puis on valide.
+
+Le diagnostic initial visait à mémoriser l'intention de suivi côté backend et à la réarmer. **Lecture des sources INDI : le mécanisme existe déjà** et nous le contournions à deux endroits.
+
+- `INDI::Telescope` conserve `RememberTrackState` (« *Remember last state of Track State to fall back to in case of errors or aborts* ») et le driver AUX décide de relancer le suivi via `isTrackingRequested()`, qui renvoie `CoordSP.isSwitchOn("TRACK")` — c'est **`ON_COORD_SET`** qui porte l'intention, pas `TELESCOPE_TRACK_STATE` (que le base class ne fait que refléter depuis `TrackState`). Quand les axes s'arrêtent, `ReadScopeStatus()` repasse en `SCOPE_TRACKING` et recale la cible sur la position courante.
+- `sync_radec()` armait `ON_COORD_SET = SYNC` et ne le reposait jamais : dès la première étoile enregistrée du wizard, `isTrackingRequested()` devenait faux **définitivement**.
+- `stop_slew(None)` passe par `TELESCOPE_ABORT_MOTION`, et `CelestronAUX::Abort()` force `TrackState = SCOPE_IDLE` sans que rien ne le restaure (le base class ne restaure que depuis `SCOPE_SLEWING`/`SCOPE_PARKING`, et porte le commentaire « *Abort shouldn't affect tracking state* »).
+
+Mesures croisées sur la monture, les trois cas :
+
+| arrêt | `ON_COORD_SET` | suivi après |
+|---|---|---|
+| `ABORT` (`/stop` sans axe) | `TRACK` | mort — RA +15,7"/s |
+| relâche du switch de mouvement (`/stop` avec axe) | `TRACK` | **repris par le driver à +1,3 s** — RA +0,17"/s |
+| relâche du switch de mouvement (`/stop` avec axe) | `SYNC` | mort — RA +14,5"/s |
+
+**Décision** : **hors arrêt d'urgence, le suivi est toujours actif.** Un recadrage, un abandon de GoTo, une étoile enregistrée ne doivent jamais laisser la monture figée sous un ciel qui tourne — c'est le comportement de la raquette Celestron, et sans lui viser une étoile est impossible. Concrètement : `sync_radec()` repose `ON_COORD_SET = TRACK` après avoir consommé le sync, et `stop_slew(None)` réengage `TRACK_ON` derrière l'abort. Le chemin par axe est laissé tel quel : le driver s'en charge seul, c'est prouvé.
+
+**Conséquences** :
+- Le wizard 3 étoiles devient tenable : entre deux étoiles, la monture suit, et l'erreur de temps de réaction entre le centrage et la validation disparaît.
+- `TELESCOPE_ABORT_MOTION` est **réservé** au sens « tout arrêter ». Le jour où un vrai arrêt d'urgence existera (fil transverse safety), ce sera lui — et lui seul — qui n'aura pas le réengagement.
+- Aucun état d'intention n'est ajouté côté backend : l'intention vit dans `ON_COORD_SET`, l'observé dans `TrackState`, et le sous-système `tracking` reflète désormais le second (correctif du même jour).
+- Le `tracking: off` affiché pendant que la monture suivait est corrigé indépendamment : `TELESCOPE_TRACK_STATE` est miroité en continu, et la lecture du `INDI::Property` **nu** du callback exige un cast explicite (`PyIndi.PropertySwitch`) — sans lui, `findWidgetByName` est absent et un `except` large rend le défaut invisible.
+
+**Cross-références** : sert l'ADR [2026-05-10](decisions.md) (le sync natif Celestron comme source de vérité du pointage — c'est ce chemin que le `ON_COORD_SET` bloqué cassait). Touche l'ADR [2026-08-26](decisions.md) (même famille de faux positif : un état lu n'est pas une preuve du comportement réel).
+
+**Rationale** : le mécanisme était déjà écrit, testé et documenté dans INDI ; la bonne correction était d'arrêter de le contourner, pas d'en réécrire un en parallèle. La règle « hors urgence, on suit toujours » est celle de la raquette, donc celle qu'un utilisateur de Celestron attend sans avoir à l'apprendre.
+
+---
+
 ## 2026-07-24 — Plan de données de référence indépendant du Pi + module `oracle/`
 
 **Contexte** : le besoin « proposer à l'utilisateur les événements éphémères observables (comètes, conjonctions, appulses, novæ…) selon sa position et son matériel » a fait apparaître une limite d'architecture de fond. L'app Flutter a un mode offline, mais il est inutile pour la **planification** : toutes les données astro sont servies par le Pi (ADR [2026-04-29](decisions.md) « catalogue + calculs astro côté backend »), or **le Pi n'est allumé qu'en session d'observation**. Planifier une soirée, consulter les éphémères, recevoir des alertes se fait typiquement **loin du télescope, Pi éteint** (canapé, bureau, déplacement) — exactement quand la source de données est indisponible. Le pattern *snapshot/cache-depuis-le-Pi* envisagé dans [`backlog.md`](backlog.md) pour le night planner **ne survit pas** à ce constat : pour obtenir un snapshot il faut le Pi allumé. Faire transiter la planification par le Pi est une **API à contre-sens du flux de données**. Sans plan de planification autonome, l'app ne fait que singer la raquette Celestron.
