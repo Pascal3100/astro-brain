@@ -68,19 +68,6 @@ void main() {
     });
   });
 
-  group('ApiService.setTracking', () {
-    test('POST /tracking { enabled: true }', () async {
-      var captured = <String, dynamic>{};
-      final client = MockClient((req) async {
-        captured = jsonDecode(req.body) as Map<String, dynamic>;
-        return http.Response('{"ok": true}', 200);
-      });
-      final api = ApiService(host: host, client: client);
-      await api.setTracking(true);
-      expect(captured, {'enabled': true});
-    });
-  });
-
   // -------------------------------------------------------------------------
   // Helpers JSON génériques
   // -------------------------------------------------------------------------

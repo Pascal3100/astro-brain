@@ -2,7 +2,7 @@
 
 ## Pour quoi faire
 
-Contrôler manuellement la monture depuis le téléphone, comme on le ferait avec la raquette Celestron. Pointage en aveugle, joystick D-Pad, choix du rate, activation du tracking sidéral.
+Contrôler manuellement la monture depuis le téléphone, comme on le ferait avec la raquette Celestron. Pointage en aveugle, joystick D-Pad, choix du rate, lecture de l'état du suivi sidéral.
 
 ## Écrans
 
@@ -16,7 +16,7 @@ Boot de l'app : 3 phases séquentielles (`contacting → loading → openingStre
 - **AppBar** : pastille `overall` (tap → SystemScreen), toggle thème, bouton reconnect quand offline.
 - **D-Pad 3×3** : 4 directions ALT/AZ + bouton STOP central. `onTapDown/Up/Cancel` → POST `/slew` puis `/stop`. Feedback visuel au press (couleur lerp + glow).
 - **Rate control** : 9 barres + boutons ± pour rate 1..9. Clamp côté bloc.
-- **Tracking toggle** : switch SIDEREAL ↔ OFF. Désactivé tant que `connection != connected` ou `mount.state ∉ {ready, moving}`.
+- **Indicateur de tracking** (lecture seule depuis le 2026-08-27) : `TRACKING SIDEREAL` / `TRACKING OFF` / `TRACKING —` quand `connection != connected` ou `mount.state ∉ {ready, moving}` — l'état publié n'est pas signifiant hors monture prête, on l'affiche comme inconnu plutôt que comme « off ». Le suivi s'arme tout seul à la première étoile validée de l'alignement ([ADR 2026-08-27](../../project/decisions.md)) : l'app ne le commande plus, elle le constate. Le libellé OFF est doublé de « s'arme à la 1ʳᵉ étoile validée » pour que l'état normal d'avant alignement ne se lise pas comme une panne.
 
 ### SystemScreen
 
@@ -27,7 +27,7 @@ Vue détaillée des sous-systèmes :
 ## Interactions critiques
 
 - **Press long sur D-Pad** = slew continu tant que pressé. Relâcher / sortir du bouton = stop immédiat.
-- **Sécurité tracking** : impossible d'activer le tracking si la monture n'est pas `ready` ou `moving`.
+- **Sécurité tracking** : plus de commande de suivi côté app — donc plus rien à garder. L'arrêt des moteurs en dernier recours, c'est la coupure d'alimentation de la monture (arbitré le 2026-08-27) ; `/stop` ne convient pas, il réengage le suivi par construction. L'endpoint `POST /tracking` reste exposé côté backend pour le diagnostic.
 - **Messages d'erreur monture humanisés** : utilitaire `humanizeMountMessage` qui mappe les erreurs techniques (`[Errno 2] could not open port…`) vers des messages compréhensibles dans le SystemScreen. Les logs serveur restent techniques.
 
 ## Tests

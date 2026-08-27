@@ -11,7 +11,8 @@ Convention : RA/Dec en **degrés décimaux** dans toutes les requêtes/réponses
 ```
 POST /slew     { axis: "alt" | "az", direction: "+" | "-", rate: 1..8 }   # 8x max (driver INDI, cf. S38)
 POST /stop     { axis?: "alt" | "az" }           # omettre axis = stoppe tout slew actif
-POST /tracking { enabled: bool }                 # suivi sidéral on/off
+POST /tracking { enabled: bool }                 # suivi sidéral on/off — diagnostic seulement,
+                                                 #   l'app ne l'appelle plus (ADR 2026-08-27)
 POST /mount/reconnect                            # reconnect monture (non bloquant, progrès via SSE)
 GET  /state                                      # snapshot complet du SystemState
 ```

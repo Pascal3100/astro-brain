@@ -22,7 +22,6 @@ void main() {
             rate: any(named: 'rate')))
         .thenAnswer((_) async {});
     when(() => api.stop(axis: any(named: 'axis'))).thenAnswer((_) async {});
-    when(() => api.setTracking(any())).thenAnswer((_) async {});
     when(() => api.reconnectMount()).thenAnswer((_) async {});
   });
 

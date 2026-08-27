@@ -10,7 +10,7 @@ import '../../widgets/dpad_control.dart';
 import 'manual_bloc.dart';
 import '../../widgets/rate_control.dart';
 import 'widgets/mount_status_banner.dart';
-import 'widgets/tracking_toggle.dart';
+import 'widgets/tracking_indicator.dart';
 
 class ManualScreen extends StatelessWidget {
   const ManualScreen({super.key});
@@ -55,7 +55,7 @@ class ManualScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: DesignTokens.spaceXL),
-                const TrackingToggle(),
+                const TrackingIndicator(),
               ],
             ),
           ),

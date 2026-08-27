@@ -30,13 +30,6 @@ class ManualSlewReleased extends ManualEvent {
   List<Object> get props => [axis];
 }
 
-class ManualTrackingToggled extends ManualEvent {
-  const ManualTrackingToggled(this.enabled);
-  final bool enabled;
-  @override
-  List<Object> get props => [enabled];
-}
-
 /// Demande une reconnexion de la monture (bouton de la bannière d'erreur).
 class ManualReconnectPressed extends ManualEvent {
   const ManualReconnectPressed();

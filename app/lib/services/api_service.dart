@@ -85,10 +85,6 @@ class ApiService {
     await _post('/stop', axis == null ? {} : {'axis': axis.toJson()});
   }
 
-  Future<void> setTracking(bool enabled) async {
-    await _post('/tracking', {'enabled': enabled});
-  }
-
   /// Déclenche une reconnexion de la monture (non bloquant côté backend :
   /// la progression revient par SSE `/state`).
   Future<void> reconnectMount() async {
