@@ -54,6 +54,25 @@ le HTML reste la spec de référence. Les deux doivent rester cohérents.
 
 Rappel LM2902 (DIP-14) : `1`=OUT1, `2`=IN1−, `3`=IN1+, `4`=V+, `11`=GND.
 
+## Sniff passif du bus (`auxsniff.py`)
+
+[`auxsniff.py`](auxsniff.py) écoute le bus AUX **sans jamais émettre** et décode
+les trames (`0x3b | len | src | dst | cmd | data | checksum`) en clair.
+
+Il exploite deux propriétés du montage : les deux jacks RJ-12 de la base sont
+en parallèle sur le même bus, et le pont laisse `/OE` en Hi-Z au repos — donc
+il relaie vers le Pi *toute* trame qu'il entend. On peut ainsi brancher la
+**raquette Celestron** sur le jack `AUX` libre et capturer son dialogue avec
+les contrôleurs moteur, ce qui en fait le système de référence quand on doute
+d'une sémantique du protocole.
+
+```bash
+sudo systemctl stop astro-brain.service indiserver   # aucun autre maître !
+python3 auxsniff.py /dev/ttyAMA0 900 | tee /tmp/auxsniff.log
+```
+
+Procédure complète et précautions : [`docs/technical/hardware.md`](../../docs/technical/hardware.md).
+
 ## Netlist-as-code → import Pcbnew
 
 La carte est décrite en Python dans [`gen_netlist.py`](gen_netlist.py) (composants + nets),

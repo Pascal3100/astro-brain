@@ -184,6 +184,36 @@ Plus les deux contrôles **négatifs** : `DATA` ne doit toucher ni `+5V` ni `GND
 
 ⚠️ Toute la logique d'interface est en **5 V** (rail externe ↔ bus AUX 5 V), masses communes obligatoires.
 
+### Mise sur écoute du bus (sniff passif de la raquette)
+
+Les deux jacks RJ-12 étant **en parallèle sur le même bus**, on peut brancher
+la raquette sur le jack `AUX` resté libre pendant que le pont occupe
+`HAND CONTROL`, et **écouter tout le dialogue raquette ↔ contrôleurs moteur**
+sans rien modifier au montage : le pont laisse `/OE` en Hi-Z au repos, donc il
+relaie vers le Pi *toute* trame qu'il entend, quelle qu'en soit la source.
+
+```bash
+# Sur le Pi. Impératif : couper tout ce qui émet, sinon deux maîtres
+# collisionnent sur le single-wire.
+sudo systemctl stop astro-brain.service indiserver
+sudo lsof /dev/ttyAMA0            # doit être vide
+python3 ~/code/astro-brain/hardware/aux-bridge/auxsniff.py /dev/ttyAMA0 900 | tee /tmp/auxsniff.log
+```
+
+Trame AUX : `0x3b | len | src | dst | cmd | data[len-3] | checksum`. Les
+identifiants (`HCP` = 0x0d, `AZM` = 0x10, `ALT` = 0x11…) et les commandes
+(`MC_SET_POS_GUIDERATE` = 0x06…) viennent de
+[`auxproto.h`](https://github.com/indilib/indi-3rdparty/blob/master/indi-celestronaux/auxproto.h).
+
+⚠️ **Rebrancher le pont seul avant de relancer les services** : la raquette
+laissée sur le bus en ferait un second maître face au driver.
+
+> Ce qu'on y a vu (2026-08-27) : à l'allumage la raquette énumère les moteurs
+> puis se tait ; elle n'arme le suivi (`MC_SET_POS_GUIDERATE` non nul, un taux
+> par axe) qu'à la **validation de l'alignement**, et le rafraîchit toutes les
+> 30 s. Détail et conséquences : [journal](../project/journal.md).
+
+
 ### Vérification
 
 ```bash
