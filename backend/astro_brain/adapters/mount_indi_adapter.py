@@ -132,7 +132,8 @@ class MountIndiAdapter:
 
         Publishes ``connecting`` then ``ready`` on success, or ``error``
         on any exception. Also initialises the ``tracking`` subsystem to
-        ``off``.
+        ``off``. ``ready`` waits on :meth:`_await_mount_alive`: reaching
+        ``CONNECT=On`` is not enough, the mount must have answered.
         """
         self._bus.publish(
             "mount", SubsystemState(state="connecting", since=_now())
@@ -161,6 +162,7 @@ class MountIndiAdapter:
                 )
             await self._await_device()
             await self._ensure_connected()
+            await self._await_mount_alive()
             self._connected = True
             self._bus.publish(
                 "mount",
@@ -210,8 +212,9 @@ class MountIndiAdapter:
 
         Serialised by a lock so a manual nudge and the background
         supervisor never race. Reuses the boot connect sequence: reconnect
-        to indiserver if the socket dropped, rediscover the device, then
-        push ``CONNECTION.CONNECT=On`` via :meth:`_ensure_connected`. On
+        to indiserver if the socket dropped, rediscover the device, push
+        ``CONNECTION.CONNECT=On`` via :meth:`_ensure_connected`, then wait
+        for the mount to actually answer (:meth:`_await_mount_alive`). On
         failure it publishes ``disconnected`` (not ``error``) so the
         supervisor keeps retrying.
         """
@@ -233,6 +236,7 @@ class MountIndiAdapter:
                         )
                 await self._await_device()
                 await self._ensure_connected()
+                await self._await_mount_alive()
                 self._connected = True
                 self._bus.publish(
                     "mount",
@@ -466,6 +470,43 @@ class MountIndiAdapter:
         raise TimeoutError(
             f"mount did not confirm CONNECTION within "
             f"{CONNECT_CONFIRM_TIMEOUT_S}s"
+        )
+
+    #: Property ``indi_celestron_aux`` only defines once ALT and AZM have
+    #: replied -- and the very one the joystick needs.
+    ALIVE_PROPERTY = "TELESCOPE_SLEW_RATE"
+    #: One of its widgets, named only once the property tree has streamed in.
+    ALIVE_WIDGET = "1x"
+
+    async def _await_mount_alive(self) -> None:
+        """Wait for a property that only a mount that answered can produce.
+
+        ``CONNECTION.CONNECT`` reading ``On`` is **not** proof of a working
+        link: the driver leaves the switch on after a failed open, so
+        :meth:`_ensure_connected` short-circuits on ``already connected`` and
+        we published ``ready`` over a mount that had answered nothing --
+        ten green seconds on a powered-off mount before the boot sync timed
+        out and flipped the pill to ``error`` (journal S57). That is the same
+        family of false positive as ``tcpReadResponse()`` returning ``true``
+        on a bare open socket, which the move to Serial set out to kill; a
+        switch state is not evidence, a driver-published property is.
+
+        :data:`ALIVE_PROPERTY` is defined only once the driver's ``Connect()``
+        succeeded, i.e. once both motor controllers replied. Its *widgets*
+        get their names only once the property tree has finished streaming,
+        so a named widget is checked rather than the bare vector, which can
+        be a placeholder (journal S37/S38 -- and the ``KeyError: '6x'`` that
+        exposed this on a dead mount).
+
+        Raises:
+            TimeoutError: propagated from :meth:`_await_widgets`, leaving the
+                caller to publish ``error`` (boot) or ``disconnected``
+                (reconnect, so the supervisor keeps retrying).
+        """
+        await self._await_widgets(
+            lambda dev: dev.getSwitch(self.ALIVE_PROPERTY),
+            widgets=(self.ALIVE_WIDGET,),
+            context=self.ALIVE_PROPERTY,
         )
 
     # --- joystick / slew --------------------------------------------------

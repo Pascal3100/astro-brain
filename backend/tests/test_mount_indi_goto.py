@@ -12,6 +12,12 @@ def _adapter_with_device() -> tuple[MountIndiAdapter, FakeIndiClient]:
     client = FakeIndiClient()
     dev = client.add_device("Celestron AUX")
     dev.add_switch("ON_COORD_SET", {"SLEW": "OFF", "TRACK": "OFF", "SYNC": "OFF"})
+    # See tests/test_mount_indi_adapter.py::_seed_alive -- the adapter waits
+    # on this vector before publishing ``ready``.
+    dev.add_switch(
+        "TELESCOPE_SLEW_RATE",
+        {f"{i}x": ("ON" if i == 1 else "OFF") for i in range(1, 9)},
+    )
     dev.add_number("EQUATORIAL_EOD_COORD", {"RA": 0.0, "DEC": 0.0})
     adapter = MountIndiAdapter(StateBus(), client=client)
     return adapter, client
@@ -103,6 +109,12 @@ async def test_abort_clears_goto_latch_no_spurious_completion():
     client = FakeIndiClient()
     dev = client.add_device("Celestron AUX")
     dev.add_switch("ON_COORD_SET", {"SLEW": "OFF", "TRACK": "OFF", "SYNC": "OFF"})
+    # See tests/test_mount_indi_adapter.py::_seed_alive -- the adapter waits
+    # on this vector before publishing ``ready``.
+    dev.add_switch(
+        "TELESCOPE_SLEW_RATE",
+        {f"{i}x": ("ON" if i == 1 else "OFF") for i in range(1, 9)},
+    )
     dev.add_number("EQUATORIAL_EOD_COORD", {"RA": 0.0, "DEC": 0.0})
     dev.add_switch("TELESCOPE_ABORT_MOTION", {"ABORT": "OFF"})
     adapter = MountIndiAdapter(StateBus(), client=client)

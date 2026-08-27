@@ -17,6 +17,20 @@ from astro_brain.services.interfaces import SensorUnavailableError
 from tests.fakes.fake_indi import FakeDevice, FakeIndiClient
 
 
+def _seed_alive(dev) -> None:
+    """Give ``dev`` the property that stands for "the mount answered".
+
+    ``MountIndiAdapter`` waits on ``TELESCOPE_SLEW_RATE`` before publishing
+    ``ready``: the driver defines it only once ALT and AZM have replied. A
+    fake without it models a mount that is *not* there, so any fake whose
+    test expects ``ready`` must carry it.
+    """
+    dev.add_switch(
+        "TELESCOPE_SLEW_RATE",
+        {f"{i}x": ("ON" if i == 1 else "OFF") for i in range(1, 9)},
+    )
+
+
 def _seed_mount_device(client: FakeIndiClient) -> None:
     """Pre-load the fake with the properties MountIndiAdapter expects."""
     dev = client.add_device(INDI_DEVICE_NAME)
@@ -30,6 +44,7 @@ def _seed_mount_device(client: FakeIndiClient) -> None:
     dev.add_switch(
         "PORT_TYPE", {"PORT_AUX_PC": "OFF", "PORT_HC": "ON"}
     )
+    _seed_alive(dev)
 
 
 @pytest.mark.asyncio
@@ -157,6 +172,50 @@ async def test_reconnect_republishes_disconnected_on_failure() -> None:
     # Never started/connected → reconnect must go through connectServer.
     await adapter.reconnect()
 
+    assert bus.get_full_state().subsystems["mount"].state == "disconnected"
+
+
+@pytest.mark.asyncio
+async def test_start_does_not_publish_ready_when_the_mount_never_answers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Regression (journal S57): with the mount powered off the driver
+    # refuses the link ("Cannot continue without connection to motor
+    # controllers") and defines no mount property -- yet CONNECTION.CONNECT
+    # still read On, so `ready` went out over a dead mount. A switch state
+    # is not evidence; only a driver-published property is.
+    monkeypatch.setattr(mount_indi_adapter, "PROPERTY_READY_TIMEOUT_S", 0.3)
+    bus = StateBus()
+    client = FakeIndiClient()
+    dev = client.add_device(INDI_DEVICE_NAME)
+    dev.add_switch("CONNECTION", {"CONNECT": "OFF", "DISCONNECT": "ON"})
+    # Deliberately no _seed_alive(dev): the mount answers nothing.
+    adapter = MountIndiAdapter(bus, client=client)
+
+    await adapter.start()
+
+    mount = bus.get_full_state().subsystems["mount"]
+    assert mount.state == "error"
+    assert "TELESCOPE_SLEW_RATE" in (mount.message or "")
+
+
+@pytest.mark.asyncio
+async def test_ready_needs_more_than_connect_already_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The exact S57 shape: the driver leaves CONNECT=On after a failed open,
+    # so _ensure_connected short-circuits on "already connected" and never
+    # exercises the link. `ready` must still be withheld.
+    monkeypatch.setattr(mount_indi_adapter, "PROPERTY_READY_TIMEOUT_S", 0.3)
+    bus = StateBus()
+    client = FakeIndiClient()
+    dev = client.add_device(INDI_DEVICE_NAME)
+    dev.add_switch("CONNECTION", {"CONNECT": "ON", "DISCONNECT": "OFF"})
+    adapter = MountIndiAdapter(bus, client=client)
+
+    await adapter.reconnect()
+
+    # `disconnected`, not `error`: the supervisor must keep retrying.
     assert bus.get_full_state().subsystems["mount"].state == "disconnected"
 
 
@@ -328,6 +387,7 @@ async def test_start_waits_for_connection_widget_to_stream_in() -> None:
     placeholder.add_switch("CONNECTION", {"": "OFF"})
     full = FakeDevice(INDI_DEVICE_NAME)
     full.add_switch("CONNECTION", {"CONNECT": "OFF", "DISCONNECT": "ON"})
+    _seed_alive(full)
     client = _DelayedConnectionClient(placeholder, full, ready_after=2)
     adapter = MountIndiAdapter(bus, client=client)
 
@@ -811,6 +871,7 @@ async def test_start_tolerates_a_device_without_connection_mode() -> None:
     client = FakeIndiClient()
     dev = client.add_device(INDI_DEVICE_NAME)
     dev.add_switch("CONNECTION", {"CONNECT": "OFF", "DISCONNECT": "ON"})
+    _seed_alive(dev)
     adapter = MountIndiAdapter(bus, client=client)
 
     await adapter.start()
