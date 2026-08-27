@@ -12,16 +12,26 @@
 //      et RX au lieu de laisser le buffer piloter en permanence (blocage S35 :
 //      en-tête de réponse écrasé faute de fenêtre de retournement propre).
 //
-//   2. SUPPRESSION D'ÉCHO half-duplex — chaque octet qu'on émet nous revient sur
-//      le RX (comparateur LM2902 qui renifle DATA). On l'avale en DRAINANT
-//      exactement N octets juste après l'émission (N = taille de la trame émise),
-//      de façon synchrone et bornée : le driver ne voit QUE la vraie réponse.
-//      (Sinon : GET_VER "écho seul", la monture semble muette — blocage S27->S31.)
+//   2. ÉCHO half-duplex RELAYÉ AU PI — chaque octet qu'on émet nous revient sur
+//      le RX (comparateur LM2902 qui renifle DATA). On le reprend en lisant
+//      EXACTEMENT N octets juste après l'émission (N = taille de la trame émise),
+//      de façon synchrone et bornée, et on le renvoie au Pi AVANT la réponse.
+//      Le driver l'EXIGE en mode Serial : sur l'UART0 du Pi aucune ligne de
+//      contrôle de flux n'est câblée, CTS est donc lu asserté en permanence,
+//      detectRTSCTS() renvoie true et m_IsRTSCTS passe à true. Dans cette
+//      branche, aux_tty_write() relit ses propres octets et les compare un à un
+//      (celestronaux.cpp:3973-3987) : un port AUX/PC réel étant en fil unique,
+//      tout ce qu'il émet lui revient. Écho avalé = vérification en timeout =
+//      « Got no response from target ALT or AZM » alors que le bus répond très
+//      bien à une sonde brute (diagnostic S57). Le pont se présente donc comme
+//      un VRAI port AUX/PC. L'écho était drainé jusqu'au 2026-08-27, du temps
+//      où le lien passait par TCP : le mode Network ne vérifie aucun écho, et
+//      le laisser passer y aurait été lu comme une réponse (S27->S31).
 //
-// 🔴 NE PAS "SIMPLIFIER" LA SÉQUENCE /OE NI LE DRAIN D'ÉCHO. En particulier :
+// 🔴 NE PAS "SIMPLIFIER" LA SÉQUENCE /OE NI LA REPRISE D'ÉCHO. En particulier :
 //    aucune garde après Serial2.flush() (le moteur répond dès la fin du flush —
-//    fix S36, obtenu en quatre sessions), et le drain lit EXACTEMENT N octets,
-//    borné par ECHO_DRAIN_MS. Toute retouche ici est une régression jusqu'à
+//    fix S36, obtenu en quatre sessions), et la reprise lit EXACTEMENT N octets,
+//    bornée par ECHO_DRAIN_MS. Toute retouche ici est une régression jusqu'à
 //    preuve du contraire sur le banc.
 //
 // Le WiFi/TCP a été retiré le 2026-08-26 (ADR « Pont ESP32 relié au Pi en série
@@ -43,13 +53,14 @@
 //       sortie ramenée à ~2,9 V -> GPIO16
 //     GND -> br.5   |   +12V (br.3) : NE JAMAIS connecter
 
-// ---- Drapeau diagnostic (cf. S33) ----
-// 1 = normal : suppression d'écho half-duplex (drain de N octets après émission).
-// 0 = relaie TOUT (écho + réponse) — utilisé S33/S36 pour VOIR le flux brut :
-//     combien d'octets d'écho reviennent, s'il y a un octet-glitch de turnaround,
-//     et si le préambule 0x3b de la réponse est présent (→ drain fautif) ou
-//     absent/corrompu (→ glitch de framing au retournement TX->RX).
-#define ECHO_SUPPRESS 1
+// ---- Drapeau diagnostic (cf. S33, S57) ----
+// 1 = normal : l'écho half-duplex (N octets) est repris après émission puis
+//     relayé au Pi, comme le ferait le port AUX/PC de la monture.
+// 0 = écho DRAINÉ, le Pi ne voit que la réponse. Ancien comportement, gardé
+//     comme point de comparaison : c'est lui qui faisait déclarer la monture
+//     muette au driver alors que le bus répondait (S57). Utile aussi pour
+//     isoler un glitch de turnaround, en lisant le flux brut côté Pi.
+#define ECHO_RELAY 1
 
 // ---- Bus AUX ----
 constexpr int      AUX_RX_PIN = 16;     // lit DATA via comparateur LM2902
@@ -83,9 +94,24 @@ uint8_t  rxLen         = 0;   // octets accumulés dans rxFrame
 uint16_t rxNeed        = 0;   // longueur totale attendue de la réponse courante
 uint32_t rxLastByteMs  = 0;   // date du dernier octet reçu (garde RX_FRAME_MS)
 
+// Pousse un bloc vers le Pi en une seule prise. Serial1.write peut écrire court
+// quand le tampon TX est plein : on pousse le reste, borné dans le temps. Une
+// écriture courte retronquerait la trame — le défaut corrigé en S54.
+static bool piWrite(const uint8_t* buf, size_t len) {
+  size_t   sent     = 0;
+  uint32_t deadline = millis() + WRITE_MS;
+  while (sent < len && (int32_t)(millis() - deadline) < 0) {
+    size_t n = Serial1.write(buf + sent, len - sent);
+    if (n == 0) { delay(1); continue; }
+    sent += n;
+  }
+  return sent == len;
+}
+
 // Émission d'une trame AUX complète avec turnaround half-duplex piloté par /OE.
 // On pilote le bus le temps STRICT de l'émission, on repasse en Hi-Z dès que le
-// dernier octet est sorti (avant que le moteur réponde), puis on avale notre écho.
+// dernier octet est sorti (avant que le moteur réponde), puis on reprend notre
+// écho pour le relayer au Pi.
 void busSend(const uint8_t* buf, uint8_t n) {
   while (Serial2.available()) Serial2.read();    // repartir d'un RX propre
   rxLen = 0; rxNeed = 0;                        // la purge invalide tout réassemblage en cours
@@ -98,10 +124,25 @@ void busSend(const uint8_t* buf, uint8_t n) {
   // supplémentaire garderait le bus piloté HIGH pendant son start-bit LOW -> collision
   // qui détruit le 1er octet de réponse (0x3b) -> en-tête perdu (diagnostic S36).
 
-#if ECHO_SUPPRESS
-  // Notre trame push-pull nous est revenue via le LM2902 : on draine exactement
-  // n octets d'écho (borné dans le temps). Le moteur ne répond qu'après avoir
-  // traité la trame (latence ms) -> pas de risque d'avaler la réponse.
+#if ECHO_RELAY
+  // Notre trame push-pull nous est revenue via le LM2902 : on reprend exactement
+  // n octets d'écho (borné dans le temps) et on les relaie au Pi AVANT la
+  // réponse — le driver les compare octet à octet à ce qu'il a émis. Le moteur
+  // ne répond qu'après avoir traité la trame (latence ms) : aucun risque
+  // d'avaler le début de la réponse en croyant lire de l'écho.
+  uint8_t  echo[sizeof(txFrame)];
+  int      got      = 0;
+  uint32_t deadline = millis() + ECHO_DRAIN_MS;
+  while (got < n && (int32_t)(millis() - deadline) < 0) {
+    if (Serial2.available()) echo[got++] = (uint8_t)Serial2.read();
+  }
+  if (got != n) {
+    Serial.printf("[bus] écho incomplet %d/%u\n", got, (unsigned)n);
+  }
+  if (got > 0 && !piWrite(echo, (size_t)got)) {
+    Serial.printf("[pi] écho tronqué (%d octets attendus)\n", got);
+  }
+#else
   int      left     = n;
   uint32_t deadline = millis() + ECHO_DRAIN_MS;
   while (left > 0 && (int32_t)(millis() - deadline) < 0) {
@@ -119,8 +160,9 @@ void setup() {
   Serial2.begin(AUX_BAUD, SERIAL_8N2, AUX_RX_PIN, AUX_TX_PIN);
   Serial1.begin(PI_BAUD, SERIAL_8N2, PI_RX_PIN, PI_TX_PIN);
 
-  Serial.printf("[bridge] série Pi rx=%d tx=%d baud=%lu 8N2 — prêt\n",
-                PI_RX_PIN, PI_TX_PIN, (unsigned long)PI_BAUD);
+  Serial.printf("[bridge] série Pi rx=%d tx=%d baud=%lu 8N2 écho=%s — prêt\n",
+                PI_RX_PIN, PI_TX_PIN, (unsigned long)PI_BAUD,
+                ECHO_RELAY ? "relayé" : "drainé");
 }
 
 void loop() {
@@ -145,8 +187,8 @@ void loop() {
     }
   }
 
-  // --- bus AUX -> Pi : après le turnaround, l'écho est déjà avalé par busSend()
-  //     -> tout ce qui arrive ici est la vraie réponse moteur. On la
+  // --- bus AUX -> Pi : après le turnaround, l'écho a déjà été repris ET relayé
+  //     par busSend() -> tout ce qui arrive ici est la vraie réponse moteur. On la
   //     RÉASSEMBLE avant de la relayer, symétriquement au sens Pi -> bus.
   //     Relayée octet par octet, une réponse de 9 octets partait autrefois en
   //     9 segments étalés sur ~5 ms (1 octet / 573 us à 19200) : le driver
@@ -155,14 +197,15 @@ void loop() {
   //     cache — 0/25 trames acceptées en 30 s alors que l'AZM passait à
   //     28/28 (diagnostic S54).
   //
-  //     EFFET DE BORD ASSUMÉ : avant, un octet d'écho qui échappait au
-  //     drain de busSend() partait brut et la chasse au 0x3b du driver
-  //     le sautait. Nos trames COMMENÇANT par 0x3b, un écho qui fuit
-  //     peut désormais s'assembler en trame complète et être relayé
-  //     comme une fausse réponse (src=0x20, que le driver ignore). On
-  //     ne filtre pas src : ça n'attraperait que la fuite propre (un
-  //     écho tronqué donne un src quelconque), donc une fausse
-  //     assurance. Le vrai garde-fou reste un drain d'écho correct. ---
+  //     EFFET DE BORD ASSUMÉ : un octet d'écho qui échappe à la reprise
+  //     de busSend() arrive ici. Nos trames COMMENÇANT par 0x3b, une
+  //     fuite peut s'assembler en trame complète et repartir vers le Pi
+  //     comme une SECONDE copie de la commande, après celle que
+  //     busSend() a déjà relayée : le driver la lirait à la place de la
+  //     réponse. On ne filtre pas src=0x20 : ça n'attraperait que la
+  //     fuite propre (un écho tronqué donne un src quelconque), donc une
+  //     fausse assurance. Le vrai garde-fou reste une reprise d'écho
+  //     complète — d'où la trace "[bus] écho incomplet". ---
   if (rxLen > 0 && now - rxLastByteMs > RX_FRAME_MS) {
     rxLen = 0; rxNeed = 0;         // trame qui ne se complète pas : sans ça, un
   }                                // len corrompu bloquerait le RX jusqu'au reboot
@@ -174,19 +217,9 @@ void loop() {
     rxFrame[rxLen++] = b;
     if (rxLen == 2) rxNeed = (uint16_t)rxFrame[1] + 3;
     if (rxLen >= 2 && rxLen == rxNeed) {             // complète -> Pi en un bloc
-      // Une écriture courte retronquerait la trame — le défaut même
-      // qu'on corrige. Serial1.write peut écrire court quand le tampon
-      // TX est plein : on pousse le reste, borné dans le temps.
-      size_t   sent     = 0;
-      uint32_t deadline = millis() + WRITE_MS;
-      while (sent < rxLen && (int32_t)(millis() - deadline) < 0) {
-        size_t n = Serial1.write(rxFrame + sent, rxLen - sent);
-        if (n == 0) { delay(1); continue; }
-        sent += n;
-      }
-      if (sent < rxLen) {
-        Serial.printf("[pi] trame tronquée %u/%u\n",
-                      (unsigned)sent, (unsigned)rxLen);
+      if (!piWrite(rxFrame, rxLen)) {
+        Serial.printf("[pi] trame tronquée (%u octets attendus)\n",
+                      (unsigned)rxLen);
       }
       rxLen = 0; rxNeed = 0;
     } else if (rxLen >= sizeof(rxFrame)) {           // garde-fou (len corrompue)
