@@ -22,17 +22,31 @@ Mesures croisées sur la monture, les trois cas :
 | relâche du switch de mouvement (`/stop` avec axe) | `TRACK` | **repris par le driver à +1,3 s** — RA +0,17"/s |
 | relâche du switch de mouvement (`/stop` avec axe) | `SYNC` | mort — RA +14,5"/s |
 
-**Décision** : **hors arrêt d'urgence, le suivi est toujours actif.** Un recadrage, un abandon de GoTo, une étoile enregistrée ne doivent jamais laisser la monture figée sous un ciel qui tourne — c'est le comportement de la raquette Celestron, et sans lui viser une étoile est impossible. Concrètement : `sync_radec()` repose `ON_COORD_SET = TRACK` après avoir consommé le sync, et `stop_slew(None)` réengage `TRACK_ON` derrière l'abort. Le chemin par axe est laissé tel quel : le driver s'en charge seul, c'est prouvé.
+**Décision** : **hors arrêt d'urgence, le suivi est toujours actif — à partir de la première étoile validée.** Un recadrage, un abandon de GoTo, une étoile enregistrée ne doivent jamais laisser la monture figée sous un ciel qui tourne — c'est le comportement de la raquette Celestron, et sans lui viser une étoile est impossible. Concrètement : `sync_radec()` repose `ON_COORD_SET = TRACK` après avoir consommé le sync, et `stop_slew(None)` réengage `TRACK_ON` derrière l'abort. Le chemin par axe est laissé tel quel : le driver s'en charge seul, c'est prouvé.
+
+**Borne basse de la règle, tranchée par la mesure (amendement du même jour)** : la formulation initiale ne disait pas *quand* le suivi commence. L'hypothèse « dès l'allumage de la monture » a été **invalidée en mettant la raquette Celestron sur écoute** — les deux jacks RJ-12 de la base étant en parallèle sur le même bus et le pont laissant `/OE` en Hi-Z au repos, on capture le dialogue raquette ↔ contrôleurs moteur sans rien modifier au montage.
+
+| moment | ce que la raquette envoie |
+|---|---|
+| allumage | `MC_GET_MODEL`, `GET_VER`, `0xfc` — puis **120 s de silence total** |
+| validation de l'alignement | `MC_SET_POSITION`, puis `MC_SET_POS_GUIDERATE` **non nul et différent par axe** (AZM 7,85"/s, ALT 9,24"/s) |
+| régime établi | relecture des positions + `MC_SET_POS_GUIDERATE` corrigé, **toutes les 30 s** |
+
+Deux taux distincts par axe = un vecteur de suivi **Alt-Az décomposé**, et le mouvement est réel : 3017 pas d'encodeur AZM en 30 s, soit 7,77"/s mesurés contre 7,85"/s commandés. **À l'allumage la monture ne suit pas**, et physiquement elle ne le peut pas — suivre sans alignement, c'est tourner à vitesse sidérale dans une direction arbitraire.
+
+La borne retenue est donc **la première étoile validée** : c'est le premier instant où la monture sait où elle pointe. `AlignmentServiceImpl.record()` arme le suivi juste **après** le `sync_radec()`, et le **réarme à chaque étoile** — le driver ne réengage le suivi qu'en fin de slew (`isTrackingRequested()` dans `ReadScopeStatus()`), or un sync n'est pas un slew : s'en remettre à cet effet de bord laisserait la monture figée entre deux étoiles.
 
 **Conséquences** :
 - Le wizard 3 étoiles devient tenable : entre deux étoiles, la monture suit, et l'erreur de temps de réaction entre le centrage et la validation disparaît.
+- **Rien n'est armé au boot** : `MountIndiAdapter.start()` publie `tracking: off` et c'est exact tant qu'aucune étoile n'est validée. Le sous-système dit la vérité au lieu d'afficher une intention.
+- La raquette active aussi le **cordwrap** (`MC_ENABLE_CORDWRAP` + origine à 0) au même instant. Nous ne le faisons pas — protection contre l'enroulement du câble dans la fourche, à arbitrer (backlog).
 - `TELESCOPE_ABORT_MOTION` est **réservé** au sens « tout arrêter ». Le jour où un vrai arrêt d'urgence existera (fil transverse safety), ce sera lui — et lui seul — qui n'aura pas le réengagement.
 - Aucun état d'intention n'est ajouté côté backend : l'intention vit dans `ON_COORD_SET`, l'observé dans `TrackState`, et le sous-système `tracking` reflète désormais le second (correctif du même jour).
 - Le `tracking: off` affiché pendant que la monture suivait est corrigé indépendamment : `TELESCOPE_TRACK_STATE` est miroité en continu, et la lecture du `INDI::Property` **nu** du callback exige un cast explicite (`PyIndi.PropertySwitch`) — sans lui, `findWidgetByName` est absent et un `except` large rend le défaut invisible.
 
 **Cross-références** : sert l'ADR [2026-05-10](decisions.md) (le sync natif Celestron comme source de vérité du pointage — c'est ce chemin que le `ON_COORD_SET` bloqué cassait). Touche l'ADR [2026-08-26](decisions.md) (même famille de faux positif : un état lu n'est pas une preuve du comportement réel).
 
-**Rationale** : le mécanisme était déjà écrit, testé et documenté dans INDI ; la bonne correction était d'arrêter de le contourner, pas d'en réécrire un en parallèle. La règle « hors urgence, on suit toujours » est celle de la raquette, donc celle qu'un utilisateur de Celestron attend sans avoir à l'apprendre.
+**Rationale** : mettre le système de référence sur écoute coûte moins cher que raisonner sur ce qu'il est censé faire — deux branchements et cinq minutes ont invalidé une règle produit qu'on s'apprêtait à coder. Et sur le fond : le mécanisme était déjà écrit, testé et documenté dans INDI ; la bonne correction était d'arrêter de le contourner, pas d'en réécrire un en parallèle. La règle « hors urgence, on suit toujours » est celle de la raquette, donc celle qu'un utilisateur de Celestron attend sans avoir à l'apprendre.
 
 ---
 

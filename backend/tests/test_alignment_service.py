@@ -9,7 +9,11 @@ import pytest
 
 from astro_brain.models.alignment import Star
 from astro_brain.services.alignment import AlignmentServiceImpl
-from astro_brain.services.interfaces import ConflictError, MountService
+from astro_brain.services.interfaces import (
+    ConflictError,
+    MountService,
+    TrackingService,
+)
 
 
 def _stub_candidates() -> list[Star]:
@@ -31,6 +35,8 @@ def _build_service(
     # jusqu'au test sur monture réelle (journal S51).
     mount = MagicMock(spec=MountService)
     mount.current_position.return_value = (100.0, 50.0)
+    # spec=TrackingService pour la même raison que le mount ci-dessus.
+    tracking = MagicMock(spec=TrackingService)
     sensors = MagicMock()
     sensors.position = MagicMock(return_value=(48.8, 2.3))
     sensors.sky_az_alt_for = MagicMock(side_effect=lambda s: (s.ra_deg % 360, s.dec_deg))
@@ -38,6 +44,7 @@ def _build_service(
     return AlignmentServiceImpl(
         select_candidates=selector,
         mount=mount,
+        tracking=tracking,
         sensors=sensors,
         repo_save=repo_save,
         repo_load=repo_load or AsyncMock(return_value=None),
@@ -201,3 +208,50 @@ async def test_rehydrate_skips_when_session_active() -> None:
     restored = await svc.rehydrate()
     assert restored is False
     repo_load.assert_not_awaited()  # ne consulte pas le disque, ne clobber pas la session
+
+
+async def test_record_arms_tracking_on_the_first_star() -> None:
+    """La 1re étoile validée arme le suivi — comportement raquette (S57).
+
+    La raquette Celestron n'envoie ``MC_SET_POS_GUIDERATE`` non nul qu'une
+    fois le modèle écrit dans les contrôleurs moteur, jamais à l'allumage.
+    """
+    svc = _build_service()
+    await svc.start()
+    svc._tracking.set_tracking.assert_not_called()
+
+    await svc.record(0)
+
+    svc._tracking.set_tracking.assert_awaited_once_with(True)
+
+
+async def test_record_rearms_tracking_on_every_star() -> None:
+    """Réarmé à chaque étoile : un sync n'est pas un slew.
+
+    Le driver ne réengage le suivi qu'en fin de slew
+    (``isTrackingRequested()`` dans ``ReadScopeStatus()``) — compter sur cet
+    effet de bord laisserait la monture figée entre deux étoiles.
+    """
+    svc = _build_service()
+    await svc.start()
+    for idx in range(3):
+        await svc.record(idx)
+
+    assert svc._tracking.set_tracking.await_count == 3
+
+
+async def test_record_arms_tracking_after_the_sync_not_before() -> None:
+    """Ordre imposé : le sync d'abord, l'armement ensuite.
+
+    Armer avant que la monture sache où elle pointe, c'est exactement ce que
+    la raquette ne fait pas.
+    """
+    svc = _build_service()
+    await svc.start()
+    calls: list[str] = []
+    svc._mount.sync_radec.side_effect = lambda *a: calls.append("sync")
+    svc._tracking.set_tracking.side_effect = lambda *a: calls.append("track")
+
+    await svc.record(0)
+
+    assert calls == ["sync", "track"]

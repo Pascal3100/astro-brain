@@ -28,6 +28,7 @@ class AlignmentServiceImpl:
         *,
         select_candidates: Callable[[], list[Star]],
         mount: Any,
+        tracking: Any,
         sensors: Any,
         repo_save: Callable[..., Any],
         repo_load: Callable[..., Any],
@@ -36,6 +37,7 @@ class AlignmentServiceImpl:
     ) -> None:
         self._select = select_candidates
         self._mount = mount
+        self._tracking = tracking
         self._sensors = sensors
         self._repo_save = repo_save
         self._repo_load = repo_load
@@ -130,6 +132,20 @@ class AlignmentServiceImpl:
         # Après 3 syncs, le driver indi_celestron_aux a son modèle 3-étoiles
         # complet et tracking + GoTo passent par EQUATORIAL_EOD_COORD.
         await self._mount.sync_radec(star.ra_deg, star.dec_deg)
+
+        # Dès la PREMIÈRE étoile validée, la monture sait où elle pointe :
+        # on arme le suivi, comme la raquette Celestron le fait à la
+        # validation de son alignement (sniff du bus AUX, journal S57 — elle
+        # envoie MC_SET_POS_GUIDERATE non nul juste après avoir écrit le
+        # modèle dans les contrôleurs moteur, et jamais avant).
+        #
+        # Armement EXPLICITE et à chaque étoile, pas seulement à la première :
+        # le driver ne réengage le suivi qu'en fin de slew (isTrackingRequested()
+        # dans ReadScopeStatus()), or un sync n'est pas un slew — s'en remettre
+        # à cet effet de bord laisserait la monture figée entre deux étoiles.
+        # Rejouer l'armement est idempotent : l'adaptateur filtre les échos.
+        await self._tracking.set_tracking(True)
+
         sess.current_idx = idx + 1
         return sess
 

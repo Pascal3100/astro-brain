@@ -244,6 +244,7 @@ def build_app(
         _app.state.alignment = AlignmentServiceImpl(
             select_candidates=_candidates_provider,
             mount=services["mount"],
+            tracking=services["tracking"],
             sensors=sensors_bridge,
             repo_save=alignment_repo.save,
             repo_load=alignment_repo.load,
