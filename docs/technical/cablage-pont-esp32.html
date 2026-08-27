@@ -262,7 +262,7 @@
   <div class="panel">
     <ol>
       <li><b>Relais bidirectionnel</b> Serial1 (Pi) ↔ Serial2 (bus AUX) : les octets du driver INDI transitent vers le bus AUX, et inversement, trame par trame (préambule <code>0x3b</code>, longueur en octet 2).</li>
-      <li><b>Suppression d'écho half-duplex</b> : le bus single-wire renvoie notre propre émission ; le firmware mémorise le dernier paquet émis et <b>jette l'écho</b> (comparaison), de sorte que seule la vraie réponse moteur remonte au driver.</li>
+      <li><b>Écho half-duplex relayé au Pi</b> : le bus single-wire renvoie notre propre émission ; le firmware reprend exactement N octets d'écho après l'émission et les <b>renvoie au Pi avant la réponse</b>. Le driver l'exige — en <code>PORT_AUX_PC</code> il relit ses propres octets et les compare un à un, un port AUX/PC réel étant en fil unique. Le pont se présente donc comme un vrai port AUX/PC, pas comme un relais filtrant (ADR 2026-08-27).</li>
       <li><b>Fenêtre de turnaround</b> : <code>digitalWrite(GPIO32, LOW)</code> AVANT d'émettre (active le buffer), puis <code>HIGH</code> APRÈS (relâche en Hi-Z pour écouter). C'est le point <b>à valider</b> matériellement.</li>
     </ol>
   </div>
@@ -273,7 +273,7 @@
     (S29 → S36 : la monture bouge via le pont, RX prouvé de bout en bout, turnaround sans garde après
     <code>Serial2.flush()</code>). Deux points restent délicats et doivent être déplacés <i>verbatim</i> :
     la séquence <code>/OE</code> (LOW avant l'émission, HIGH juste après le <code>flush()</code>, sans délai
-    ajouté) et le drain d'écho (exactement N octets, borné par <code>ECHO_DRAIN_MS</code>).
+    ajouté) et la reprise d'écho (exactement N octets, bornée par <code>ECHO_DRAIN_MS</code>).
   </div>
 
   <footer>

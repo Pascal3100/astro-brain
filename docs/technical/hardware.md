@@ -115,7 +115,7 @@ Le bus AUX est un **single-wire half-duplex** (une seule ligne DATA, cf. section
 
 ### Interface single-wire — montage courant (RX LM2902 + TX 74AHCT125, via pont ESP32)
 
-Un **pont ESP32** se pose sur le bus AUX et le relaie au driver `indi_celestron_aux` par une **liaison série filaire** (mode Serial, `/dev/ttyAMA0`) — l'ESP32 lit le bus avec un vrai GPIO haute-Z, supprime l'écho half-duplex par firmware, et gère le turnaround. L'interface analogique entre l'ESP32 et la ligne DATA combine deux composants aux rôles complémentaires :
+Un **pont ESP32** se pose sur le bus AUX et le relaie au driver `indi_celestron_aux` par une **liaison série filaire** (mode Serial, `/dev/ttyAMA0`) — l'ESP32 lit le bus avec un vrai GPIO haute-Z, **relaie l'écho half-duplex au Pi** (le driver le compare octet à octet à ce qu'il a émis, cf. [ADR 2026-08-27](../project/decisions.md)), et gère le turnaround. L'interface analogique entre l'ESP32 et la ligne DATA combine deux composants aux rôles complémentaires :
 
 - **RX — comparateur LM2902** (✓ prouvé S33) : lecture **haute impédance** à seuil bas (~0,9 V), insensible aux **fronts montants lents** du bus (pull-up monture faible, ~139 kΩ) qui aveuglaient un buffer logique à seuil figé. `DATA → 1M/1M → entrée+`, `Vréf 0,9 V (10k/2k2) → entrée−`, `sortie → 1k/4k7 → ~2,9 V → GPIO16`.
 - **TX — buffer tri-state 74AHCT125** (✅ validé S36, round-trip 30/30 ; schéma éprouvé g7ltt/Mark Lord) : drive **actif push-pull** (HIGH *et* LOW) pendant l'émission → fronts rapides (corrige le TX round-trip négatif S33). `GPIO17 → 1A`, `GPIO32 → /OE (actif bas)`, `1Y → 470 Ω → DATA`. La ligne BUSY (broche 6) n'est pas câblée (mono-maître). **Turnaround** : `/OE` relâché immédiatement après `Serial2.flush()` (tout délai supplémentaire = collision qui détruit le 1ᵉʳ octet de réponse, cf. S36).
@@ -237,7 +237,7 @@ for dst in (AZM, ALT):
 ⚠️ **19200 8N2** des deux côtés, comme le bus : le driver impose ce format
 (`setDefaultBaudRate(B_19200)`), et le firmware ouvre `Serial1` pareil.
 
-**Arrêter `indiserver` d'abord** (client TCP unique, cf. plus bas). Réponses attendues avec le firmware nominal (`ECHO_SUPPRESS 1`, monture allumée, raquette débranchée) — firmware moteur 5.9 :
+**Arrêter `indiserver` d'abord** (client TCP unique, cf. plus bas). ⚠️ La sonde doit construire l'octet de longueur AUX comme `3 + taille des données` (soit `3b 03 20 10 fe cf` pour `AZM GET_VER`) — une longueur fausse ne produit aucune réponse et se lit à tort comme un chemin RX mort. Réponses attendues avec le firmware nominal (`ECHO_RELAY 1`, monture allumée, raquette débranchée) — firmware moteur 5.9 :
 
 ```
 3b 05 10 20 fe 05 09 bf     # AZM version 5.9
@@ -250,7 +250,8 @@ Interprétation :
 |---|---|
 | Réponses des deux axes | bus OK **dans les deux sens** — le problème est au-dessus (driver, backend) |
 | **0 octet** | chemin RX mort → passer au voltmètre (tableau des mesures plus haut), la trace série ne discriminera pas |
-| Trames + écho de nos propres octets | normal si `ECHO_SUPPRESS 0` — ce mode sert justement de test RX **sans dépendre d'une réponse monture** : tout octet revenu prouve que le RX conduit |
+| Trames **précédées de l'écho** de nos propres octets | **nominal** (`ECHO_RELAY 1`) : le pont relaie son écho, comme le vrai port AUX/PC. Une sonde maison doit donc sauter N octets avant la réponse. Avec `ECHO_RELAY 0` l'écho est drainé et seule la réponse remonte |
+| Écho seul, jamais de réponse | le RX conduit (tout octet revenu le prouve) mais la monture ne répond pas : monture éteinte, raquette encore en boucle, ou trame mal formée |
 
 ### Flash du firmware (USB, sur la workstation)
 

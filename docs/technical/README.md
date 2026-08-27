@@ -19,7 +19,7 @@ Pages autonomes (SVG inline, thème sombre) décrivant le **câblage fonctionnel
 
 - [cablage-global.html](cablage-global.html) — **schéma bloc du système complet** : 3 alimentations, Pi ↔ série ↔ ESP32 ↔ bus AUX ↔ monture, masses communes. Chaque bloc pointe vers sa page de détail.
 - [cablage-alimentation.html](cablage-alimentation.html) — les 3 sources (Pi 220→5 V/2,5 A ; rail 12→5 V ; 3,3 V du Pi), ce que chacune alimente, masses communes. ✓ validé.
-- [cablage-pont-esp32.html](cablage-pont-esp32.html) — pont ESP32, liaison série 3 fils vers le Pi (GPIO25/26), `Serial2` GPIO16/17 + GPIO32 (/OE), rôles firmware (relais, écho, turnaround).
+- [cablage-pont-esp32.html](cablage-pont-esp32.html) — pont ESP32, liaison série 3 fils vers le Pi (GPIO25/26), `Serial2` GPIO16/17 + GPIO32 (/OE), rôles firmware (relais, écho relayé, turnaround).
 - [cablage-interface-aux.html](cablage-interface-aux.html) — interface single-wire : RX comparateur LM2902 (✓ prouvé S33) + TX buffer tri-state 74AHCT125 (✓ validé S36, round-trip 30/30), brochage RJ-12. **Référence de câblage du bus AUX.**
 - [cablage-carte-aux-pcb.html](cablage-carte-aux-pcb.html) — consolidation **PCB** de l'interface AUX (netlist + brochages en vue carte). Voir aussi `hardware/aux-bridge/` (spec + BOM).
 - [cablage-carte-aux-perfboard.html](cablage-carte-aux-perfboard.html) — variante **perfboard** de l'interface AUX (plaque ROTH 16×64, implantation ESP32 + composants), générée par `gen_perfboard.py`. Voir aussi `hardware/aux-bridge/`.

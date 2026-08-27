@@ -103,6 +103,25 @@ Deux candidats :
 
 Implémentation : `MountIndiAdapter._configure_serial_link()`.
 
+> ⚠️ **`PORT_AUX_PC` implique que le pont renvoie l'écho.** `Handshake()` active le
+> contrôle de flux matériel puis appelle `detectRTSCTS()`. L'UART0 du Pi n'expose
+> que TXD0/RXD0 — aucune ligne de contrôle de flux n'y est câblée — et CTS est
+> donc lu **asserté en permanence** : `m_IsRTSCTS` passe à `true`. Dans cette
+> branche, `aux_tty_write()` **relit ses propres octets et les compare un à un**
+> (`celestronaux.cpp:3973-3987`), le port AUX/PC réel étant en fil unique. Un pont
+> qui avale l'écho fait échouer cette vérification et le driver conclut
+> `Got no response from target ALT or AZM.` **alors qu'une sonde brute sur le même
+> port obtient les deux axes** — une sonde maison, elle, ne vérifie aucun écho.
+> Correctif côté firmware : [ADR 2026-08-27](../project/decisions.md).
+
+> ⚠️ **Sans cette config, le driver repart en mode Network.** `~/.indi/Celestron
+> AUX_config.xml` (non versionné, sur le seul Pi) a longtemps porté
+> `CONNECTION_TCP=On` vers l'ancien pont WiFi : un `CONNECT` nu y **annonce
+> « connecté »** même si l'adresse est morte, puisque `tcpReadResponse()` renvoie
+> `true` dès que la socket est ouverte. C'est exactement le faux positif que la
+> bascule en série élimine — et la raison pour laquelle le lien est épinglé depuis
+> le code avant chaque connexion.
+
 Config minimale AUX : port `/dev/ttyAMA0` (ou `/dev/ttyUSB0` pour un banc en USB), **baud 19200 par défaut** (cf. `celestronaux.cpp:489`, `serialConnection->setDefaultBaudRate(B_19200)`), `PORT_TYPE=PORT_AUX_PC` si câble droit DB-9 sur PC port AUX, `PORT_TYPE=PORT_HC_USB` si pass-through par le HC en USB. Le SLT est explicitement reconnu (`MountVersion::SLT_Nexstar = 0x0783` à `celestronaux.h:102`). Capabilities advertised : `TELESCOPE_CAN_PARK | CAN_SYNC | CAN_GOTO | CAN_ABORT | HAS_TIME | HAS_LOCATION | CAN_CONTROL_TRACK | HAS_TRACK_MODE | HAS_TRACK_RATE`, `nSlewRate=8` (`celestronaux.cpp:72-81`).
 
 ### Properties pertinentes (héritées d'`INDI::Telescope` sauf indication)

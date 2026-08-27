@@ -376,3 +376,25 @@ Le choix du **19200 8N2 sur le lien Pi↔pont** n'est pas cosmétique : c'est le
 - **Le backlog « adresse du pont = seule source un fichier non versionné » change de nature sans disparaître** : `DEVICE_PORT` remplace `DEVICE_ADDRESS` dans le même `~/.indi/Celestron AUX_config.xml`, hors git. Le problème de fond (des réglages structurants du pointage vivent dans un fichier que personne ne relit) est intact.
 - **Risque à couvrir en exécution** : la liaison filaire devient le **seul** chemin vers la monture. Le firmware WiFi doit rester reflashable en repli tant que la liaison série n'est pas validée au banc, et la validation se fait **avant** de démonter quoi que ce soit.
 - Plan d'implémentation : [`docs/superpowers/plans/2026-08-26-pont-esp32-serie.md`](../superpowers/plans/2026-08-26-pont-esp32-serie.md).
+
+## 2026-08-27 — Le pont AUX relaie son écho half-duplex au lieu de l'avaler
+
+**Contexte** : première mise sous tension du lien série Pi ↔ pont (ADR [2026-08-26](decisions.md)). Le bus répond parfaitement à une sonde AUX brute sur `/dev/ttyAMA0` — `AZM` et `ALT` renvoient leur version du premier coup — mais `indi_celestron_aux` refuse de se connecter, avec pour seul message `Got no response from target ALT or AZM.`
+
+La lecture de la source du driver donne la raison. En mode Serial + `PORT_TYPE = PORT_AUX_PC`, `Handshake()` active le contrôle de flux matériel puis appelle `detectRTSCTS()`. Sur l'UART0 du Pi, **aucune ligne de contrôle de flux n'est câblée** — seuls TXD0/RXD0 sortent sur le connecteur — et CTS est donc lu **asserté en permanence** : `detectRTSCTS()` renvoie `true`, `m_IsRTSCTS` passe à `true`. Dans cette branche, `aux_tty_write()` **relit ses propres octets après émission et les compare un à un** (`celestronaux.cpp:3973-3987`). Ce n'est pas une bizarrerie : le port AUX/PC de la monture est en **fil unique**, tout ce qu'on y émet revient physiquement, et le driver s'en sert comme accusé d'émission.
+
+Or le pont avalait exactement cet écho (`ECHO_SUPPRESS`, drain de N octets dans `busSend()`). Ce drain était **juste** du temps du lien TCP : le mode Network ne vérifie aucun écho, et laisser passer l'écho y aurait été lu comme une réponse — c'est le blocage S27→S31. Le passage en série a retourné la contrainte sans qu'on le voie.
+
+**Décision** : `busSend()` **reprend** les N octets d'écho et les **relaie au Pi avant la réponse**. Le pont se présente au driver comme un **vrai port AUX/PC**, pas comme un relais qui filtre ce qu'il juge redondant.
+
+**Rationale** :
+1. **Le pont émule un port, pas un tuyau.** Sa raison d'être est l'adaptation électrique single-wire ; tout ce qu'il retranche au flux est une divergence avec le port qu'il prétend être, donc une panne en attente. L'écho n'est pas du bruit : c'est un signal que le protocole utilise.
+2. **L'alternative demandait plus de matériel pour moins de fidélité.** Rendre `m_IsRTSCTS` faux imposait soit `PORT_HC_USB` (9600 baud, sonde `'V'` parasite sur le bus, et le pont mentant sur sa nature), soit le `dtoverlay=uart0,ctsrts` plus un quatrième fil pour forcer CTS. Les deux coûtaient un reflash de toute façon.
+3. **Le symptôme était indécodable sans cette lecture** : toutes les sondes maison passaient, parce qu'aucune ne vérifie l'écho. Le diagnostic n'est pas venu du banc mais de la source du driver — ce que l'ADR conserve ici pour ne pas le repayer.
+
+**Conséquences** :
+- Drapeau `ECHO_SUPPRESS` → `ECHO_RELAY` ; `0` conserve l'ancien drain **comme point de comparaison documenté**, pas comme mode de repli.
+- L'écriture bornée vers le Pi est factorisée dans `piWrite()`, partagée par le relais d'écho et le relais de réponse (le fix S54 de l'écriture courte vaut pour les deux).
+- **Effet de bord assumé, inchangé** : un octet d'écho qui échappe à la reprise peut se réassembler en trame complète côté RX et repartir vers le Pi comme une seconde copie de la commande. On ne filtre pas `src = 0x20` — ça n'attraperait que la fuite propre, un écho tronqué donnant un `src` quelconque, donc une fausse assurance. Le garde-fou reste une reprise complète, tracée par `[bus] écho incomplet`.
+- **Renforce l'ADR [2026-08-26](decisions.md)** : la bascule en série a été validée en direct par l'inverse de ce qu'on redoutait. Un `CONNECT` nu, sur la config sauvegardée du driver restée en TCP vers l'ancien pont mort, **annonce « connecté »** ; le même driver en mode Serial **refuse honnêtement**. C'est exactement l'honnêteté d'erreur qu'on achetait.
+- **Corollaire d'observabilité** : `newMessage()` du client INDI, jusque-là un `pass`, remonte désormais les messages du driver dans les logs. Ce diagnostic a exigé un client jetable pour lire la seule phrase qui l'expliquait.
