@@ -338,3 +338,34 @@ restaure l'heure du dernier arrêt. **À trancher sur constat terrain, pas par a
 l'I2C1 est libre depuis le retrait du DroTek. Note : la garde « horloge non synchronisée → refus de
 sync monture » (livrée avec le retrait) rend ce cas **visible** au lieu de silencieux, ce qui suffit
 tant qu'on n'a pas rencontré le site en question.
+
+## Flasher le pont sans le démonter du banc (2026-08-27)
+
+Aujourd'hui, reflasher l'ESP32 impose de sortir la carte du banc : la netlist
+(`hardware/aux-bridge/aux-bridge.net`) met `A1.VIN` sur le **même net `+5V`** que le LM2902
+(`U1.4`), le 74AHCT125 (`U2.4/10/13/14`) et le découplage, alimentés par le bornier `J2`. Brancher
+l'USB pose VBUS sur ce nœud face à l'alim du banc — le conflit retombe donc sur *toute* solution
+passant par USB, et il faut le traiter à la source.
+
+Options pesées le 2026-08-27, **aucune retenue** : le firmware ne bouge pas tous les quatre matins,
+on rouvrira le sujet si le besoin se fait sentir.
+
+- **USB permanent Pi ↔ ESP32, `VIN` détaché du rail du banc** (masse commune, le rail continue
+  d'alimenter les deux CI). Flash = `ssh astro-brain` + `esptool`, plus aucun geste physique, et la
+  console de debug de la carte (`[bus] écho incomplet`, bandeau de boot) tombe dans le journal du
+  Pi — ce qui aurait fait gagner du temps en S57. Contreparties : l'ESP32 ne vit que si le Pi est
+  allumé (sans importance, le pont ne sert à rien sans lui), `esptool` à installer sur le Pi, et un
+  port USB occupé — l'ADR 2026-04-21 les réservait aux caméras, règle déjà déclarée sans objet
+  depuis le retrait des capteurs, mais à réacter.
+- **Schottky entre `J2` et `VIN`** : les deux sources coexistent sans rien débrancher (la plupart
+  des DevKitC ont déjà une diode sur VBUS → broche 5V, d'où un OU propre ; ~0,3 V de chute, sans
+  effet sur l'AMS1117). Un seul composant, mais le câble USB reste à porter jusqu'à la carte.
+- **Cavalier sur `VIN`**, retiré avant chaque branchement USB : le moins cher, mais un geste par
+  flash — et un geste qu'on oublie.
+- **OTA WiFi : écarté.** C'est exactement ce que l'ADR 2026-08-26 a retiré ; le rétablir pour le
+  confort de flash ramènerait la radio, `secrets.h` et une connexion au boot.
+- **Flash par les trois fils existants : impossible** sans rework. Le bootloader ESP32 écoute sur
+  *son* UART0 (GPIO1/3), pas sur GPIO25/26, et exige qu'on pilote `EN` et `GPIO0`.
+
+Si une option est retenue un jour : ADR + régénération de la netlist par `gen_netlist.py` (ne jamais
+éditer le `.net`).
