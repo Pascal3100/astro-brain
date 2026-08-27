@@ -4,6 +4,33 @@ Décisions structurantes du projet, sous forme de notes courtes. Une décision =
 
 ---
 
+## 2026-08-27 — S'appuyer sur ce qu'expose le driver avant de le réimplémenter
+
+**Contexte** : le sniff du bus AUX a montré que la monture sait faire nativement des choses que nous avions inscrites comme du travail backend. Le cordwrap en est l'exemple net — le backlog le portait comme « courses min/max AZ, safety soft via position monture », alors que `indi_celestron_aux` expose déjà `CORDWRAP`, `CORDWRAP_POS` et `CW_BASE` (`celestronaux.cpp:337/348/353`) et que la raquette s'en sert. La question se reposera à chaque fonction de la parité raquette (PEC, filter limits, custom slew rates, cone error).
+
+**Décision** : **quand le driver expose la fonction, on l'utilise ; on ne la réimplémente pas côté backend.** Avant d'ouvrir une étape sur un comportement monture, on va lire ce que `indi_celestron_aux` définit — la source est le `initProperties()` du driver, pas notre intuition.
+
+**Rationale** :
+
+- Ce qui est dans le driver est **partagé avec la raquette et le reste de l'écosystème INDI** : même sémantique, mêmes bornes, comportement déjà éprouvé sur d'autres montures Celestron. Une réimplémentation backend recrée une seconde vérité qui dérivera de la première.
+- La fonction native s'exécute **dans les contrôleurs moteur**, pas dans une boucle Python au-dessus de deux liaisons série. Pour une protection comme le cordwrap, la différence entre « le contrôleur refuse le mouvement » et « le backend s'en aperçoit au prochain poll » est du câble tordu.
+- Le coût est asymétrique et mesurable dans le train : le cordwrap est du câblage parce que la propriété existe, là où le backlash est bloqué en Macro 5 sur un **fork du driver** (`MC_*_BACKLASH` → `MOUNT_AXIS_BACKLASH`, ~70 lignes C++, absent en v1.5) avec un adaptateur `get/set_backlash` et 5 tests **déjà écrits qui attendent** (cf. [roadmap](roadmap.md), ADR 2026-07-08). Le même travail vaut cher ou ne vaut rien selon qu'on est du bon côté de cette frontière — donc on regarde de quel côté on est avant de chiffrer.
+
+**Portée et limites** :
+
+- Le principe porte sur le **comportement de la monture** : mouvement, protections, modèle de pointage, réglages moteur. Il ne dit rien du produit — catalogue, visibilité, planner, UI restent chez nous.
+- Quand le driver n'expose rien, le bon geste reste **contribuer en amont** plutôt que contourner (c'est ce que dit déjà l'étape backlash), sauf urgence.
+- Le principe ne suspend pas la vérification : un état exposé par le driver n'est pas une preuve du comportement réel (ADR [2026-08-26](decisions.md), et le `tcpReadResponse()` qui renvoyait `true` sur socket ouverte). On s'appuie sur ce qu'il expose **et** on mesure.
+
+**Conséquences** :
+
+- Le backlog « Courses min/max AZ » est arbitré : on délègue le cordwrap à la monture, on ne code pas de garde-fou soft en doublon.
+- La revue de la raquette (backlog, amorcée par le sniff) se lit désormais en deux colonnes : ce que le driver expose déjà (à câbler) et ce qu'il faudrait porter en amont (à chiffrer).
+
+**Cross-références** : prolonge l'ADR [2026-05-10](decisions.md) (le sync natif Celestron comme source de vérité du pointage — même geste, déléguer le modèle à la monture). Encadre l'étape cordwrap de [Macro 3](roadmap.md) et l'étape backlash de Macro 5.
+
+---
+
 ## 2026-08-27 — Hors arrêt d'urgence, le suivi reste actif
 
 **Contexte** : sur la monture réelle, un recadrage manuel laissait le suivi mort. Mesuré sur `EQUATORIAL_EOD_COORD` (si la monture suit, la position équatoriale reste figée) : après un slew au D-pad suivi d'un `/stop`, RA dérivait à **+15,5"/s, DEC à exactement 0,0"** — le rythme sidéral, signature d'une monture immobile sous un ciel qui tourne. Sur le Mak 1900 mm avec un 25 mm (~0,6° de champ vrai), l'étoile traverse le champ en deux minutes et quitte un centrage propre en quelques dizaines de secondes. C'est rédhibitoire pour le wizard 3 étoiles, où l'on centre puis on valide.
