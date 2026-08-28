@@ -4,6 +4,16 @@ Réflexions transverses et idées à creuser pour les macros à venir. Rien ici 
 
 Quand un sujet devient prêt à être conçu, il migre vers un spec dans `docs/superpowers/specs/`. La roadmap canonique (train de macros) est dans [roadmap.md](roadmap.md).
 
+## Debug wizard — bugs relevés en test terrain (session du 2026-08-28)
+
+Bugs constatés pendant les tests nocturnes du wizard d'alignement 3 étoiles. Notés au fil de la soirée, à trier/corriger à froid.
+
+1. **Échec de connexion monture au boot = état `error` définitif, jamais retenté.** Le service a démarré la veille avec la monture éteinte : `_await_mount_alive()` a timeout (`TELESCOPE_SLEW_RATE: widgets 1x not defined within 5.0s`, `mount_indi_adapter.py:485`) et la carte mount est restée en erreur 26 h, monture rallumée ou pas. Le chemin *reconnect* publie `disconnected` et le superviseur réessaie ; le chemin *boot* publie `error` et abandonne. Or le cas réel est justement « le Pi boote avant qu'on allume la monture ». Pistes : faire converger le boot vers le même superviseur de retry que le reconnect, et/ou s'assurer que le reconnect de l'AppBar couvre l'état `error`. Contournement du soir : `systemctl restart astro-brain.service`.
+
+2. **Mode manuel : le stop se perd à haute vitesse, le start se perd à basse vitesse.** Deux symptômes constatés au D-pad : (a) à haute vitesse, un appui maintenu trop longtemps ne s'arrête plus au relâchement — la monture continue de filer ; (b) à basse vitesse, il faut marteler le bouton un grand nombre de fois avant que le mouvement démarre. Hypothèses à vérifier (aucune confirmée) : perte/ordre des paires `POST /slew`/`POST /stop` côté app (press/release), commande avalée côté bus AUX half-duplex sous charge, ou seuil de démarrage moteur à basse vitesse (1x–2x quasi imperceptibles ?). Points d'entrée : gestes press/release du D-pad dans `app/lib/features/manual/`, `routes/commands.py`, `slew()`/`stop_slew()` dans `mount_indi_adapter.py:529`. Croiser les logs uvicorn (horodatage des `/slew` vs `/stop`) avec les épisodes constatés.
+
+3. **✅ Corrigé à chaud — D-pad et sélecteur de vitesse du wizard non câblés.** Le host (`alignment_wizard_screen.dart`) passait des no-ops à `PerStarScreen` (`rate: 4` en dur, `onPress`/`onRelease`/`onRateChanged` vides — reliquat du TODO T21). Fix appliqué pendant la session : le jog du wizard passe par le `ManualBloc` global (rate partagé 1..8, slew/stop par axe, même mappage D-pad que le mode manuel), contrat `onRelease` enrichi de la direction pour stopper le bon axe, `max: 8` sur le `RateControl`. Reste du T21 toujours ouvert : coords monture + cible (`targetAz/Alt`, `currentAz/Alt` encore à 0).
+
 ## Cartographie des pages Flutter par macro-étape
 
 Vue d'ensemble pour éviter la dispersion au fil des specs.
