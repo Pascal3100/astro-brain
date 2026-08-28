@@ -42,10 +42,16 @@ class AlignmentBloc extends Bloc<AlignmentEvent, AlignmentState> {
   Future<void> _onStarted(WizardStarted e, Emitter<AlignmentState> emit) async {
     emit(const AlignmentLoadingCandidates());
     try {
-      final existing = await repo.getSession();
-      if (existing != null) {
-        emit(AlignmentPrePointing(session: existing));
-        return;
+      // Toujours repartir sur une session neuve : reprendre silencieusement
+      // une session existante rejoue ses records — potentiellement erronés
+      // (S58 : des « CENTRÉ » tapés à vide ont pollué la session, et la
+      // reprise a finalisé un modèle poubelle après une seule étoile).
+      // L'annulation révoque aussi le modèle persisté côté backend.
+      try {
+        await repo.cancel();
+      } on Exception {
+        // Best-effort : pas de session à annuler, ou backend indisponible —
+        // le start() qui suit tranchera.
       }
 
       try {
@@ -124,9 +130,11 @@ class AlignmentBloc extends Bloc<AlignmentEvent, AlignmentState> {
     StarSwapRequested e,
     Emitter<AlignmentState> emit,
   ) async {
-    // Le swap est géré par l'écran : il appelle directement repo.swap()
-    // puis re-dispatch un refresh. Ce handler ne doit jamais être atteint
-    // par dispatch direct ; on le signale plutôt que de l'ignorer.
-    addError(StateError('StarSwapRequested dispatched directly: idx=${e.idx}'));
+    try {
+      final updated = await repo.swap(e.idx, e.star);
+      emit(AlignmentPrePointing(session: updated));
+    } on Exception catch (err) {
+      emit(AlignmentError('Swap échoué : $err'));
+    }
   }
 }

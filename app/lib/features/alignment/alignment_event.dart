@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import 'alignment_models.dart';
+
 /// Événements du wizard d'alignement 3 étoiles.
 sealed class AlignmentEvent extends Equatable {
   const AlignmentEvent();
@@ -16,10 +18,11 @@ class CandidatesReceived extends AlignmentEvent {
 }
 
 class StarSwapRequested extends AlignmentEvent {
-  const StarSwapRequested(this.idx);
+  const StarSwapRequested(this.idx, this.star);
   final int idx;
+  final StarDto star;
   @override
-  List<Object?> get props => [idx];
+  List<Object?> get props => [idx, star];
 }
 
 class PrePointingDone extends AlignmentEvent {

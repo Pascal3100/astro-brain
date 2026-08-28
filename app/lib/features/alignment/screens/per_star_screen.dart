@@ -127,7 +127,9 @@ class _PerStarScreenState extends State<PerStarScreen> {
           ),
         ),
         child: SafeArea(
-          child: Padding(
+          // Scrollable : sur les écrans courts, la colonne déborde et le
+          // bouton CENTRÉ finit sous la barre de navigation Android (S58).
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(DesignTokens.spaceLG),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

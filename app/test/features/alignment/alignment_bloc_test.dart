@@ -50,12 +50,17 @@ AlignmentSessionDto _sessionWithIdx(int idx, {int recCount = 0}) =>
 
 void main() {
   late _MockRepo repo;
+  setUpAll(() {
+    registerFallbackValue(
+      const StarDto(id: 'fb', name: 'FB', bayer: '-', raDeg: 0, decDeg: 0, mag: 0),
+    );
+  });
   setUp(() => repo = _MockRepo());
 
   blocTest<AlignmentBloc, AlignmentState>(
     'WizardStarted → LoadingCandidates → PrePointing(idx=0)',
     build: () {
-      when(() => repo.getSession()).thenAnswer((_) async => null);
+      when(() => repo.cancel()).thenAnswer((_) async {});
       when(() => repo.start()).thenAnswer((_) async => _sessionWithIdx(0));
       return AlignmentBloc(repo: repo);
     },
@@ -65,27 +70,25 @@ void main() {
       isA<AlignmentPrePointing>().having((s) => s.session.currentIdx, 'idx', 0),
     ],
     verify: (_) {
-      verify(() => repo.getSession()).called(1);
+      verify(() => repo.cancel()).called(1);
       verify(() => repo.start()).called(1);
     },
   );
 
   blocTest<AlignmentBloc, AlignmentState>(
-    'WizardStarted resumes existing session if backend already has one',
+    'WizardStarted repart à neuf même si cancel échoue (best-effort)',
     build: () {
-      when(
-        () => repo.getSession(),
-      ).thenAnswer((_) async => _sessionWithIdx(2, recCount: 2));
+      when(() => repo.cancel()).thenThrow(Exception('no session'));
+      when(() => repo.start()).thenAnswer((_) async => _sessionWithIdx(0));
       return AlignmentBloc(repo: repo);
     },
     act: (b) => b.add(const WizardStarted()),
     expect: () => [
       isA<AlignmentLoadingCandidates>(),
-      isA<AlignmentPrePointing>().having((s) => s.session.currentIdx, 'idx', 2),
+      isA<AlignmentPrePointing>().having((s) => s.session.currentIdx, 'idx', 0),
     ],
     verify: (_) {
-      verify(() => repo.getSession()).called(1);
-      verifyNever(() => repo.start());
+      verify(() => repo.start()).called(1);
     },
   );
 
@@ -157,13 +160,69 @@ void main() {
   blocTest<AlignmentBloc, AlignmentState>(
     'WizardStarted → AlignmentError when repo throws',
     build: () {
-      when(() => repo.getSession()).thenThrow(Exception('boom'));
+      when(() => repo.cancel()).thenAnswer((_) async {});
+      when(() => repo.start()).thenThrow(Exception('boom'));
       return AlignmentBloc(repo: repo);
     },
     act: (b) => b.add(const WizardStarted()),
     expect: () => [
       isA<AlignmentLoadingCandidates>(),
       isA<AlignmentError>().having((s) => s.message, 'msg', contains('boom')),
+    ],
+  );
+
+  blocTest<AlignmentBloc, AlignmentState>(
+    'StarSwapRequested → PrePointing avec la session mise à jour',
+    build: () {
+      final updated = _sessionWithIdx(0);
+      final swapped = AlignmentSessionDto(
+        sessionId: updated.sessionId,
+        candidates: [
+          const StarDto(
+              id: 'y0', name: 'Y0', bayer: '-', raDeg: 1, decDeg: 2, mag: 3),
+          ...updated.candidates.skip(1),
+        ],
+        recordedStars: updated.recordedStars,
+        currentIdx: updated.currentIdx,
+      );
+      when(
+        () => repo.swap(0, any(that: isA<StarDto>())),
+      ).thenAnswer((_) async => swapped);
+      return AlignmentBloc(repo: repo);
+    },
+    seed: () => AlignmentPrePointing(session: _sessionWithIdx(0)),
+    act: (b) => b.add(
+      StarSwapRequested(
+        0,
+        const StarDto(
+          id: 'y0', name: 'Y0', bayer: '-', raDeg: 1, decDeg: 2, mag: 3),
+      ),
+    ),
+    expect: () => [
+      isA<AlignmentPrePointing>()
+          .having((s) => s.session.candidates.first.id, 'swapped id', 'y0'),
+    ],
+  );
+
+  blocTest<AlignmentBloc, AlignmentState>(
+    'StarSwapRequested → AlignmentError si le repo échoue',
+    build: () {
+      when(
+        () => repo.swap(any(), any(that: isA<StarDto>())),
+      ).thenThrow(ApiException('conflit', statusCode: 409));
+      return AlignmentBloc(repo: repo);
+    },
+    seed: () => AlignmentPrePointing(session: _sessionWithIdx(0)),
+    act: (b) => b.add(
+      StarSwapRequested(
+        0,
+        const StarDto(
+          id: 'y0', name: 'Y0', bayer: '-', raDeg: 1, decDeg: 2, mag: 3),
+      ),
+    ),
+    expect: () => [
+      isA<AlignmentError>()
+          .having((s) => s.message, 'msg', contains('Swap échoué')),
     ],
   );
 
@@ -204,7 +263,7 @@ void main() {
   blocTest<AlignmentBloc, AlignmentState>(
     'WizardStarted — 409 puis GPS téléphone disponible → putSite + start → PrePointing',
     build: () {
-      when(() => repo.getSession()).thenAnswer((_) async => null);
+      when(() => repo.cancel()).thenAnswer((_) async {});
 
       // Premier appel → 409 (pas de position Pi).
       var startCalls = 0;
@@ -239,7 +298,7 @@ void main() {
   blocTest<AlignmentBloc, AlignmentState>(
     'WizardStarted — 409 et GPS téléphone refusé → AlignmentError position requise',
     build: () {
-      when(() => repo.getSession()).thenAnswer((_) async => null);
+      when(() => repo.cancel()).thenAnswer((_) async {});
       when(
         () => repo.start(),
       ).thenThrow(ApiException('position requise', statusCode: 409));
@@ -268,7 +327,7 @@ void main() {
     blocTest<AlignmentBloc, AlignmentState>(
       'WizardStarted — erreur non-409 n\'active pas le fallback GPS',
       build: () {
-        when(() => repo.getSession()).thenAnswer((_) async => null);
+        when(() => repo.cancel()).thenAnswer((_) async {});
         when(
           () => repo.start(),
         ).thenThrow(ApiException('server error', statusCode: 500));

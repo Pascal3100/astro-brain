@@ -87,7 +87,26 @@ class AlignmentWizardScreen extends StatelessWidget {
           return const DoneScreen();
         }
         if (state is AlignmentError) {
-          return Scaffold(body: Center(child: Text(state.message)));
+          // Toujours offrir une sortie : un wizard utilisé de nuit, sur le
+          // terrain, ne doit jamais finir sur un cul-de-sac (S58).
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(state.message, textAlign: TextAlign.center),
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: () => bloc.add(const WizardStarted()),
+                      child: const Text('RECOMMENCER'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
         }
         return const SizedBox.shrink();
       },
@@ -109,21 +128,9 @@ class AlignmentWizardScreen extends StatelessWidget {
       MaterialPageRoute(
         builder: (_) => StarNavigatorScreen(
           repository: bloc.repo,
-          onSelected: (StarDto star) async {
+          onSelected: (StarDto star) {
             Navigator.of(context).pop();
-            try {
-              await bloc.repo.swap(idx, star);
-            } on Exception catch (e) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Swap échoué : $e')),
-                );
-                return;
-              }
-            }
-            if (context.mounted) {
-              bloc.add(const WizardStarted());
-            }
+            bloc.add(StarSwapRequested(idx, star));
           },
         ),
       ),
