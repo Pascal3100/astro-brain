@@ -46,7 +46,7 @@ class PerStarScreen extends StatefulWidget {
   final double currentAlt;
   final int rate;
   final ValueChanged<DPadDirection> onPress;
-  final VoidCallback onRelease;
+  final ValueChanged<DPadDirection> onRelease;
   final ValueChanged<int> onRateChanged;
   final VoidCallback onCentered;
 
@@ -234,14 +234,15 @@ class _PerStarScreenState extends State<PerStarScreen> {
                   aspectRatio: 1,
                   child: DPadControl(
                     onPress: widget.onPress,
-                    // Le contrat externe accepte un VoidCallback pour rester
-                    // simple côté caller ; le DPadControl émet la direction
-                    // relâchée — qu'on ignore ici.
-                    onRelease: (_) => widget.onRelease(),
+                    onRelease: widget.onRelease,
                   ),
                 ),
                 const SizedBox(height: DesignTokens.spaceMD),
-                RateControl(value: widget.rate, onChanged: widget.onRateChanged),
+                RateControl(
+                  value: widget.rate,
+                  max: 8, // le driver INDI n'expose que 1x…8x
+                  onChanged: widget.onRateChanged,
+                ),
                 const SizedBox(height: DesignTokens.spaceLG),
                 _CenteredButton(onTap: widget.onCentered),
               ],

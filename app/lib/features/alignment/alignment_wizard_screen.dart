@@ -1,6 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Axis;
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../services/api_service.dart';
+import '../../widgets/dpad_control.dart';
+import '../manual/manual_bloc.dart';
 import 'alignment_bloc.dart';
 import 'alignment_event.dart';
 import 'alignment_models.dart';
@@ -15,6 +18,19 @@ import 'screens/validation_screen.dart';
 /// présentationnels (Intro, PerStar, Validation, Done, Error).
 class AlignmentWizardScreen extends StatelessWidget {
   const AlignmentWizardScreen({super.key});
+
+  // Même mappage DPadDirection → Axis/Direction que le _DPadHost du mode
+  // manuel : le jog du wizard passe par le ManualBloc (rate partagé 1..8,
+  // slew/stop par axe).
+  static Axis _axisOfDPad(DPadDirection d) =>
+      d == DPadDirection.up || d == DPadDirection.down ? Axis.alt : Axis.az;
+
+  static (Axis, Direction) _mapDPad(DPadDirection d) => switch (d) {
+        DPadDirection.up => (Axis.alt, Direction.plus),
+        DPadDirection.down => (Axis.alt, Direction.minus),
+        DPadDirection.left => (Axis.az, Direction.minus),
+        DPadDirection.right => (Axis.az, Direction.plus),
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -31,22 +47,32 @@ class AlignmentWizardScreen extends StatelessWidget {
               ? state.session
               : (state as AlignmentFineTuning).session;
           final idx = session.currentIdx;
+          final manual = context.read<ManualBloc>();
           // TODO(macro-3-runtime): brancher coords mount + cible (T21)
-          return PerStarScreen(
-            repo: bloc.repo,
-            stepIndex: idx + 1,
-            totalSteps: 3,
-            target: session.candidates[idx],
-            targetAz: 0.0,
-            targetAlt: 0.0,
-            currentAz: 0.0,
-            currentAlt: 0.0,
-            rate: 4,
-            onPress: (_) {},
-            onRelease: () {},
-            onRateChanged: (_) {},
-            onCentered: () => bloc.add(RecordRequested(idx)),
-            onSwapRequested: () => _openStarNavigator(context, bloc, idx),
+          return BlocBuilder<ManualBloc, ManualState>(
+            buildWhen: (a, b) => a.rate != b.rate,
+            builder: (context, manualState) => PerStarScreen(
+              repo: bloc.repo,
+              stepIndex: idx + 1,
+              totalSteps: 3,
+              target: session.candidates[idx],
+              targetAz: 0.0,
+              targetAlt: 0.0,
+              currentAz: 0.0,
+              currentAlt: 0.0,
+              rate: manualState.rate,
+              onPress: (d) {
+                final (axis, direction) = _mapDPad(d);
+                manual.add(
+                  ManualSlewPressed(axis: axis, direction: direction),
+                );
+              },
+              onRelease: (d) =>
+                  manual.add(ManualSlewReleased(_axisOfDPad(d))),
+              onRateChanged: (v) => manual.add(ManualRateChanged(v)),
+              onCentered: () => bloc.add(RecordRequested(idx)),
+              onSwapRequested: () => _openStarNavigator(context, bloc, idx),
+            ),
           );
         }
         if (state is AlignmentValidating) {
