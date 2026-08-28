@@ -248,6 +248,7 @@ def build_app(
             sensors=sensors_bridge,
             repo_save=alignment_repo.save,
             repo_load=alignment_repo.load,
+            repo_clear=alignment_repo.clear,
             db=db_conn,
             now_utc=lambda: datetime.now(UTC),
         )

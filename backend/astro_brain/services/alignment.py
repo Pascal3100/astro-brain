@@ -32,6 +32,7 @@ class AlignmentServiceImpl:
         sensors: Any,
         repo_save: Callable[..., Any],
         repo_load: Callable[..., Any],
+        repo_clear: Callable[..., Any] | None = None,
         db: Any,
         now_utc: Callable[[], datetime],
     ) -> None:
@@ -41,6 +42,7 @@ class AlignmentServiceImpl:
         self._sensors = sensors
         self._repo_save = repo_save
         self._repo_load = repo_load
+        self._repo_clear = repo_clear
         self._db = db
         self._now = now_utc
         self._session: AlignmentSession | None = None
@@ -179,8 +181,17 @@ class AlignmentServiceImpl:
         return model
 
     async def cancel(self) -> None:
+        """Annule la session ET révoque l'alignement, y compris persisté.
+
+        Annuler exprime « je ne suis plus aligné » : sans l'effacement du
+        modèle SQLite, ``rehydrate()`` restaurerait ``is_aligned`` au boot
+        suivant — c'est ce qui a laissé un modèle poubelle actif après les
+        records erronés du test terrain S58.
+        """
         self._session = None
         self._is_aligned = False
+        if self._repo_clear is not None:
+            await self._repo_clear(self._db)
 
     def _require_session(self) -> AlignmentSession:
         if self._session is None:
